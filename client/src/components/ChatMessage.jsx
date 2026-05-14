@@ -31,7 +31,7 @@ export default function ChatMessage({ message }) {
 }
 
 function ToolCallBlock({ toolCall }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const getToolLabel = (name) => {
     const map = {

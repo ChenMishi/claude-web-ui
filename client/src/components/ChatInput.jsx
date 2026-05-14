@@ -1,5 +1,6 @@
 import { useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
+import ExecutionBar from './ExecutionBar';
 
 export default function ChatInput({ onSend, disabled }) {
   const { isStreaming } = useApp();
@@ -30,6 +31,7 @@ export default function ChatInput({ onSend, disabled }) {
 
   return (
     <div className="input-area">
+      <ExecutionBar />
       <div className="input-wrapper">
         <textarea
           ref={inputRef}

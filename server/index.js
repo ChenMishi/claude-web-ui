@@ -38,11 +38,18 @@ function createApp() {
     app.get('/api-docs.json', (_req, res) => res.json(spec));
   } catch {}
 
-  // Serve static frontend (Vite build output)
+  // Serve static frontend (Vite build output) — disable caching for SPA
   const publicDir = path.join(__dirname, '..', 'public');
   if (fs.existsSync(publicDir)) {
-    app.use(express.static(publicDir));
+    app.use(express.static(publicDir, {
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      },
+    }));
     app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.join(publicDir, 'index.html'));
     });
   }
@@ -59,6 +66,43 @@ function startServer(opts = {}) {
   server.timeout = 0;
   server.keepAliveTimeout = 0;
   server.headersTimeout = 0;
+
+  // Prevent server crashes from uncaught errors — log to disk and keep running
+  const crashLog = (label, err) => {
+    try {
+      const dir = require('./config').LOG_DIR || '/tmp';
+      require('fs').mkdirSync(dir, { recursive: true });
+      require('fs').appendFileSync(`${dir}/crash.log`,
+        `${new Date().toISOString()} ${label} ${err?.message || err}\n${err?.stack || ''}\n\n`);
+    } catch {}
+  };
+  process.on('uncaughtException', (err) => {
+    crashLog('uncaughtException', err);
+    console.error('[FATAL] uncaughtException:', err.message);
+  });
+  process.on('unhandledRejection', (reason) => {
+    crashLog('unhandledRejection', reason);
+    console.error('[FATAL] unhandledRejection:', reason);
+  });
+
+  // Clean up stale/orphaned claude processes left behind by previous crashes
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync('ps -eo pid,stat,etime,cmd --no-headers', { encoding: 'utf8', timeout: 5000 });
+    const now = Date.now();
+    for (const line of out.split('\n')) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 4) continue;
+      const [pid, stat, elapsed, ...cmdParts] = parts;
+      const cmd = cmdParts.join(' ');
+      if (!cmd.includes('claude') || cmd.includes('claude.js') || cmd.includes('claude-code')) continue;
+      if (pid === String(process.pid)) continue;
+      // Kill stopped (T) processes, or processes older than 1 hour
+      if (stat.includes('T')) {
+        try { process.kill(parseInt(pid), 'SIGKILL'); console.log(`Cleaned up stopped claude process PID ${pid}`); } catch {}
+      }
+    }
+  } catch {}
 
   // WebSocket terminal
   if (WebSocket && pty) {

@@ -1,7 +1,7 @@
 export default function MarkdownRenderer({ content }) {
   if (!content) return null;
   const html = renderMarkdown(content);
-  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function escapeHtml(text) {
@@ -13,12 +13,18 @@ function escapeHtml(text) {
 }
 
 function renderMarkdown(text) {
-  let html = escapeHtml(text);
-
-  // Code blocks (```...```)
-  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
+  // Extract code blocks first to avoid double-escaping their content
+  const codeBlocks = [];
+  let html = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(`<pre><code>${escapeHtml(code.trim())}</code></pre>`);
+    return `\x00CODEBLOCK${idx}\x00`;
   });
+
+  html = escapeHtml(html);
+
+  // Restore code blocks
+  html = html.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, idx) => codeBlocks[parseInt(idx)]);
 
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');

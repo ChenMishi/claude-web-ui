@@ -449,7 +449,9 @@ router.post('/session/:id/message/resolve', (req, res) => {
   if (!body.answers || typeof body.answers !== 'object') {
     return res.status(400).json({ error: 'answers is required' });
   }
-  const ok = resolvePendingApproval(id, { behavior: 'allow', updatedInput: { answers: body.answers } });
+  // Try URL param first; for new sessions (id='new') the approval was stored under 'pending'
+  let ok = resolvePendingApproval(id, { behavior: 'allow', updatedInput: { answers: body.answers } });
+  if (!ok) ok = resolvePendingApproval('pending', { behavior: 'allow', updatedInput: { answers: body.answers } });
   if (!ok) return res.status(409).json({ error: 'No pending question for this session' });
   res.json({ ok: true });
 });

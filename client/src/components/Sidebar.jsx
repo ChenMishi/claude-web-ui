@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getProjects, getProjectSessions } from '../api';
+import { getProjects, getProjectSessions, getSessionMessages } from '../api';
 import ProjectSelector from './ProjectSelector';
 import SessionList from './SessionList';
 
@@ -9,24 +9,56 @@ export default function Sidebar() {
     sidebarOpen, toggleSidebar,
     projects, setProjects,
     currentProjectId, selectProject, setSessions,
+    currentSessionId, setMessages, chatMessages,
     setView, activeView,
   } = useApp();
 
+  // Load projects on mount, restore saved project
   useEffect(() => {
     getProjects().then(projects => {
       setProjects(projects);
-      // Auto-select first project if none selected
-      if (projects.length > 0 && !currentProjectId) {
-        selectProject(projects[0].id);
+      if (projects.length > 0) {
+        const saved = projects.find(p => p.id === currentProjectId);
+        const targetId = saved ? saved.id : projects[0].id;
+        if (targetId !== currentProjectId) {
+          selectProject(targetId);
+        } else {
+          getProjectSessions(targetId).then(setSessions).catch(() => {});
+        }
       }
     }).catch(() => {});
   }, []);
 
+  // When project changes, load sessions
   useEffect(() => {
     if (currentProjectId) {
       getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
     }
   }, [currentProjectId]);
+
+  // When session changes and cache is empty, load from server
+  useEffect(() => {
+    if (!currentSessionId || !currentProjectId) return;
+    if (chatMessages.length > 0) return; // Already have messages from cache
+    getSessionMessages(currentSessionId).then(msgs => {
+      if (msgs.length === 0) return;
+      const chatMsgs = [];
+      for (const m of msgs) {
+        const content = m.message?.content;
+        if (typeof content === 'string' && content.trim()) {
+          chatMsgs.push({ role: 'user', content });
+          continue;
+        }
+        if (!Array.isArray(content)) continue;
+        const textBlocks = content.filter(c => c.type === 'text');
+        if (textBlocks.length > 0) {
+          const text = textBlocks.map(c => c.text).join('');
+          chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text });
+        }
+      }
+      setMessages(chatMsgs);
+    }).catch(() => {});
+  }, [currentSessionId, currentProjectId]);
 
   const handleNewChat = () => {
     selectProject(currentProjectId);

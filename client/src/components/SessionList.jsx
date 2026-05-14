@@ -11,19 +11,8 @@ export default function SessionList() {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
 
-  const handleSelect = async (id) => {
-    if (id === currentSessionId) return;
+  const handleSelect = (id) => {
     selectSession(id);
-    try {
-      setMessages([]);
-      const msgs = await getSessionMessages(id);
-      // Convert to chat format
-      const chatMsgs = msgs.map(m => {
-        const text = extractText(m.message?.content);
-        return { role: m.type === 'user' ? 'user' : 'assistant', content: text, raw: m };
-      }).filter(m => m.content);
-      setMessages(chatMsgs);
-    } catch {}
   };
 
   const handleDelete = async (e, id) => {
@@ -109,12 +98,4 @@ export default function SessionList() {
       )}
     </div>
   );
-}
-
-function extractText(content) {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content.filter(c => c.type === 'text').map(c => c.text).join('');
-  }
-  return '';
 }

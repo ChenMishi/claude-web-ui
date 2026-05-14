@@ -29,7 +29,7 @@ export const getSessionMessages = (id, offset = 0) => fetchJSON(`/session/${id}/
 export const resolveQuestion = (id, answers) => fetchJSON(`/session/${id}/message/resolve`, { method: 'POST', body: JSON.stringify({ answers }) });
 
 // Agent SDK chat (full tool calling via session endpoint)
-export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem, onAssistant, onToolResult, onToolUse, onAskUser, onDone, onError }) {
+export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem, onAssistant, onToolResult, onToolUse, onAskUser, onThinking, onDone, onError }) {
   const body = { prompt, cwd, options };
 
   let response;
@@ -91,18 +91,34 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
                     const content = parsed.message?.content || [];
                     const textBlocks = content.filter(c => c.type === 'text');
                     const toolBlocks = content.filter(c => c.type === 'tool_use');
+                    const thinkingBlocks = content.filter(c => c.type === 'thinking');
+                    const usage = parsed.message?.usage || null;
 
+                    if (thinkingBlocks.length > 0) {
+                      onThinking?.({ text: thinkingBlocks.map(t => t.thinking).join(' '), usage });
+                    }
                     if (textBlocks.length > 0) {
-                      onAssistant?.({ uuid: parsed.uuid, session_id: parsed.session_id, content: textBlocks.map(t => t.text).join(''), raw: parsed.message });
+                      onAssistant?.({ uuid: parsed.uuid, session_id: parsed.session_id, content: textBlocks.map(t => t.text).join(''), raw: parsed.message, usage });
                     }
                     if (toolBlocks.length > 0) {
-                      toolBlocks.forEach(t => onToolUse?.({ uuid: parsed.uuid, session_id: parsed.session_id, tool: t.name, input: t.input, tool_use_id: t.id }));
+                      toolBlocks.forEach(t => onToolUse?.({ uuid: parsed.uuid, session_id: parsed.session_id, tool: t.name, input: t.input, tool_use_id: t.id, usage }));
                     }
                   } else if (parsed.type === 'user') {
                     const content = parsed.message?.content || [];
                     const toolResults = content.filter(c => c.type === 'tool_result');
                     if (toolResults.length > 0) {
-                      toolResults.forEach(t => onToolResult?.({ tool_use_id: t.tool_use_id, content: t.content, is_error: t.is_error }));
+                      toolResults.forEach(t => {
+                        // Extract text from content blocks, fall back to raw content
+                        let text;
+                        if (typeof t.content === 'string') {
+                          text = t.content;
+                        } else if (Array.isArray(t.content)) {
+                          text = t.content.map(b => (b && b.type === 'text') ? b.text : JSON.stringify(b)).join('');
+                        } else {
+                          text = JSON.stringify(t.content || '');
+                        }
+                        onToolResult?.({ tool_use_id: t.tool_use_id, content: text, is_error: t.is_error });
+                      });
                     }
                   }
                   break;
