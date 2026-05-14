@@ -9,10 +9,29 @@ const {
 } = require('../store');
 
 // Agent SDK — enables full tool calling (Bash, Read, Write, Edit, etc.)
-const SDK_PATH = '/usr/lib/node_modules/@claude-web/server/node_modules/@anthropic-ai/claude-agent-sdk';
-const SDK_BINARY = '/usr/lib/node_modules/@claude-web/server/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude';
+// The SDK and its platform binary are npm dependencies (see package.json)
 let query;
-try { query = require(SDK_PATH).query; } catch { /* will fall back to proxy mode */ }
+try { query = require('@anthropic-ai/claude-agent-sdk').query; } catch { /* will fall back to no-tool mode */ }
+
+function findSDKBinary() {
+  try {
+    const sdkEntry = require.resolve('@anthropic-ai/claude-agent-sdk');
+    // sdkEntry: .../node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs
+    const base = path.dirname(path.dirname(sdkEntry)); // .../node_modules
+    const arch = process.arch === 'x64' ? 'x64' : 'arm64';
+    const candidates = [
+      `@anthropic-ai/claude-agent-sdk-${process.platform}-${arch}`,
+      `@anthropic-ai/claude-agent-sdk-${process.platform}-${arch}-musl`,
+    ];
+    for (const name of candidates) {
+      const bin = path.join(base, name, 'claude');
+      if (fs.existsSync(bin)) return bin;
+    }
+    return null;
+  } catch { return null; }
+}
+
+const SDK_BINARY = findSDKBinary();
 
 const router = Router();
 
