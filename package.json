@@ -1,0 +1,21 @@
+{
+  "name": "claude-web-ui",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "build": "cd client && npm run build",
+    "dev": "node server.js & cd client && npm run dev",
+    "dev:server": "node server.js",
+    "dev:client": "cd client && npm run dev"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "node-pty": "^1.1.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "ws": "^8.20.1"
+  }
+}

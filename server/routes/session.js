@@ -1,0 +1,396 @@
+const { Router } = require('express');
+const fs = require('fs');
+const path = require('path');
+const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR } = require('../config');
+const { dirNameToCwd, parseTitleFromJsonl } = require('../utils');
+const {
+  getRuntimeSession, deleteRuntimeSession, getOrCreateRuntime,
+  createPendingRuntime, assignSessionId, resolvePendingApproval, setPendingApproval
+} = require('../store');
+
+// Agent SDK — enables full tool calling (Bash, Read, Write, Edit, etc.)
+const SDK_PATH = '/usr/lib/node_modules/@claude-web/server/node_modules/@anthropic-ai/claude-agent-sdk';
+const SDK_BINARY = '/usr/lib/node_modules/@claude-web/server/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude';
+let query;
+try { query = require(SDK_PATH).query; } catch { /* will fall back to proxy mode */ }
+
+const router = Router();
+
+function sseWrite(res, ev) {
+  res.write(`event: ${ev.event}\ndata: ${JSON.stringify(ev.data)}\n\n`);
+}
+
+function handleSDKMessage(message, runtime, res, isStreaming) {
+  const log = (msg) => { /* silent in production */ };
+
+  if (message.type === 'system') {
+    if (message.session_id && !runtime.sessionId) {
+      assignSessionId(runtime, message.session_id);
+    }
+    return;
+  }
+
+  if (message.type === 'assistant') {
+    if (isStreaming) {
+      sseWrite(res, {
+        event: 'message',
+        data: {
+          type: 'assistant',
+          uuid: message.uuid || '',
+          session_id: message.session_id || '',
+          message: message.message,
+          parent_tool_use_id: message.parent_tool_use_id || null,
+        },
+      });
+    }
+    return;
+  }
+
+  if (message.type === 'user') {
+    const hasToolResult = (message.message?.content || []).some(b => b.type === 'tool_result');
+    if (hasToolResult && isStreaming) {
+      sseWrite(res, {
+        event: 'message',
+        data: {
+          type: 'user',
+          uuid: message.uuid || '',
+          session_id: message.session_id || '',
+          message: message.message,
+          parent_tool_use_id: message.parent_tool_use_id || null,
+        },
+      });
+    }
+    return;
+  }
+
+  if (message.type === 'result') {
+    if (message.subtype === 'success') {
+      const usage = message.usage || {};
+      return {
+        cost: message.total_cost_usd,
+        tokens: {
+          input: usage.input_tokens || 0,
+          output: usage.output_tokens || 0,
+          cache: { read: usage.cache_read_input_tokens || 0, write: usage.cache_creation_input_tokens || 0 },
+        },
+      };
+    }
+    return;
+  }
+}
+
+function buildSDKOptions(runtime, body, sseWriter) {
+  const agentOptions = body.options || {};
+
+  const options = {
+    cwd: runtime.cwd,
+    allowedTools: agentOptions.allowedTools || ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'AskUserQuestion'],
+    permissionMode: 'default',
+    pathToClaudeCodeExecutable: SDK_BINARY,
+    ...runtime.sessionId ? { resume: runtime.sessionId } : {},
+    ...agentOptions.model !== undefined ? { model: agentOptions.model } : {},
+    ...agentOptions.maxTurns !== undefined ? { maxTurns: agentOptions.maxTurns } : {},
+    ...agentOptions.systemPrompt !== undefined ? { systemPrompt: agentOptions.systemPrompt } : {},
+    ...agentOptions.maxBudgetUsd !== undefined ? { maxBudgetUsd: agentOptions.maxBudgetUsd } : {},
+    ...agentOptions.effort !== undefined ? { effort: agentOptions.effort } : {},
+    ...agentOptions.additionalDirectories?.length ? { additionalDirectories: agentOptions.additionalDirectories } : {},
+    ...agentOptions.env !== undefined ? { env: agentOptions.env } : {},
+    ...agentOptions.thinking !== undefined ? { thinking: agentOptions.thinking } : {},
+    ...runtime.abort ? { abortController: runtime.abort } : {},
+  };
+
+  // canUseTool approves all tools; AskUserQuestion pauses for user input
+  options.canUseTool = async (toolName, input) => {
+    if (toolName === 'AskUserQuestion') {
+      if (!sseWriter) return { behavior: 'deny', message: 'AskUserQuestion requires stream mode' };
+      return new Promise((resolve) => {
+        setPendingApproval(runtime.sessionId || 'pending', resolve);
+        sseWriter({ event: 'ask_user', data: { questions: input.questions || [] } });
+      });
+    }
+    return { behavior: 'allow', updatedInput: input };
+  };
+
+  return options;
+}
+
+// --- Session info ---
+router.get('/session/:id', (req, res) => {
+  const { id } = req.params;
+  const runtime = getRuntimeSession(id);
+  let found = null;
+  if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
+    for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const file = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`);
+      if (fs.existsSync(file)) {
+        let title = parseTitleFromJsonl(file) || id.slice(0, 8);
+        const metaPath = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.meta.json`);
+        if (fs.existsSync(metaPath)) {
+          try { title = JSON.parse(fs.readFileSync(metaPath, 'utf8')).title; } catch {}
+        }
+        const cwd = runtime?.cwd || dirNameToCwd(entry.name);
+        let lastModified = 0;
+        try { lastModified = fs.statSync(file).mtimeMs; } catch {}
+        found = { id, title, cwd, status: runtime?.status || 'idle', lastModified };
+        break;
+      }
+    }
+  }
+  if (!found) {
+    try {
+      if (fs.existsSync(SESSIONS_DIR)) {
+        for (const f of fs.readdirSync(SESSIONS_DIR)) {
+          if (!f.endsWith('.json')) continue;
+          try {
+            const data = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
+            if (data.sessionId === id) {
+              found = { id, title: data.summary || id.slice(0, 8), cwd: data.cwd || '', status: runtime?.status || 'idle', lastModified: data.startedAt || 0 };
+              break;
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+  if (!found) return res.status(404).json({ error: 'Session not found' });
+  res.json(found);
+});
+
+// Delete session
+router.delete('/session/:id', (req, res) => {
+  const { id } = req.params;
+  const runtime = getRuntimeSession(id);
+  runtime?.abort?.abort();
+  deleteRuntimeSession(id);
+  let deleted = false;
+  if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
+    for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const file = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`);
+      if (fs.existsSync(file)) {
+        fs.rmSync(file, { force: true });
+        const metaFile = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.meta.json`);
+        if (fs.existsSync(metaFile)) fs.rmSync(metaFile, { force: true });
+        deleted = true;
+        break;
+      }
+    }
+  }
+  if (!deleted) return res.status(404).json({ error: 'Session not found' });
+  res.json({ ok: true });
+});
+
+// Abort session
+router.post('/session/:id/abort', (req, res) => {
+  const { id } = req.params;
+  const runtime = getRuntimeSession(id);
+  if (!runtime) return res.status(404).json({ error: 'Session not found' });
+  if (runtime.status !== 'busy') return res.status(409).json({ error: 'Session is not busy' });
+  runtime.abort?.abort();
+  res.json({ ok: true });
+});
+
+// Rename session (sidecar .meta.json)
+router.patch('/session/:id', (req, res) => {
+  const { id } = req.params;
+  const title = (req.body.title || '').trim();
+  if (!title) return res.status(400).json({ error: 'title is required' });
+  let found = false;
+  if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
+    for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const file = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`);
+      if (fs.existsSync(file)) {
+        const metaPath = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.meta.json`);
+        fs.writeFileSync(metaPath, JSON.stringify({ title }), 'utf8');
+        found = true;
+        break;
+      }
+    }
+  }
+  if (!found) return res.status(404).json({ error: 'Session not found' });
+  res.json({ ok: true });
+});
+
+// Get session messages
+router.get('/session/:id/message', (req, res) => {
+  const { id } = req.params;
+  const offset = parseInt(req.query.offset || '0') || 0;
+  const limit = 200;
+  let jsonlPath = null;
+  if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
+    for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const file = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`);
+      if (fs.existsSync(file)) { jsonlPath = file; break; }
+    }
+  }
+  if (!jsonlPath) return res.json([]);
+
+  const messages = [];
+  try {
+    const lines = fs.readFileSync(jsonlPath, 'utf8').split('\n').filter(Boolean);
+    for (let i = offset; i < Math.min(lines.length, offset + limit); i++) {
+      try {
+        const rec = JSON.parse(lines[i]);
+        if (rec.type === 'user' || rec.type === 'assistant') {
+          messages.push(rec);
+        }
+      } catch {}
+    }
+  } catch {}
+  res.json(messages);
+});
+
+// Send message (SSE stream using Agent SDK with full tool calling)
+router.post('/session/:id/message', async (req, res) => {
+  const { id } = req.params;
+  const isNew = id === 'new';
+  const body = req.body || {};
+
+  if (!query) {
+    return res.status(500).json({ error: 'Agent SDK not available. Tool calling is disabled.' });
+  }
+
+  let runtime;
+  if (isNew) {
+    if (!body.cwd) return res.status(400).json({ error: 'cwd is required for new sessions' });
+    runtime = createPendingRuntime(body.cwd);
+  } else {
+    let cwd = body.cwd;
+    let foundInDir = null;
+    if (!cwd) {
+      const existing = getRuntimeSession(id);
+      cwd = existing?.cwd;
+      if (!cwd && fs.existsSync(CLAUDE_PROJECTS_DIR)) {
+        for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          if (fs.existsSync(path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`))) {
+            // Read cwd from the JSONL metadata
+            try {
+              const content = fs.readFileSync(path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`), 'utf8');
+              const firstLine = content.split('\n').find(l => l.includes('"cwd"'));
+              if (firstLine) {
+                const obj = JSON.parse(firstLine);
+                if (typeof obj.cwd === 'string') cwd = obj.cwd;
+              }
+            } catch {}
+            if (!cwd) cwd = dirNameToCwd(entry.name);
+            foundInDir = entry.name;
+            break;
+          }
+        }
+      }
+    }
+    if (!cwd) return res.status(400).json({ error: 'cwd not found for session' });
+
+    // Ensure session file is in the SDK's expected directory
+    if (foundInDir && fs.existsSync(CLAUDE_PROJECTS_DIR)) {
+      const { getProjectDirName } = require('../store');
+      const expectedDir = getProjectDirName(cwd);
+      if (foundInDir !== expectedDir) {
+        const srcFile = path.join(CLAUDE_PROJECTS_DIR, foundInDir, `${id}.jsonl`);
+        const dstDir = path.join(CLAUDE_PROJECTS_DIR, expectedDir);
+        const dstFile = path.join(dstDir, `${id}.jsonl`);
+        if (!fs.existsSync(dstDir)) fs.mkdirSync(dstDir, { recursive: true });
+        if (!fs.existsSync(dstFile)) {
+          fs.copyFileSync(srcFile, dstFile);
+          // Write .cwd for future lookups
+          fs.writeFileSync(path.join(dstDir, '.cwd'), cwd, 'utf8');
+        }
+      }
+    }
+
+    runtime = getOrCreateRuntime(id, cwd);
+  }
+
+  if (runtime.status === 'busy') {
+    return res.status(409).json({ error: 'Session is busy' });
+  }
+
+  const prompt = (body.prompt || '').trim();
+  if (!prompt) return res.status(400).json({ error: 'prompt is required' });
+
+  const wantsStream = req.headers.accept?.includes('text/event-stream') || req.query.stream === '1';
+
+  runtime.status = 'busy';
+  runtime.abort = new AbortController();
+
+  const sseWriter = wantsStream ? (ev) => sseWrite(res, ev) : null;
+
+  try {
+    const options = buildSDKOptions(runtime, body, sseWriter);
+
+    if (wantsStream) {
+      // SSE streaming mode
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+    }
+
+    let result;
+    const allMessages = [];
+
+    for await (const message of query({ prompt, options })) {
+      result = handleSDKMessage(message, runtime, res, wantsStream);
+      if (message.type === 'assistant' || message.type === 'user') {
+        allMessages.push(message);
+      }
+      if (message.type === 'result' && result) {
+        // result holds { cost, tokens }
+      }
+    }
+
+    if (wantsStream) {
+      sseWrite(res, {
+        event: 'done',
+        data: {
+          sessionId: runtime.sessionId,
+          cost: result?.cost,
+          tokens: result?.tokens,
+        },
+      });
+      res.end();
+    } else {
+      // Blocking mode — return all messages
+      res.json({
+        sessionId: runtime.sessionId,
+        cost: result?.cost,
+        tokens: result?.tokens,
+        messages: allMessages,
+      });
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      if (!res.headersSent) res.status(499).json({ error: 'aborted' });
+      else res.end();
+    } else {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (wantsStream && res.headersSent) {
+        sseWrite(res, { event: 'error', data: { message: errMsg } });
+        res.end();
+      } else if (!res.headersSent) {
+        res.status(500).json({ error: errMsg });
+      }
+    }
+  } finally {
+    runtime.status = 'idle';
+    runtime.abort = null;
+  }
+});
+
+// Resolve AskUserQuestion
+router.post('/session/:id/message/resolve', (req, res) => {
+  const { id } = req.params;
+  const body = req.body || {};
+  if (!body.answers || typeof body.answers !== 'object') {
+    return res.status(400).json({ error: 'answers is required' });
+  }
+  const ok = resolvePendingApproval(id, { behavior: 'allow', updatedInput: { answers: body.answers } });
+  if (!ok) return res.status(409).json({ error: 'No pending question for this session' });
+  res.json({ ok: true });
+});
+
+module.exports = router;
