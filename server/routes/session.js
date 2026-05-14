@@ -342,11 +342,19 @@ router.post('/session/:id/message', async (req, res) => {
     const options = buildSDKOptions(runtime, body, sseWriter);
 
     if (wantsStream) {
-      // SSE streaming mode
+      // SSE streaming mode — disable all timeouts for long-running agent sessions
+      req.setTimeout(0);
+      req.socket?.setTimeout?.(0);
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
+
+      // Send keepalive comments every 15s to prevent proxy timeouts
+      const keepalive = setInterval(() => {
+        try { res.write(':keepalive\n\n'); } catch {}
+      }, 15000);
+      res.on('close', () => clearInterval(keepalive));
     }
 
     let result;

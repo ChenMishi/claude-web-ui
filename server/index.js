@@ -55,6 +55,11 @@ function startServer(opts = {}) {
   const app = createApp();
   const server = http.createServer(app);
 
+  // Disable timeouts for SSE streaming (long-running Agent SDK sessions)
+  server.timeout = 0;
+  server.keepAliveTimeout = 0;
+  server.headersTimeout = 0;
+
   // WebSocket terminal
   if (WebSocket && pty) {
     const wss = new WebSocket.Server({ noServer: true });
