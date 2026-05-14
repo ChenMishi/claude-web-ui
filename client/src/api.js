@@ -58,6 +58,7 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
   const decoder = new TextDecoder();
   let buffer = '';
   let currentEvent = '';
+  let receivedDone = false;
 
   try {
     while (true) {
@@ -70,57 +71,67 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
         break;
       }
       const { done, value } = chunk;
-      if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      if (value) {
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          currentEvent = line.slice(7).trim();
-        } else if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          try {
-            const parsed = JSON.parse(data);
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            try {
+              const parsed = JSON.parse(data);
 
-            switch (currentEvent) {
-              case 'message':
-                if (parsed.type === 'assistant') {
-                  const content = parsed.message?.content || [];
-                  const textBlocks = content.filter(c => c.type === 'text');
-                  const toolBlocks = content.filter(c => c.type === 'tool_use');
+              switch (currentEvent) {
+                case 'message':
+                  if (parsed.type === 'assistant') {
+                    const content = parsed.message?.content || [];
+                    const textBlocks = content.filter(c => c.type === 'text');
+                    const toolBlocks = content.filter(c => c.type === 'tool_use');
 
-                  if (textBlocks.length > 0) {
-                    onAssistant?.({ uuid: parsed.uuid, session_id: parsed.session_id, content: textBlocks.map(t => t.text).join(''), raw: parsed.message });
+                    if (textBlocks.length > 0) {
+                      onAssistant?.({ uuid: parsed.uuid, session_id: parsed.session_id, content: textBlocks.map(t => t.text).join(''), raw: parsed.message });
+                    }
+                    if (toolBlocks.length > 0) {
+                      toolBlocks.forEach(t => onToolUse?.({ uuid: parsed.uuid, session_id: parsed.session_id, tool: t.name, input: t.input, tool_use_id: t.id }));
+                    }
+                  } else if (parsed.type === 'user') {
+                    const content = parsed.message?.content || [];
+                    const toolResults = content.filter(c => c.type === 'tool_result');
+                    if (toolResults.length > 0) {
+                      toolResults.forEach(t => onToolResult?.({ tool_use_id: t.tool_use_id, content: t.content, is_error: t.is_error }));
+                    }
                   }
-                  if (toolBlocks.length > 0) {
-                    toolBlocks.forEach(t => onToolUse?.({ uuid: parsed.uuid, session_id: parsed.session_id, tool: t.name, input: t.input, tool_use_id: t.id }));
-                  }
-                } else if (parsed.type === 'user') {
-                  const content = parsed.message?.content || [];
-                  const toolResults = content.filter(c => c.type === 'tool_result');
-                  if (toolResults.length > 0) {
-                    toolResults.forEach(t => onToolResult?.({ tool_use_id: t.tool_use_id, content: t.content, is_error: t.is_error }));
-                  }
-                }
-                break;
+                  break;
 
-              case 'ask_user':
-                onAskUser?.(parsed);
-                break;
+                case 'ask_user':
+                  onAskUser?.(parsed);
+                  break;
 
-              case 'done':
-                onDone?.(parsed);
-                break;
+                case 'done':
+                  receivedDone = true;
+                  onDone?.(parsed);
+                  break;
 
-              case 'error':
-                onError?.(new Error(parsed.message));
-                break;
-            }
-          } catch {}
-          currentEvent = '';
+                case 'error':
+                  onError?.(new Error(parsed.message));
+                  break;
+              }
+            } catch {}
+            currentEvent = '';
+          }
         }
+      }
+
+      if (done) {
+        // Stream ended — if no SSE 'done' event was received, report error
+        if (!receivedDone) {
+          onError?.(new Error('连接中断: 服务器提前关闭了连接'));
+        }
+        break;
       }
     }
   } catch (err) {

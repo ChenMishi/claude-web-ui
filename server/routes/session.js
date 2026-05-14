@@ -36,7 +36,24 @@ const SDK_BINARY = findSDKBinary();
 const router = Router();
 
 function sseWrite(res, ev) {
-  res.write(`event: ${ev.event}\ndata: ${JSON.stringify(ev.data)}\n\n`);
+  try {
+    if (res.writableEnded) return;
+    const chunk = `event: ${ev.event}\ndata: ${JSON.stringify(ev.data)}\n\n`;
+    if (!res.write(chunk)) {
+      // Backpressure — drain is fine, we just wait for it
+      res.once('drain', () => {});
+    }
+  } catch {}
+}
+
+function logError(msg, err) {
+  try {
+    const { LOG_DIR } = require('../config');
+    const fs = require('fs');
+    const dir = LOG_DIR || '/tmp';
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(`${dir}/server-error.log`, `${new Date().toISOString()} ${msg} ${err?.message || err}\n`);
+  } catch {}
 }
 
 function handleSDKMessage(message, runtime, res, isStreaming) {
@@ -350,23 +367,35 @@ router.post('/session/:id/message', async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
 
+      // Prevent uncaught socket errors from crashing the process
+      res.on('error', (e) => { logError('Response socket error', e); });
+      req.on('error', (e) => { logError('Request socket error', e); });
+
       // Send keepalive comments every 15s to prevent proxy timeouts
-      const keepalive = setInterval(() => {
-        try { res.write(':keepalive\n\n'); } catch {}
+      let keepalive = null;
+      keepalive = setInterval(() => {
+        try { if (!res.writableEnded) res.write(':keepalive\n\n'); } catch {}
       }, 15000);
-      res.on('close', () => clearInterval(keepalive));
+      res.on('close', () => { if (keepalive) clearInterval(keepalive); });
     }
 
     let result;
     const allMessages = [];
 
     for await (const message of query({ prompt, options })) {
-      result = handleSDKMessage(message, runtime, res, wantsStream);
+      const info = handleSDKMessage(message, runtime, res, wantsStream);
       if (message.type === 'assistant' || message.type === 'user') {
         allMessages.push(message);
       }
-      if (message.type === 'result' && result) {
-        // result holds { cost, tokens }
+      if (message.type === 'result') {
+        if (message.subtype !== 'success') {
+          // SDK returned an error result — surface it
+          const errText = (message.errors || []).join('; ') || `SDK result: ${message.subtype}`;
+          logError('SDK result error', errText);
+          result = { error: errText };
+        } else {
+          result = info;
+        }
       }
     }
 
@@ -390,17 +419,22 @@ router.post('/session/:id/message', async (req, res) => {
       });
     }
   } catch (err) {
+    logError('Session message error', err);
     if (err.name === 'AbortError') {
-      if (!res.headersSent) res.status(499).json({ error: 'aborted' });
-      else res.end();
+      try {
+        if (!res.headersSent) res.status(499).json({ error: 'aborted' });
+        else if (!res.writableEnded) res.end();
+      } catch {}
     } else {
       const errMsg = err instanceof Error ? err.message : String(err);
-      if (wantsStream && res.headersSent) {
-        sseWrite(res, { event: 'error', data: { message: errMsg } });
-        res.end();
-      } else if (!res.headersSent) {
-        res.status(500).json({ error: errMsg });
-      }
+      try {
+        if (wantsStream && res.headersSent && !res.writableEnded) {
+          sseWrite(res, { event: 'error', data: { message: errMsg } });
+          res.end();
+        } else if (!res.headersSent) {
+          res.status(500).json({ error: errMsg });
+        }
+      } catch {}
     }
   } finally {
     runtime.status = 'idle';
