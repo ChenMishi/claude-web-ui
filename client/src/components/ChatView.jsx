@@ -103,7 +103,7 @@ export default function ChatView() {
 
     // Append a summary system message
     const summary = buildAbortSummary(execStatus);
-    appendMessage({ role: 'system', content: summary });
+    appendMessage({ role: 'system', content: summary, timestamp: Date.now() });
 
     execReset();
   }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset]);
@@ -122,7 +122,7 @@ export default function ChatView() {
     setStreaming(true);
     execStart();
     startTimer();
-    appendMessage({ role: 'user', content: text });
+    appendMessage({ role: 'user', content: text, timestamp: Date.now() });
     hasAssistantText.current = false;
     textAccum.current = '';
 
@@ -143,7 +143,7 @@ export default function ChatView() {
         if (!hasAssistantText.current) {
           hasAssistantText.current = true;
           textAccum.current = content;
-          appendMessage({ role: 'assistant', content, streaming: true });
+          appendMessage({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
         } else {
           textAccum.current += content;
           updateLastMessage(textAccum.current);

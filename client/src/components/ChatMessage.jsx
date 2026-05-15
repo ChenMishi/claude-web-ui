@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 
+function formatTime(ts) {
+  if (!ts) return null;
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 export default function ChatMessage({ message }) {
-  const { role, content, error, toolCall, toolResult } = message;
+  const { role, content, error, toolCall, toolResult, timestamp } = message;
 
   if (role === 'system') {
     const isAbort = typeof content === 'string' && content.startsWith('⏹');
@@ -27,7 +34,10 @@ export default function ChatMessage({ message }) {
 
   return (
     <div className={`message ${role}`}>
-      <div className="role-label">{labels[role] || role}</div>
+      <div className="message-header">
+        <span className="role-label">{labels[role] || role}</span>
+        {timestamp && <span className="message-time">{formatTime(timestamp)}</span>}
+      </div>
       <div className="message-content">
         <MarkdownRenderer content={content} />
       </div>
