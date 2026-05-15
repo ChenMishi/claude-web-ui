@@ -22,13 +22,16 @@ function saveCache(cache) {
   } catch {}
 }
 
+const initMessageCache = loadState('messageCache', {});
+const initSessionId = loadState('currentSessionId', null);
+
 const initialState = {
   projects: [],
   currentProjectId: loadState('currentProjectId', null),
   sessions: [],
-  currentSessionId: loadState('currentSessionId', null),
-  chatMessages: [],
-  messageCache: loadState('messageCache', {}),
+  currentSessionId: initSessionId,
+  chatMessages: initSessionId && initMessageCache[initSessionId] ? initMessageCache[initSessionId] : [],
+  messageCache: initMessageCache,
   isStreaming: false,
   sidebarOpen: true,
   activeView: 'chat',
@@ -50,11 +53,20 @@ function reducer(state, action) {
   switch (action.type) {
     case 'SET_PROJECTS':
       next = { ...state, projects: action.payload }; break;
-    case 'SELECT_PROJECT':
+    case 'SELECT_PROJECT': {
+      // Save current session messages to cache before switching
+      const saveKey = state.currentSessionId || '__pending__';
+      const newCache = { ...state.messageCache };
+      if (state.chatMessages.length > 0) {
+        newCache[saveKey] = state.chatMessages;
+        saveCache(newCache);
+      }
       localStorage.setItem('claude-ui:currentProjectId', JSON.stringify(action.payload));
       localStorage.removeItem('claude-ui:currentSessionId');
       next = { ...state, currentProjectId: action.payload, currentSessionId: null,
-        chatMessages: [], messageCache: {} }; break;
+        chatMessages: [], messageCache: newCache };
+      break;
+    }
     case 'SET_SESSIONS':
       next = { ...state, sessions: action.payload }; break;
     case 'SELECT_SESSION': {
