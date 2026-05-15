@@ -109,16 +109,18 @@ export default function Sidebar() {
         </button>
 
         <div className="sidebar-theme-row">
-          {THEMES.map(t => (
-            <button
-              key={t.key}
-              className={`sidebar-theme-btn ${theme === t.key ? 'active' : ''}`}
-              onClick={() => setSetting('theme', t.key)}
-              title={t.label}
-            >
-              {t.icon}
-            </button>
-          ))}
+          <span className="sidebar-theme-label">主题</span>
+          <div className="theme-slider">
+            {THEMES.map(t => (
+              <button
+                key={t.key}
+                className={`theme-slider-btn ${theme === t.key ? 'active' : ''}`}
+                onClick={() => setSetting('theme', t.key)}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <button onClick={toggleSidebar} style={{ marginTop: 8, color: 'var(--text-muted)' }}>

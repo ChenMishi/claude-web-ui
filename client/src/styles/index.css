@@ -286,34 +286,49 @@ html, body, #root {
 .sidebar-nav button:hover { background: rgba(108, 99, 255, 0.08); color: var(--text-primary); }
 .sidebar-nav button.active { background: rgba(108, 99, 255, 0.12); color: var(--accent); }
 
-/* Sidebar theme buttons — compact row in nav */
+/* Sidebar theme row — label + segmented slider */
 .sidebar-theme-row {
-  display: flex;
-  gap: 4px;
-  padding: 4px 12px;
+  padding: 8px 12px 4px;
 }
 
-.sidebar-theme-btn {
-  flex: 1;
-  padding: 6px 0;
-  background: transparent;
+.sidebar-theme-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.theme-slider {
+  display: flex;
+  background: var(--bg-primary);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.theme-slider-btn {
+  flex: 1;
+  padding: 6px 4px;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s;
-  text-align: center;
-  line-height: 1;
+  white-space: nowrap;
 }
 
-.sidebar-theme-btn:hover {
-  border-color: var(--accent);
-  background: rgba(108, 99, 255, 0.08);
+.theme-slider-btn:hover {
+  color: var(--text-primary);
+  background: rgba(108, 99, 255, 0.06);
 }
 
-.sidebar-theme-btn.active {
-  border-color: var(--accent);
+.theme-slider-btn.active {
   background: var(--accent);
+  color: #fff;
+  font-weight: 500;
 }
 
 /* Main Content */
