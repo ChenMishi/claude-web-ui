@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { runAgent, getProjects, getProjectSessions } from '../api';
+import { runAgent, getProjects, getProjectSessions, abortSession } from '../api';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
@@ -109,7 +109,15 @@ export default function ChatView() {
   }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset]);
 
   const handleSend = useCallback((text) => {
-    if (!text.trim() || isStreaming) return;
+    if (!text.trim()) return;
+    // If streaming, abort current session first, then send new message
+    if (isStreaming) {
+      abortedRef.current = true;
+      stopTimer();
+      updateLastMessage(null);
+      setStreaming(false);
+      if (currentSessionId) abortSession(currentSessionId).catch(() => {});
+    }
     setStreaming(true);
     execStart();
     startTimer();
