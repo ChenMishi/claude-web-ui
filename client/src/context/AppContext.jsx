@@ -22,6 +22,12 @@ function saveCache(cache) {
   } catch {}
 }
 
+// Strip tool call/result blocks when restoring a session — only show text conversation
+function textOnly(msgs) {
+  if (!msgs || !msgs.length) return [];
+  return msgs.filter(m => m.role !== 'tool');
+}
+
 const initMessageCache = loadState('messageCache', {});
 const initSessionId = loadState('currentSessionId', null);
 
@@ -30,7 +36,7 @@ const initialState = {
   currentProjectId: loadState('currentProjectId', null),
   sessions: [],
   currentSessionId: initSessionId,
-  chatMessages: initSessionId && initMessageCache[initSessionId] ? initMessageCache[initSessionId] : [],
+  chatMessages: initSessionId && initMessageCache[initSessionId] ? textOnly(initMessageCache[initSessionId]) : [],
   messageCache: initMessageCache,
   isStreaming: false,
   sidebarOpen: true,
@@ -77,7 +83,7 @@ function reducer(state, action) {
       if (state.chatMessages.length > 0) {
         cache[saveKey] = state.chatMessages;
       }
-      const restored = cache[sid] || [];
+      const restored = textOnly(cache[sid] || []);
       saveCache(cache);
       next = { ...state, currentSessionId: sid, chatMessages: restored, messageCache: cache };
       break;
