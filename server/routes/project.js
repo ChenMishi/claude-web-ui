@@ -55,9 +55,9 @@ router.get('/project', async (_req, res) => {
 // Browse filesystem directories (for link dialog)
 router.get('/fs/dirs', (req, res) => {
   const dirPath = req.query.path ?? os.homedir();
-  // Restrict browsing to home directory
-  if (!isPathInside(dirPath, os.homedir())) {
-    return res.status(403).json({ error: 'Forbidden — path outside home directory' });
+  // Only block traversal above root filesystem
+  if (!path.isAbsolute(dirPath) || dirPath.includes('..')) {
+    return res.status(403).json({ error: 'Forbidden — invalid path' });
   }
   if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Path not found' });
   if (!fs.statSync(dirPath).isDirectory()) return res.status(400).json({ error: 'Not a directory' });
@@ -79,8 +79,8 @@ router.post('/fs/mkdir', (req, res) => {
   if (name.includes('/') || name.includes('\\') || name === '.' || name === '..') {
     return res.status(400).json({ error: 'Invalid directory name' });
   }
-  if (!isPathInside(parentPath, os.homedir())) {
-    return res.status(403).json({ error: 'Forbidden — path outside home directory' });
+  if (!path.isAbsolute(parentPath) || parentPath.includes('..')) {
+    return res.status(403).json({ error: 'Forbidden — invalid path' });
   }
   const newPath = path.join(parentPath, name);
   if (fs.existsSync(newPath)) return res.status(409).json({ error: 'Directory already exists' });
