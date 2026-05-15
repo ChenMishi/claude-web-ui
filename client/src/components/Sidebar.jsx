@@ -40,9 +40,29 @@ export default function Sidebar() {
     if (currentProjectId) {
       getProjectSessions(currentProjectId).then(sessions => {
         setSessions(sessions);
-        // Auto-select most recent session if none is active
+        // Auto-select and load messages for the most recent session
         if (!currentSessionId && sessions.length > 0) {
-          selectSession(sessions[0].id);
+          const latestId = sessions[0].id;
+          selectSession(latestId);
+          // Also directly load messages (bypasses the other effect's dependency chain)
+          getSessionMessages(latestId).then(msgs => {
+            if (msgs.length === 0) return;
+            const chatMsgs = [];
+            for (const m of msgs) {
+              const content = m.message?.content;
+              if (typeof content === 'string' && content.trim()) {
+                chatMsgs.push({ role: 'user', content });
+                continue;
+              }
+              if (!Array.isArray(content)) continue;
+              const textBlocks = content.filter(c => c.type === 'text');
+              if (textBlocks.length > 0) {
+                const text = textBlocks.map(c => c.text).join('');
+                chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text });
+              }
+            }
+            setMessages(chatMsgs);
+          }).catch(() => {});
         }
       }).catch(() => {});
     }
@@ -50,6 +70,7 @@ export default function Sidebar() {
 
   // When session changes and cache is empty, load from server
   useEffect(() => {
+    console.log('[loadMessages] effect running: currentSessionId=', currentSessionId, 'currentProjectId=', currentProjectId, 'chatMessages.length=', chatMessages.length);
     if (!currentSessionId || !currentProjectId) return;
     if (chatMessages.length > 0) return; // Already have messages from cache
     console.log('[loadMessages] fetching for session:', currentSessionId);
