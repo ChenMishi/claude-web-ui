@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getDirs, linkProject } from '../api';
+import { getDirs, linkProject, unlinkProject } from '../api';
 
 const BASE = '/api';
 
@@ -21,6 +21,16 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
       await linkProject(currentPath);
       onLink();
       setShowDialog(false);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleUnlink = async (id) => {
+    if (!confirm('确定取消链接此项目？会话文件不会被删除。')) return;
+    try {
+      await unlinkProject(id);
+      onLink(); // refresh project list
     } catch (err) {
       alert(err.message);
     }
@@ -64,6 +74,9 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
       </select>
       <div className="project-actions">
         <button onClick={() => setShowDialog(true)}>+ 链接项目</button>
+        {currentProjectId && (
+          <button className="danger" onClick={() => handleUnlink(currentProjectId)}>取消链接</button>
+        )}
       </div>
 
       {currentProjectId && project && (

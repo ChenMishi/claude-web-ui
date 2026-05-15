@@ -204,6 +204,11 @@ html, body, #root {
   color: var(--text-primary);
 }
 
+.project-actions button.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 /* Session List */
 .session-list {
   display: flex;

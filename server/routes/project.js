@@ -102,9 +102,24 @@ router.post('/project/link', (req, res) => {
   const dirPath = path.join(CLAUDE_PROJECTS_DIR, dirName);
   if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) fs.mkdirSync(CLAUDE_PROJECTS_DIR, { recursive: true });
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-  // Write .cwd metadata file for reliable reverse mapping
   fs.writeFileSync(path.join(dirPath, '.cwd'), cwd, 'utf8');
   res.json({ ok: true, id: dirName, cwd });
+});
+
+// Unlink a project
+router.delete('/project/:id', (req, res) => {
+  const { id } = req.params;
+  if (!id || id.includes('..') || id.includes('/')) {
+    return res.status(400).json({ error: 'Invalid project id' });
+  }
+  const dirPath = path.join(CLAUDE_PROJECTS_DIR, id);
+  if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Project not found' });
+  try {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: `删除失败: ${err.message}` });
+  }
 });
 
 // List sessions for a project
