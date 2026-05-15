@@ -1,10 +1,12 @@
 const BASE = '/api';
 
 export async function fetchJSON(url, opts = {}) {
-  const res = await fetch(`${BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json', ...opts.headers },
-    ...opts,
-  });
+  const headers = { ...opts.headers };
+  // Only set Content-Type on requests with a body (avoid CORS preflight on GET)
+  if (opts.method && opts.method !== 'GET' && opts.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const res = await fetch(`${BASE}${url}`, { ...opts, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || `HTTP ${res.status}`);
