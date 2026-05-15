@@ -1,4 +1,12 @@
+/* ===== Base (shared across themes) ===== */
 :root {
+  --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  --sidebar-width: 280px;
+}
+
+/* ===== Dark theme (default) ===== */
+:root, [data-theme="dark"] {
   --bg-primary: #1a1a2e;
   --bg-secondary: #16213e;
   --bg-tertiary: #1e1e3f;
@@ -10,9 +18,69 @@
   --danger: #ff6b6b;
   --danger-bg: rgba(255, 107, 107, 0.1);
   --success: #4caf50;
-  --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
-  --sidebar-width: 280px;
+  --code-bg: #0d0d1f;
+  --code-block-bg: #111133;
+  --code-block-text: #e0e0ff;
+  --heading-color: #c0b8ff;
+  --link-color: #82b1ff;
+  --gradient-start: #6c63ff;
+  --gradient-end: #e040fb;
+  --user-label: #e040fb;
+  --abort-color: #ffd54f;
+  --abort-bg: rgba(255, 213, 79, 0.08);
+  --abort-border: rgba(255, 213, 79, 0.3);
+}
+
+/* ===== Light theme ===== */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f4f4f5;
+  --bg-tertiary: #eaeaec;
+  --border: #d4d4d8;
+  --text-primary: #18181b;
+  --text-muted: #71717a;
+  --accent: #5c4dff;
+  --accent-hover: #4a3de0;
+  --danger: #e53935;
+  --danger-bg: rgba(229, 57, 53, 0.07);
+  --success: #2e7d32;
+  --code-bg: #f4f4f5;
+  --code-block-bg: #fafafa;
+  --code-block-text: #27272a;
+  --heading-color: #5c4dff;
+  --link-color: #5c4dff;
+  --gradient-start: #5c4dff;
+  --gradient-end: #c026d3;
+  --user-label: #c026d3;
+  --abort-color: #b45309;
+  --abort-bg: rgba(180, 83, 9, 0.07);
+  --abort-border: rgba(180, 83, 9, 0.25);
+}
+
+/* ===== Warm theme ===== */
+[data-theme="warm"] {
+  --bg-primary: #faf8f5;
+  --bg-secondary: #f0ede8;
+  --bg-tertiary: #e8e4de;
+  --border: #d5d0c8;
+  --text-primary: #3d3929;
+  --text-muted: #8c856d;
+  --accent: #7c6f5c;
+  --accent-hover: #6b5f4e;
+  --danger: #c5554a;
+  --danger-bg: rgba(197, 85, 74, 0.07);
+  --success: #5a8a4a;
+  --code-bg: #f0ede8;
+  --code-block-bg: #f5f2ec;
+  --code-block-text: #3d3929;
+  --heading-color: #5c4f3c;
+  --link-color: #7c6f5c;
+  --gradient-start: #7c6f5c;
+  --gradient-end: #b8956a;
+  --user-label: #b8956a;
+  --abort-color: #b45309;
+  --abort-bg: rgba(180, 83, 9, 0.07);
+  --abort-border: rgba(180, 83, 9, 0.25);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -56,7 +124,7 @@ html, body, #root {
 .sidebar-header h2 {
   font-size: 16px;
   font-weight: 600;
-  background: linear-gradient(135deg, #6c63ff, #e040fb);
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -273,7 +341,7 @@ html, body, #root {
 .welcome h2 {
   font-size: 28px;
   margin-bottom: 12px;
-  background: linear-gradient(135deg, #6c63ff, #e040fb);
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -350,14 +418,14 @@ html, body, #root {
   letter-spacing: 0.5px;
 }
 
-.message.user .role-label { color: #e040fb; }
+.message.user .role-label { color: var(--user-label); }
 
 /* Markdown Styles */
 .message-content p { margin-bottom: 8px; }
 .message-content p:last-child { margin-bottom: 0; }
 
 .message-content pre {
-  background: #0d0d1f;
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 14px;
@@ -371,7 +439,7 @@ html, body, #root {
 }
 
 .message-content code {
-  background: #0d0d1f;
+  background: var(--code-bg);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: var(--font-mono);
@@ -385,7 +453,7 @@ html, body, #root {
 
 .message-content h1, .message-content h2, .message-content h3, .message-content h4 {
   margin: 12px 0 6px;
-  color: #c0b8ff;
+  color: var(--heading-color);
 }
 
 .message-content blockquote {
@@ -398,7 +466,7 @@ html, body, #root {
 .message-content table { border-collapse: collapse; margin: 8px 0; width: 100%; font-size: 13px; }
 .message-content th, .message-content td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
 .message-content th { background: var(--bg-secondary); }
-.message-content a { color: #82b1ff; }
+.message-content a { color: var(--link-color); }
 
 /* Typing indicator */
 .typing-indicator {
@@ -505,9 +573,9 @@ html, body, #root {
 }
 
 .system-msg.abort {
-  color: #ffd54f;
-  background: rgba(255, 213, 79, 0.08);
-  border: 1px solid rgba(255, 213, 79, 0.3);
+  color: var(--abort-color);
+  background: var(--abort-bg);
+  border: 1px solid var(--abort-border);
 }
 
 .system-msg p { margin-bottom: 4px; }
@@ -647,6 +715,49 @@ html, body, #root {
 .settings-group textarea {
   min-height: 80px;
   resize: vertical;
+}
+
+/* Theme Switcher */
+.theme-switcher {
+  display: flex;
+  gap: 8px;
+}
+
+.theme-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.theme-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.theme-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.theme-btn-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.theme-btn-label {
+  font-size: 12px;
+  font-weight: 500;
 }
 
 /* Link Project Dialog */
@@ -825,7 +936,7 @@ html, body, #root {
 }
 
 .tool-call-detail pre {
-  background: #111133;
+  background: var(--code-block-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 14px;
@@ -835,7 +946,7 @@ html, body, #root {
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.5;
-  color: #e0e0ff;
+  color: var(--code-block-text);
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
@@ -881,7 +992,7 @@ html, body, #root {
 }
 
 .tool-result-content pre {
-  background: #111133;
+  background: var(--code-block-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 14px;
@@ -892,7 +1003,7 @@ html, body, #root {
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.5;
-  color: #e0e0ff;
+  color: var(--code-block-text);
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
