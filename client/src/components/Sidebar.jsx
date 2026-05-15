@@ -109,22 +109,20 @@ export default function Sidebar() {
         </button>
 
         <div className="sidebar-theme-row">
-          <span className="sidebar-theme-label">主题</span>
-          <div className="theme-slider">
-            <div
-              className="theme-slider-knob"
-              style={{ transform: `translateX(${THEMES.findIndex(t => t.key === theme) * 100}%)` }}
-            />
-            {THEMES.map(t => (
-              <button
-                key={t.key}
-                className={`theme-slider-btn ${theme === t.key ? 'active' : ''}`}
-                onClick={() => setSetting('theme', t.key)}
-              >
-                {t.icon} {t.label}
-              </button>
-            ))}
-          </div>
+          <div
+          className="theme-slider"
+          style={{ '--idx': THEMES.findIndex(t => t.key === theme) }}
+        >
+          {THEMES.map(t => (
+            <button
+              key={t.key}
+              className={`theme-slider-btn ${theme === t.key ? 'active' : ''}`}
+              onClick={() => setSetting('theme', t.key)}
+            >
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
         </div>
 
         <button onClick={toggleSidebar} style={{ marginTop: 8, color: 'var(--text-muted)' }}>

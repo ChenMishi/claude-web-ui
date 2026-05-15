@@ -286,48 +286,36 @@ html, body, #root {
 .sidebar-nav button:hover { background: rgba(108, 99, 255, 0.08); color: var(--text-primary); }
 .sidebar-nav button.active { background: rgba(108, 99, 255, 0.12); color: var(--accent); }
 
-/* Sidebar theme row — label left, animated slider right */
+/* Sidebar theme slider with animated bottom bar */
 .sidebar-theme-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px 4px;
-}
-
-.sidebar-theme-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
+  padding: 6px 12px 8px;
 }
 
 .theme-slider {
-  flex: 1;
   position: relative;
   display: flex;
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 7px;
-  overflow: hidden;
 }
 
-.theme-slider-knob {
+/* Sliding bottom bar indicator */
+.theme-slider::after {
+  content: '';
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   width: 33.333%;
-  height: 100%;
+  height: 3px;
   background: var(--accent);
-  border-radius: 6px;
+  border-radius: 0 0 6px 6px;
+  transform: translateX(calc(var(--idx, 0) * 100%));
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 0;
 }
 
 .theme-slider-btn {
-  position: relative;
-  z-index: 1;
   flex: 1;
-  padding: 5px 2px;
+  padding: 7px 2px 9px;
   background: transparent;
   border: none;
   font-size: 11px;
@@ -343,7 +331,7 @@ html, body, #root {
 }
 
 .theme-slider-btn.active {
-  color: #fff;
+  color: var(--accent);
   font-weight: 500;
 }
 
