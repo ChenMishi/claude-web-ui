@@ -52,8 +52,13 @@ export default function Sidebar() {
   useEffect(() => {
     if (!currentSessionId || !currentProjectId) return;
     if (chatMessages.length > 0) return; // Already have messages from cache
+    console.log('[loadMessages] fetching for session:', currentSessionId);
     getSessionMessages(currentSessionId).then(msgs => {
-      if (msgs.length === 0) return;
+      console.log('[loadMessages] got', msgs.length, 'raw records from server');
+      if (msgs.length === 0) {
+        console.warn('[loadMessages] server returned 0 records!');
+        return;
+      }
       const chatMsgs = [];
       for (const m of msgs) {
         const content = m.message?.content;
@@ -61,16 +66,21 @@ export default function Sidebar() {
           chatMsgs.push({ role: 'user', content });
           continue;
         }
-        if (!Array.isArray(content)) continue;
+        if (!Array.isArray(content)) { console.log('[loadMessages] skipping non-array content:', typeof content); continue; }
         const textBlocks = content.filter(c => c.type === 'text');
         if (textBlocks.length > 0) {
           const text = textBlocks.map(c => c.text).join('');
           chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text });
         }
       }
+      console.log('[loadMessages] converted to', chatMsgs.length, 'text messages');
+      if (chatMsgs.length > 0) {
+        console.log('[loadMessages] first:', chatMsgs[0].content.slice(0, 50));
+        console.log('[loadMessages] last:', chatMsgs[chatMsgs.length - 1].content.slice(0, 50));
+      }
       setMessages(chatMsgs);
     }).catch((err) => {
-      console.error('Failed to load session messages:', err);
+      console.error('[loadMessages] FAILED:', err.message);
       setMessages([{ role: 'system', content: `加载失败: ${err.message}` }]);
     });
   }, [currentSessionId, currentProjectId]);
