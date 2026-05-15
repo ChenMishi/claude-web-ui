@@ -101,21 +101,16 @@ html, body, #root {
 
 /* Sidebar */
 .sidebar {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   height: 100%;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border);
   transition: margin-left 0.3s,
-              min-width 0.3s,
-              grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+              min-width 0.3s;
   overflow: hidden;
-}
-
-.sidebar.compact {
-  grid-template-rows: auto 0fr auto;
 }
 
 .sidebar.collapsed {
@@ -137,15 +132,23 @@ html, body, #root {
 }
 
 .sidebar-body {
-  overflow: hidden;
+  flex: 1 1 0px;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
+  transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.35s ease;
+}
+
+.sidebar.compact .sidebar-body {
+  flex: 0 0 0px;
+  opacity: 0;
 }
 
 .sidebar-body-inner {
-  flex: 1;
+  height: 100%;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   padding: 12px;
 }
 
@@ -279,12 +282,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-/* Compact mode: body hidden, nav moves to top */
-.sidebar.compact .sidebar-nav {
-  border-top: none;
-  margin-top: 0;
+  flex-shrink: 0;
 }
 
 .sidebar-nav button {
