@@ -245,7 +245,6 @@ router.patch('/session/:id', (req, res) => {
 // Get session messages
 router.get('/session/:id/message', (req, res) => {
   const { id } = req.params;
-  const offset = parseInt(req.query.offset || '0') || 0;
   const limit = 200;
   let jsonlPath = null;
   if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
@@ -259,10 +258,15 @@ router.get('/session/:id/message', (req, res) => {
 
   const messages = [];
   try {
-    const lines = fs.readFileSync(jsonlPath, 'utf8').split('\n').filter(Boolean);
-    for (let i = offset; i < Math.min(lines.length, offset + limit); i++) {
+    const allLines = fs.readFileSync(jsonlPath, 'utf8').split('\n').filter(Boolean);
+    // Default: load last <limit> messages from the end of the file
+    const reqOffset = req.query.offset !== undefined ? parseInt(req.query.offset) : null;
+    const offset = reqOffset !== null && !isNaN(reqOffset)
+      ? reqOffset
+      : Math.max(0, allLines.length - limit);
+    for (let i = offset; i < Math.min(allLines.length, offset + limit); i++) {
       try {
-        const rec = JSON.parse(lines[i]);
+        const rec = JSON.parse(allLines[i]);
         if (rec.type === 'user' || rec.type === 'assistant') {
           messages.push(rec);
         }
