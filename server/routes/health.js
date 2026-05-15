@@ -4,16 +4,23 @@ const { PROXY_BASE } = require('../config');
 const router = Router();
 
 router.get('/health', async (_req, res) => {
+  // Lightweight check: try to connect to the proxy's TCP port (no API call)
+  let proxyOk = false;
   try {
-    const proxyRes = await fetch(`${PROXY_BASE}/v1/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-opus-4-7', max_tokens: 10, messages: [{ role: 'user', content: 'ping' }], stream: false }),
+    const url = new URL(PROXY_BASE);
+    const net = require('net');
+    proxyOk = await new Promise((resolve) => {
+      const sock = new net.Socket();
+      sock.setTimeout(2000);
+      sock.on('connect', () => { sock.destroy(); resolve(true); });
+      sock.on('error', () => resolve(false));
+      sock.on('timeout', () => { sock.destroy(); resolve(false); });
+      sock.connect(parseInt(url.port) || 80, url.hostname);
     });
-    res.json({ healthy: proxyRes.ok, version: '2.0.0', proxy: PROXY_BASE });
   } catch {
-    res.status(502).json({ healthy: false, version: '2.0.0', proxy: PROXY_BASE });
+    proxyOk = false;
   }
+  res.json({ healthy: proxyOk, version: '2.0.0', proxy: PROXY_BASE });
 });
 
 module.exports = router;

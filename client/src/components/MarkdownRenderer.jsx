@@ -1,6 +1,25 @@
+import DOMPurify from 'dompurify';
+
+// Allowed URL schemes (block javascript:, data:, etc.)
+const ALLOWED_SCHEMES = ['http:', 'https:', 'mailto:', 'ftp:', 'ftps:'];
+
+function safeUrl(url) {
+  try {
+    const u = new URL(url.trim());
+    if (!ALLOWED_SCHEMES.includes(u.protocol)) return '';
+    return url;
+  } catch {
+    return url.startsWith('/') || url.startsWith('#') || url.startsWith('./') ? url : '';
+  }
+}
+
 export default function MarkdownRenderer({ content }) {
   if (!content) return null;
-  const html = renderMarkdown(content);
+  const html = DOMPurify.sanitize(renderMarkdown(content), {
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'h1', 'h2', 'h3', 'h4',
+      'ul', 'ol', 'li', 'pre', 'code', 'blockquote', 'hr', 'a', 'img'],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'class'],
+  });
   return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
@@ -29,11 +48,19 @@ function renderMarkdown(text) {
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-  // Images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />');
+  // Images — validate src URL
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => {
+    const safe = safeUrl(url);
+    return safe ? `<img src="${safe}" alt="${escapeHtml(alt)}" />` : `![${alt}](${url})`;
+  });
 
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Links — validate href URL
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
+    const safe = safeUrl(url);
+    return safe
+      ? `<a href="${safe}" target="_blank" rel="noopener noreferrer">${label}</a>`
+      : `[${label}](${url})`;
+  });
 
   // Bold and italic
   html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');

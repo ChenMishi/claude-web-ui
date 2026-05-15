@@ -4,7 +4,7 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { PORT } = require('./config');
+const { PORT, CLAUDE_PROJECTS_DIR } = require('./config');
 
 let pty = null;
 let WebSocket = null;
@@ -13,8 +13,43 @@ try { WebSocket = require('ws'); } catch {}
 
 function createApp() {
   const app = express();
-  app.use(cors());
+
+  // Restrict CORS to trusted origins
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',          // Vite dev server
+    'http://127.0.0.1:5173',
+  ];
+  // Also allow the server's own LAN address (auto-detected)
+  try {
+    const ifaces = require('os').networkInterfaces();
+    for (const [, addrs] of Object.entries(ifaces)) {
+      for (const addr of addrs) {
+        if (addr.family === 'IPv4' && !addr.internal) {
+          allowedOrigins.push(`http://${addr.address}:3000`);
+        }
+      }
+    }
+  } catch {}
+
+  app.use(cors({
+    origin(origin, cb) {
+      // Allow requests with no origin (curl, server-to-server, WebSocket upgrade)
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      cb(null, false);
+    },
+    credentials: true,
+  }));
+
   app.use(express.json({ limit: '10mb' }));
+
+  // Authentication middleware on /api (except health)
+  const auth = require('./middleware/auth');
+  app.use('/api', (req, res, next) => {
+    if (req.path === '/health') return next(); // health is public
+    auth(req, res, next);
+  });
 
   // Mount API routes
   app.use('/api', require('./routes/health'));
@@ -113,8 +148,20 @@ function startServer(opts = {}) {
         return;
       }
       wss.handleUpgrade(req, socket, head, (ws) => {
-        const url = new URL(req.url, `http://${req.headers.host}`);
-        const cwd = url.searchParams.get('cwd') || os.homedir();
+        const url = new URL(req.url, `http://localhost`);
+        let cwd = url.searchParams.get('cwd') || os.homedir();
+
+        // Validate cwd is within an allowed path
+        const allowedRoots = [os.homedir()];
+        if (fs.existsSync(CLAUDE_PROJECTS_DIR)) allowedRoots.push(CLAUDE_PROJECTS_DIR);
+        const { isPathInside } = require('./utils');
+        const safe = allowedRoots.some(root => isPathInside(cwd, root));
+        if (!safe) {
+          console.warn(`Terminal: rejected unsafe cwd=${cwd}`);
+          ws.close();
+          return;
+        }
+
         const shell = process.env.SHELL || 'bash';
         console.log(`Terminal: cwd=${cwd}, shell=${shell}`);
 

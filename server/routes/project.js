@@ -55,6 +55,10 @@ router.get('/project', async (_req, res) => {
 // Browse filesystem directories (for link dialog)
 router.get('/fs/dirs', (req, res) => {
   const dirPath = req.query.path ?? os.homedir();
+  // Restrict browsing to home directory
+  if (!isPathInside(dirPath, os.homedir())) {
+    return res.status(403).json({ error: 'Forbidden — path outside home directory' });
+  }
   if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Path not found' });
   if (!fs.statSync(dirPath).isDirectory()) return res.status(400).json({ error: 'Not a directory' });
   let entries = [];
