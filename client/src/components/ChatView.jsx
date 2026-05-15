@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { runAgent, getProjects, getProjectSessions, abortSession } from '../api';
+import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle } from '../api';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
@@ -173,6 +173,16 @@ export default function ChatView() {
           if (currentProjectId) {
             getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
           }
+          // Auto-generate a short title from the first message (async, refreshes list on completion)
+          const firstMsg = text.slice(0, 200);
+          const project = projects.find(p => p.id === currentProjectId);
+          generateTitle(newId, firstMsg, project?.cwd)
+            .then(() => {
+              if (currentProjectId) {
+                getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
+              }
+            })
+            .catch(() => {});
         }
       },
       onError: (err) => {
