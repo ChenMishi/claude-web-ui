@@ -31,7 +31,7 @@ export const generateTitle = (id, prompt, cwd) => fetchJSON(`/session/${id}/titl
 export const reconnectSession = (id) => fetch(`${BASE}/session/${id}/stream`, {
   headers: { Accept: 'text/event-stream' },
 });
-export const getSessionMessages = (id, offset = 0) => fetchJSON(`/session/${id}/message?offset=${offset}`);
+export const getSessionMessages = (id, offset) => fetchJSON(`/session/${id}/message${offset != null ? `?offset=${offset}` : ''}`);
 export const resolveQuestion = (id, answers) => fetchJSON(`/session/${id}/message/resolve`, { method: 'POST', body: JSON.stringify({ answers }) });
 
 // Agent SDK chat (full tool calling via session endpoint)
