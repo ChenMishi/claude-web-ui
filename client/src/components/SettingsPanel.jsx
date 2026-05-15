@@ -1,13 +1,7 @@
 import { useApp } from '../context/AppContext';
 
-const THEMES = [
-  { key: 'dark', label: '深色', icon: '🌙', desc: '深蓝紫暗色主题' },
-  { key: 'light', label: '白色', icon: '☀️', desc: '明亮白底主题' },
-  { key: 'warm', label: '暖色', icon: '🍂', desc: '柔和暖色调主题' },
-];
-
 export default function SettingsPanel() {
-  const { model, systemPrompt, theme, setSetting, projects, currentProjectId } = useApp();
+  const { model, systemPrompt, setSetting, projects, currentProjectId } = useApp();
 
   const project = projects.find(p => p.id === currentProjectId);
 
@@ -31,24 +25,6 @@ export default function SettingsPanel() {
           onChange={e => setSetting('systemPrompt', e.target.value)}
           placeholder="自定义 system prompt（留空使用默认）"
         />
-      </div>
-
-      {/* ── Theme Switcher ── */}
-      <div className="settings-group">
-        <label>主题</label>
-        <div className="theme-switcher">
-          {THEMES.map(t => (
-            <button
-              key={t.key}
-              className={`theme-btn ${theme === t.key ? 'active' : ''}`}
-              onClick={() => setSetting('theme', t.key)}
-              title={t.desc}
-            >
-              <span className="theme-btn-icon">{t.icon}</span>
-              <span className="theme-btn-label">{t.label}</span>
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="settings-group">

@@ -286,6 +286,36 @@ html, body, #root {
 .sidebar-nav button:hover { background: rgba(108, 99, 255, 0.08); color: var(--text-primary); }
 .sidebar-nav button.active { background: rgba(108, 99, 255, 0.12); color: var(--accent); }
 
+/* Sidebar theme buttons — compact row in nav */
+.sidebar-theme-row {
+  display: flex;
+  gap: 4px;
+  padding: 4px 12px;
+}
+
+.sidebar-theme-btn {
+  flex: 1;
+  padding: 6px 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  line-height: 1;
+}
+
+.sidebar-theme-btn:hover {
+  border-color: var(--accent);
+  background: rgba(108, 99, 255, 0.08);
+}
+
+.sidebar-theme-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
 /* Main Content */
 .main-content {
   flex: 1;

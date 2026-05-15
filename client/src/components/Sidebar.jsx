@@ -4,13 +4,19 @@ import { getProjects, getProjectSessions, getSessionMessages } from '../api';
 import ProjectSelector from './ProjectSelector';
 import SessionList from './SessionList';
 
+const THEMES = [
+  { key: 'dark', icon: '🌙', label: '深色' },
+  { key: 'light', icon: '☀️', label: '白色' },
+  { key: 'warm', icon: '🍂', label: '暖色' },
+];
+
 export default function Sidebar() {
   const {
     sidebarOpen, toggleSidebar,
     projects, setProjects,
     currentProjectId, selectProject, setSessions,
     currentSessionId, setMessages, chatMessages,
-    setView, activeView,
+    setView, activeView, theme, setSetting,
   } = useApp();
 
   // Load projects on mount, restore saved project
@@ -101,6 +107,20 @@ export default function Sidebar() {
         <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
           ⚙ 设置
         </button>
+
+        <div className="sidebar-theme-row">
+          {THEMES.map(t => (
+            <button
+              key={t.key}
+              className={`sidebar-theme-btn ${theme === t.key ? 'active' : ''}`}
+              onClick={() => setSetting('theme', t.key)}
+              title={t.label}
+            >
+              {t.icon}
+            </button>
+          ))}
+        </div>
+
         <button onClick={toggleSidebar} style={{ marginTop: 8, color: 'var(--text-muted)' }}>
           ◀ 收起
         </button>
