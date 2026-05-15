@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getProjects, getProjectSessions, getSessionMessages } from '../api';
+import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo } from '../api';
 import ProjectSelector from './ProjectSelector';
 import SessionList from './SessionList';
 

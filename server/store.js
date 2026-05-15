@@ -24,13 +24,29 @@ function deleteRuntimeSession(sessionId) {
 function getOrCreateRuntime(sessionId, cwd) {
   const existing = runtimeSessions.get(sessionId);
   if (existing) return existing;
-  const session = { sessionId, projectDirName: getProjectDirName(cwd), cwd, status: 'idle', abort: null };
+  const session = {
+    sessionId,
+    projectDirName: getProjectDirName(cwd),
+    cwd,
+    status: 'idle',
+    abort: null,
+    buffer: [],           // buffered messages for reconnecting clients
+    subscribers: new Set(), // active SSE response objects
+  };
   runtimeSessions.set(sessionId, session);
   return session;
 }
 
 function createPendingRuntime(cwd) {
-  return { sessionId: null, projectDirName: getProjectDirName(cwd), cwd, status: 'idle', abort: null };
+  return {
+    sessionId: null,
+    projectDirName: getProjectDirName(cwd),
+    cwd,
+    status: 'idle',
+    abort: null,
+    buffer: [],
+    subscribers: new Set(),
+  };
 }
 
 function assignSessionId(runtime, sessionId) {
@@ -50,10 +66,52 @@ function resolvePendingApproval(sessionId, decision) {
   return true;
 }
 
+// Broadcast an SSE event to all subscribers and buffer it for reconnects
+function broadcast(runtime, event, data) {
+  const ev = { event, data };
+  runtime.buffer.push(ev);
+  // Keep buffer bounded (last 500 events)
+  if (runtime.buffer.length > 500) runtime.buffer.shift();
+  // Send to all active subscribers
+  for (const sub of runtime.subscribers) {
+    try {
+      if (!sub.writableEnded) {
+        sub.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      }
+    } catch {}
+  }
+}
+
+// Subscribe an SSE response to a running session — first replays buffer, then streams live
+function subscribeToStream(runtime, res) {
+  // Replay buffered messages
+  for (const ev of runtime.buffer) {
+    try {
+      if (!res.writableEnded) {
+        res.write(`event: ${ev.event}\ndata: ${JSON.stringify(ev.data)}\n\n`);
+      }
+    } catch {}
+  }
+  // Subscribe for future messages
+  runtime.subscribers.add(res);
+  res.on('close', () => runtime.subscribers.delete(res));
+}
+
+// Notify all subscribers that the session is done
+function broadcastDone(runtime, result) {
+  broadcast(runtime, 'done', result);
+  // Close all subscriber connections
+  for (const sub of runtime.subscribers) {
+    try { if (!sub.writableEnded) sub.end(); } catch {}
+  }
+  runtime.subscribers.clear();
+}
+
 module.exports = {
   runtimeSessions, pendingApprovals,
   getProjectDirName, getSessionFile,
   getRuntimeSession, deleteRuntimeSession,
   getOrCreateRuntime, createPendingRuntime, assignSessionId,
   setPendingApproval, resolvePendingApproval,
+  broadcast, subscribeToStream, broadcastDone,
 };

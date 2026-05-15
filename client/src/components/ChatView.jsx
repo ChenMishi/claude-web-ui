@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle } from '../api';
+import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle, reconnectSession, getSessionInfo } from '../api';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
@@ -76,6 +76,120 @@ export default function ChatView() {
   useEffect(() => {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
+
+  // Reconnect to running session after page refresh
+  useEffect(() => {
+    if (!currentSessionId || chatMessages.length > 0) return;
+    let cancelled = false;
+
+    getSessionInfo(currentSessionId).then(info => {
+      if (cancelled || info.status !== 'busy') return;
+      // Session is still running — reconnect to the live stream
+      setStreaming(true);
+      execStart();
+      startTimer();
+      hasAssistantText.current = false;
+      textAccum.current = '';
+
+      reconnectSession(currentSessionId).then(response => {
+        if (cancelled || !response.ok) {
+          setStreaming(false);
+          stopTimer();
+          execReset();
+          return;
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentEvent = '';
+
+        function pump() {
+          if (cancelled) return;
+          reader.read().then(({ done, value }) => {
+            if (done || cancelled) {
+              setStreaming(false);
+              stopTimer();
+              return;
+            }
+            if (value) {
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+
+              for (const line of lines) {
+                if (line.startsWith('event: ')) {
+                  currentEvent = line.slice(7).trim();
+                } else if (line.startsWith('data: ')) {
+                  try {
+                    const parsed = JSON.parse(line.slice(6));
+                    if (currentEvent === 'message') {
+                      if (parsed.type === 'assistant') {
+                        const textBlocks = (parsed.message?.content || []).filter(c => c.type === 'text');
+                        const toolBlocks = (parsed.message?.content || []).filter(c => c.type === 'tool_use');
+                        if (textBlocks.length > 0) {
+                          const text = textBlocks.map(c => c.text).join('');
+                          if (!hasAssistantText.current) {
+                            hasAssistantText.current = true;
+                            textAccum.current = text;
+                            appendMessage({ role: 'assistant', content: text, streaming: true, timestamp: Date.now() });
+                          } else {
+                            textAccum.current += text;
+                            updateLastMessage(textAccum.current);
+                          }
+                          execPhase({ phase: 'responding', detail: '' });
+                        }
+                        if (toolBlocks.length > 0) {
+                          hasAssistantText.current = false;
+                          toolBlocks.forEach(t => {
+                            const desc = t.input?.description || t.input?.command || t.input?.file_path || '';
+                            execPhase({ phase: 'running', detail: `${t.name}:${desc}` });
+                            appendMessage({ role: 'tool', toolCall: { name: t.name, input: t.input, tool_use_id: t.id }, timestamp: Date.now() });
+                          });
+                        }
+                        if (parsed.message?.usage) execTokens(toTokens(parsed.message.usage));
+                      } else if (parsed.type === 'user') {
+                        const toolResults = (parsed.message?.content || []).filter(c => c.type === 'tool_result');
+                        toolResults.forEach(t => {
+                          let text = typeof t.content === 'string' ? t.content : JSON.stringify(t.content || '');
+                          appendMessage({ role: 'tool', toolResult: { tool_use_id: t.tool_use_id, content: text, is_error: t.is_error }, timestamp: Date.now() });
+                        });
+                      }
+                    } else if (currentEvent === 'done') {
+                      updateLastMessage(null);
+                      setStreaming(false);
+                      stopTimer();
+                      execDone({ tokens: parsed.tokens, cost: parsed.cost });
+                      setTimeout(() => execReset(), 5000);
+                      return; // stop pumping
+                    } else if (currentEvent === 'error') {
+                      setStreaming(false);
+                      stopTimer();
+                      execReset();
+                      appendMessage({ role: 'system', content: `重连失败: ${parsed.message}`, timestamp: Date.now() });
+                      return;
+                    }
+                  } catch {}
+                  currentEvent = '';
+                }
+              }
+            }
+            pump(); // continue reading
+          }).catch(() => {
+            if (!cancelled) {
+              setStreaming(false);
+              stopTimer();
+              execReset();
+            }
+          });
+        }
+        pump();
+      }).catch(() => {
+        if (!cancelled) { setStreaming(false); stopTimer(); execReset(); }
+      });
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [currentSessionId]);
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);

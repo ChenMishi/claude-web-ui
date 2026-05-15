@@ -28,6 +28,9 @@ export const deleteSession = (id) => fetchJSON(`/session/${id}`, { method: 'DELE
 export const renameSession = (id, title) => fetchJSON(`/session/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) });
 export const abortSession = (id) => fetchJSON(`/session/${id}/abort`, { method: 'POST' });
 export const generateTitle = (id, prompt, cwd) => fetchJSON(`/session/${id}/title`, { method: 'POST', body: JSON.stringify({ prompt, cwd }) });
+export const reconnectSession = (id) => fetch(`${BASE}/session/${id}/stream`, {
+  headers: { Accept: 'text/event-stream' },
+});
 export const getSessionMessages = (id, offset = 0) => fetchJSON(`/session/${id}/message?offset=${offset}`);
 export const resolveQuestion = (id, answers) => fetchJSON(`/session/${id}/message/resolve`, { method: 'POST', body: JSON.stringify({ answers }) });
 

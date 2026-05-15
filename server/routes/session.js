@@ -5,7 +5,8 @@ const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR } = require('../config');
 const { dirNameToCwd, parseTitleFromJsonl } = require('../utils');
 const {
   getRuntimeSession, deleteRuntimeSession, getOrCreateRuntime,
-  createPendingRuntime, assignSessionId, resolvePendingApproval, setPendingApproval
+  createPendingRuntime, assignSessionId, resolvePendingApproval, setPendingApproval,
+  broadcast, subscribeToStream, broadcastDone,
 } = require('../store');
 
 // Agent SDK — enables full tool calling (Bash, Read, Write, Edit, etc.)
@@ -56,8 +57,7 @@ function logError(msg, err) {
   } catch {}
 }
 
-function handleSDKMessage(message, runtime, res, isStreaming) {
-  const log = (msg) => { /* silent in production */ };
+function handleSDKMessage(message, runtime, isStreaming) {
 
   if (message.type === 'system') {
     if (message.session_id && !runtime.sessionId) {
@@ -68,15 +68,12 @@ function handleSDKMessage(message, runtime, res, isStreaming) {
 
   if (message.type === 'assistant') {
     if (isStreaming) {
-      sseWrite(res, {
-        event: 'message',
-        data: {
-          type: 'assistant',
-          uuid: message.uuid || '',
-          session_id: message.session_id || '',
-          message: message.message,
-          parent_tool_use_id: message.parent_tool_use_id || null,
-        },
+      broadcast(runtime, 'message', {
+        type: 'assistant',
+        uuid: message.uuid || '',
+        session_id: message.session_id || '',
+        message: message.message,
+        parent_tool_use_id: message.parent_tool_use_id || null,
       });
     }
     return;
@@ -85,15 +82,12 @@ function handleSDKMessage(message, runtime, res, isStreaming) {
   if (message.type === 'user') {
     const hasToolResult = (message.message?.content || []).some(b => b.type === 'tool_result');
     if (hasToolResult && isStreaming) {
-      sseWrite(res, {
-        event: 'message',
-        data: {
-          type: 'user',
-          uuid: message.uuid || '',
-          session_id: message.session_id || '',
-          message: message.message,
-          parent_tool_use_id: message.parent_tool_use_id || null,
-        },
+      broadcast(runtime, 'message', {
+        type: 'user',
+        uuid: message.uuid || '',
+        session_id: message.session_id || '',
+        message: message.message,
+        parent_tool_use_id: message.parent_tool_use_id || null,
       });
     }
     return;
@@ -115,7 +109,7 @@ function handleSDKMessage(message, runtime, res, isStreaming) {
   }
 }
 
-function buildSDKOptions(runtime, body, sseWriter) {
+function buildSDKOptions(runtime, body) {
   const agentOptions = body.options || {};
 
   const options = {
@@ -138,10 +132,9 @@ function buildSDKOptions(runtime, body, sseWriter) {
   // canUseTool approves all tools; AskUserQuestion pauses for user input
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
-      if (!sseWriter) return { behavior: 'deny', message: 'AskUserQuestion requires stream mode' };
       return new Promise((resolve) => {
         setPendingApproval(runtime.sessionId || 'pending', resolve);
-        sseWriter({ event: 'ask_user', data: { questions: input.questions || [] } });
+        broadcast(runtime, 'ask_user', { questions: input.questions || [] });
       });
     }
     return { behavior: 'allow', updatedInput: input };
@@ -342,7 +335,7 @@ router.post('/session/:id/message', async (req, res) => {
   }
 
   if (runtime.status === 'busy') {
-    return res.status(409).json({ error: 'Session is busy' });
+    return res.status(409).json({ error: 'Session is busy', canReconnect: true });
   }
 
   const prompt = (body.prompt || '').trim();
@@ -352,11 +345,10 @@ router.post('/session/:id/message', async (req, res) => {
 
   runtime.status = 'busy';
   runtime.abort = new AbortController();
-
-  const sseWriter = wantsStream ? (ev) => sseWrite(res, ev) : null;
+  runtime.buffer = []; // clear buffer from any previous run
 
   try {
-    const options = buildSDKOptions(runtime, body, sseWriter);
+    const options = buildSDKOptions(runtime, body);
 
     if (wantsStream) {
       // SSE streaming mode — disable all timeouts for long-running agent sessions
@@ -371,6 +363,9 @@ router.post('/session/:id/message', async (req, res) => {
       res.on('error', (e) => { logError('Response socket error', e); });
       req.on('error', (e) => { logError('Request socket error', e); });
 
+      // Subscribe this response to the broadcast stream
+      subscribeToStream(runtime, res);
+
       // Send keepalive comments every 15s to prevent proxy timeouts
       let keepalive = null;
       keepalive = setInterval(() => {
@@ -383,13 +378,12 @@ router.post('/session/:id/message', async (req, res) => {
     const allMessages = [];
 
     for await (const message of query({ prompt, options })) {
-      const info = handleSDKMessage(message, runtime, res, wantsStream);
+      const info = handleSDKMessage(message, runtime, wantsStream);
       if (message.type === 'assistant' || message.type === 'user') {
         allMessages.push(message);
       }
       if (message.type === 'result') {
         if (message.subtype !== 'success') {
-          // SDK returned an error result — surface it
           const errText = (message.errors || []).join('; ') || `SDK result: ${message.subtype}`;
           logError('SDK result error', errText);
           result = { error: errText };
@@ -400,15 +394,16 @@ router.post('/session/:id/message', async (req, res) => {
     }
 
     if (wantsStream) {
-      sseWrite(res, {
-        event: 'done',
-        data: {
-          sessionId: runtime.sessionId,
-          cost: result?.cost,
-          tokens: result?.tokens,
-        },
+      broadcast(runtime, 'done', {
+        sessionId: runtime.sessionId,
+        cost: result?.cost,
+        tokens: result?.tokens,
       });
-      res.end();
+      broadcastDone(runtime, {
+        sessionId: runtime.sessionId,
+        cost: result?.cost,
+        tokens: result?.tokens,
+      });
     } else {
       // Blocking mode — return all messages
       res.json({
@@ -422,24 +417,50 @@ router.post('/session/:id/message', async (req, res) => {
     logError('Session message error', err);
     if (err.name === 'AbortError') {
       try {
-        if (!res.headersSent) res.status(499).json({ error: 'aborted' });
-        else if (!res.writableEnded) res.end();
+        broadcast(runtime, 'error', { message: 'aborted' });
+        broadcastDone(runtime, { aborted: true });
       } catch {}
     } else {
       const errMsg = err instanceof Error ? err.message : String(err);
       try {
-        if (wantsStream && res.headersSent && !res.writableEnded) {
-          sseWrite(res, { event: 'error', data: { message: errMsg } });
-          res.end();
-        } else if (!res.headersSent) {
-          res.status(500).json({ error: errMsg });
-        }
+        broadcast(runtime, 'error', { message: errMsg });
+        broadcastDone(runtime, { error: errMsg });
       } catch {}
     }
   } finally {
     runtime.status = 'idle';
     runtime.abort = null;
+    runtime.buffer = [];
   }
+});
+
+// Reconnect to a running session stream (after page refresh)
+router.get('/session/:id/stream', (req, res) => {
+  const { id } = req.params;
+  const runtime = getRuntimeSession(id);
+
+  if (!runtime) return res.status(404).json({ error: 'Session not found' });
+  if (runtime.status !== 'busy') return res.status(404).json({ error: 'Session is not running', status: runtime.status });
+
+  // Set up SSE
+  req.setTimeout(0);
+  req.socket?.setTimeout?.(0);
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  res.on('error', (e) => { logError('Reconnect response error', e); });
+  req.on('error', (e) => { logError('Reconnect request error', e); });
+
+  // Replay buffer + subscribe to live stream
+  subscribeToStream(runtime, res);
+
+  let keepalive = null;
+  keepalive = setInterval(() => {
+    try { if (!res.writableEnded) res.write(':keepalive\n\n'); } catch {}
+  }, 15000);
+  res.on('close', () => { if (keepalive) clearInterval(keepalive); });
 });
 
 // Resolve AskUserQuestion
