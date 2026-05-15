@@ -77,8 +77,8 @@ export default function Sidebar() {
         <h2>Claude Web UI</h2>
       </div>
 
-      {activeView === 'chat' && (
-        <div className="sidebar-body">
+      <div className="sidebar-body">
+        <div className="sidebar-body-inner">
           <ProjectSelector
             projects={projects}
             currentProjectId={currentProjectId}
@@ -94,7 +94,7 @@ export default function Sidebar() {
 
           <SessionList />
         </div>
-      )}
+      </div>
 
       <nav className="sidebar-nav">
         <button className={activeView === 'chat' ? 'active' : ''} onClick={() => setView('chat')}>
