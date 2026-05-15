@@ -14,29 +14,25 @@ try { WebSocket = require('ws'); } catch {}
 function createApp() {
   const app = express();
 
-  // Restrict CORS to trusted origins
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:5173',          // Vite dev server
-    'http://127.0.0.1:5173',
-  ];
-  // Also allow the server's own LAN address (auto-detected)
-  try {
-    const ifaces = require('os').networkInterfaces();
-    for (const [, addrs] of Object.entries(ifaces)) {
-      for (const addr of addrs) {
-        if (addr.family === 'IPv4' && !addr.internal) {
-          allowedOrigins.push(`http://${addr.address}:3000`);
-        }
-      }
-    }
-  } catch {}
-
+  // CORS: allow localhost, Vite dev server, and any private-network origin
   app.use(cors({
     origin(origin, cb) {
-      // Allow requests with no origin (curl, server-to-server, WebSocket upgrade)
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      if (!origin) return cb(null, true); // server-to-server, curl, etc.
+      try {
+        const host = new URL(origin).hostname;
+        // Localhost
+        if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return cb(null, true);
+        // Private / LAN addresses (10.x, 172.16-31.x, 192.168.x)
+        const ip = host.replace(/^\[|\]$/g, '');
+        const parts = ip.split('.');
+        if (parts.length === 4) {
+          const [a, b] = [parseInt(parts[0]), parseInt(parts[1])];
+          if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) {
+            return cb(null, true);
+          }
+        }
+      } catch {}
+      // Also check the auto-detected LAN IPs
       cb(null, false);
     },
     credentials: true,
