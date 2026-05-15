@@ -487,6 +487,34 @@ html, body, #root {
   border-radius: 8px;
 }
 
+/* System message (abort summary / error) */
+.system-msg {
+  align-self: center;
+  font-size: 13px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  max-width: 90%;
+  line-height: 1.6;
+  animation: fadeIn 0.3s ease;
+}
+
+.system-msg.error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.system-msg.abort {
+  color: #ffd54f;
+  background: rgba(255, 213, 79, 0.08);
+  border: 1px solid rgba(255, 213, 79, 0.3);
+}
+
+.system-msg p { margin-bottom: 4px; }
+.system-msg p:last-child { margin-bottom: 0; }
+.system-msg code { background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 3px; font-family: var(--font-mono); font-size: 12px; }
+.system-msg strong { color: inherit; }
+
 /* File Tree */
 .file-browser {
   display: flex;

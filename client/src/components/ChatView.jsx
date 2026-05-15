@@ -5,6 +5,53 @@ import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
 
+const PHASE_LABELS = {
+  thinking: '思考',
+  running: '工具调用',
+  responding: '生成回复',
+};
+
+function buildAbortSummary(execStatus) {
+  const { phase, detail, elapsed, tokens, cost } = execStatus;
+  const parts = [];
+
+  if (phase && phase !== 'idle') {
+    parts.push(`**阶段**: ${PHASE_LABELS[phase] || phase}`);
+  }
+
+  if (detail) {
+    const idx = detail.indexOf(':');
+    const toolName = idx > 0 ? detail.slice(0, idx) : '';
+    const desc = idx > 0 ? detail.slice(idx + 1) : detail;
+    if (phase === 'running' && toolName) {
+      parts.push(`**正在执行**: \`${toolName}\` ${desc}`);
+    } else if (phase === 'thinking') {
+      parts.push(`**正在**: ${detail.length > 80 ? detail.slice(0, 80) + '…' : detail}`);
+    }
+  }
+
+  if (elapsed > 0) {
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    parts.push(`**耗时**: ${mins > 0 ? `${mins}m ` : ''}${secs}s`);
+  }
+
+  if (tokens) {
+    const tokParts = [];
+    if (tokens.input) tokParts.push(`输入 ${tokens.input >= 1000 ? (tokens.input/1000).toFixed(1)+'k' : tokens.input}`);
+    if (tokens.output) tokParts.push(`输出 ${tokens.output >= 1000 ? (tokens.output/1000).toFixed(1)+'k' : tokens.output}`);
+    if (tokens.cacheRead) tokParts.push(`缓存读 ${tokens.cacheRead >= 1000 ? (tokens.cacheRead/1000).toFixed(1)+'k' : tokens.cacheRead}`);
+    if (tokParts.length) parts.push(`**Tokens**: ${tokParts.join(' / ')}`);
+  }
+
+  if (cost != null) {
+    parts.push(`**花费**: $${cost.toFixed(4)}`);
+  }
+
+  if (parts.length === 0) return '⏹ 已中止';
+  return `⏹ **已中止** | ${parts.join(' | ')}`;
+}
+
 export default function ChatView() {
   const {
     chatMessages, appendMessage, updateLastMessage,
@@ -17,6 +64,7 @@ export default function ChatView() {
   const hasAssistantText = useRef(false);
   const textAccum = useRef('');
   const timerRef = useRef(null);
+  const abortedRef = useRef(false);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -45,11 +93,27 @@ export default function ChatView() {
     cacheWrite: sdkUsage.cache_creation_input_tokens || 0,
   } : null;
 
+  const handleStop = useCallback((execStatus) => {
+    abortedRef.current = true;
+    stopTimer();
+
+    // End streaming on last assistant message
+    updateLastMessage(null);
+    setStreaming(false);
+
+    // Append a summary system message
+    const summary = buildAbortSummary(execStatus);
+    appendMessage({ role: 'system', content: summary });
+
+    execReset();
+  }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset]);
+
   const handleSend = useCallback((text) => {
     if (!text.trim() || isStreaming) return;
     setStreaming(true);
     execStart();
     startTimer();
+    abortedRef.current = false;
     appendMessage({ role: 'user', content: text });
     hasAssistantText.current = false;
     textAccum.current = '';
@@ -104,6 +168,8 @@ export default function ChatView() {
         }
       },
       onError: (err) => {
+        // Skip error display if we intentionally aborted
+        if (abortedRef.current) return;
         setStreaming(false);
         stopTimer();
         execPhase({ phase: 'done', detail: err.message });
@@ -123,7 +189,7 @@ export default function ChatView() {
           <ChatMessage key={i} message={msg} />
         ))}
       </div>
-      <ChatInput onSend={handleSend} disabled={isStreaming} />
+      <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} />
     </>
   );
 }

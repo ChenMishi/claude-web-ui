@@ -5,7 +5,12 @@ export default function ChatMessage({ message }) {
   const { role, content, error, toolCall, toolResult } = message;
 
   if (role === 'system') {
-    return <div className="error-msg">{content}</div>;
+    const isAbort = typeof content === 'string' && content.startsWith('⏹');
+    return (
+      <div className={`system-msg ${isAbort ? 'abort' : 'error'}`}>
+        <MarkdownRenderer content={content} />
+      </div>
+    );
   }
 
   // Tool call display
