@@ -64,7 +64,7 @@ export default function ChatView() {
   const hasAssistantText = useRef(false);
   const textAccum = useRef('');
   const timerRef = useRef(null);
-  const abortedRef = useRef(false);
+  const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
 
   useEffect(() => {
     if (containerRef.current) {
@@ -94,7 +94,7 @@ export default function ChatView() {
   } : null;
 
   const handleStop = useCallback((execStatus) => {
-    abortedRef.current = true;
+    ++execIdRef.current;  // bump so stale SSE errors are ignored
     stopTimer();
 
     // End streaming on last assistant message
@@ -110,18 +110,18 @@ export default function ChatView() {
 
   const handleSend = useCallback((text) => {
     if (!text.trim()) return;
-    // If streaming, abort current session first, then send new message
+    // If streaming, abort current session first
     if (isStreaming) {
-      abortedRef.current = true;
       stopTimer();
       updateLastMessage(null);
       setStreaming(false);
       if (currentSessionId) abortSession(currentSessionId).catch(() => {});
     }
+    // Bump execution ID so stale SSE errors from previous run are ignored
+    const myExecId = ++execIdRef.current;
     setStreaming(true);
     execStart();
     startTimer();
-    abortedRef.current = false;
     appendMessage({ role: 'user', content: text });
     hasAssistantText.current = false;
     textAccum.current = '';
@@ -176,8 +176,8 @@ export default function ChatView() {
         }
       },
       onError: (err) => {
-        // Skip error display if we intentionally aborted
-        if (abortedRef.current) return;
+        // Ignore errors from previous (aborted) executions
+        if (execIdRef.current !== myExecId) return;
         setStreaming(false);
         stopTimer();
         execPhase({ phase: 'done', detail: err.message });
