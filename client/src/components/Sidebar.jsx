@@ -35,44 +35,43 @@ export default function Sidebar() {
     }).catch(() => {});
   }, []);
 
-  // When project changes, load sessions and auto-select most recent
+  // When project changes, load sessions and reload latest messages
   useEffect(() => {
     if (currentProjectId) {
       getProjectSessions(currentProjectId).then(sessions => {
         setSessions(sessions);
-        // Auto-select and load messages for the most recent session
+        // Always load messages for the most recent (or current) session from server
+        const targetId = currentSessionId || (sessions.length > 0 ? sessions[0].id : null);
+        if (!targetId) return;
         if (!currentSessionId && sessions.length > 0) {
-          const latestId = sessions[0].id;
-          selectSession(latestId);
-          // Also directly load messages (bypasses the other effect's dependency chain)
-          getSessionMessages(latestId).then(msgs => {
-            if (msgs.length === 0) return;
-            const chatMsgs = [];
-            for (const m of msgs) {
-              const content = m.message?.content;
-              if (typeof content === 'string' && content.trim()) {
-                chatMsgs.push({ role: 'user', content });
-                continue;
-              }
-              if (!Array.isArray(content)) continue;
-              const textBlocks = content.filter(c => c.type === 'text');
-              if (textBlocks.length > 0) {
-                const text = textBlocks.map(c => c.text).join('');
-                chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text });
-              }
-            }
-            setMessages(chatMsgs);
-          }).catch(() => {});
+          selectSession(targetId);
         }
+        getSessionMessages(targetId).then(msgs => {
+          if (msgs.length === 0) return;
+          const chatMsgs = [];
+          for (const m of msgs) {
+            const content = m.message?.content;
+            if (typeof content === 'string' && content.trim()) {
+              chatMsgs.push({ role: 'user', content });
+              continue;
+            }
+            if (!Array.isArray(content)) continue;
+            const textBlocks = content.filter(c => c.type === 'text');
+            if (textBlocks.length > 0) {
+              const text = textBlocks.map(c => c.text).join('');
+              chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text });
+            }
+          }
+          setMessages(chatMsgs);
+        }).catch(() => {});
       }).catch(() => {});
     }
   }, [currentProjectId]);
 
-  // When session changes and cache is empty, load from server
+  // When session changes, load from server (always, to ensure fresh data)
   useEffect(() => {
-    console.log('[loadMessages] effect running: currentSessionId=', currentSessionId, 'currentProjectId=', currentProjectId, 'chatMessages.length=', chatMessages.length);
     if (!currentSessionId || !currentProjectId) return;
-    if (chatMessages.length > 0) return; // Already have messages from cache
+    console.log('[loadMessages] loading from server:', currentSessionId);
     console.log('[loadMessages] fetching for session:', currentSessionId);
     getSessionMessages(currentSessionId).then(msgs => {
       console.log('[loadMessages] got', msgs.length, 'raw records from server');
