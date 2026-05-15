@@ -69,7 +69,10 @@ export default function Sidebar() {
         }
       }
       setMessages(chatMsgs);
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error('Failed to load session messages:', err);
+      setMessages([{ role: 'system', content: `加载失败: ${err.message}` }]);
+    });
   }, [currentSessionId, currentProjectId]);
 
   const handleNewChat = () => {
