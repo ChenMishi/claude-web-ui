@@ -879,6 +879,17 @@ html, body, #root {
   word-break: break-all;
 }
 
+.breadcrumb-link {
+  color: var(--accent);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.breadcrumb-link:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
 .dialog-dir-list {
   max-height: 300px;
   overflow-y: auto;
@@ -908,6 +919,43 @@ html, body, #root {
   margin-top: 16px;
   justify-content: flex-end;
 }
+
+/* Create directory row */
+.dialog-mkdir {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.dialog-mkdir input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  font-family: var(--font);
+}
+
+.dialog-mkdir input:focus { border-color: var(--accent); }
+.dialog-mkdir input::placeholder { color: var(--text-muted); }
+
+.dialog-mkdir button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--accent);
+  color: white;
+  border: none;
+  white-space: nowrap;
+}
+
+.dialog-mkdir button:hover { background: var(--accent-hover); }
 
 .dialog-actions button {
   padding: 8px 18px;

@@ -71,6 +71,27 @@ router.get('/fs/dirs', (req, res) => {
   res.json({ path: dirPath, dirs: entries });
 });
 
+// Create a new directory (for the link dialog)
+router.post('/fs/mkdir', (req, res) => {
+  const { path: parentPath, name } = req.body || {};
+  if (!parentPath || !name) return res.status(400).json({ error: 'path and name are required' });
+  // Validate name (no slashes, no traversal)
+  if (name.includes('/') || name.includes('\\') || name === '.' || name === '..') {
+    return res.status(400).json({ error: 'Invalid directory name' });
+  }
+  if (!isPathInside(parentPath, os.homedir())) {
+    return res.status(403).json({ error: 'Forbidden — path outside home directory' });
+  }
+  const newPath = path.join(parentPath, name);
+  if (fs.existsSync(newPath)) return res.status(409).json({ error: 'Directory already exists' });
+  try {
+    fs.mkdirSync(newPath, { recursive: true });
+    res.json({ ok: true, path: newPath });
+  } catch (err) {
+    res.status(500).json({ error: `创建目录失败: ${err.message}` });
+  }
+});
+
 // Link a new project
 router.post('/project/link', (req, res) => {
   const cwd = (req.body.cwd || '').trim();

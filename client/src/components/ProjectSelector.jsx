@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getDirs, linkProject } from '../api';
 
+const BASE = '/api';
+
 export default function ProjectSelector({ projects, currentProjectId, onSelect, onLink }) {
   const [showDialog, setShowDialog] = useState(false);
   const [currentPath, setCurrentPath] = useState('/root');
   const [dirs, setDirs] = useState([]);
+  const [newDirName, setNewDirName] = useState('');
 
   useEffect(() => {
     if (showDialog) {
@@ -18,6 +21,27 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
       await linkProject(currentPath);
       onLink();
       setShowDialog(false);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleCreateDir = async () => {
+    const name = newDirName.trim();
+    if (!name) return;
+    try {
+      const res = await fetch(`${BASE}/fs/mkdir`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: currentPath, name }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || '创建失败');
+      }
+      setNewDirName('');
+      // Refresh directory listing
+      getDirs(currentPath).then(d => setDirs(d.dirs)).catch(() => {});
     } catch (err) {
       alert(err.message);
     }
@@ -52,8 +76,23 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
         <div className="dialog-overlay" onClick={() => setShowDialog(false)}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
             <h3>链接项目目录</h3>
-            <div className="dialog-breadcrumb">{currentPath}</div>
+            {/* Breadcrumb with clickable root */}
+            <div className="dialog-breadcrumb">
+              <span className="breadcrumb-link" onClick={() => setCurrentPath('/')}>/</span>
+              {currentPath.split('/').filter(Boolean).map((seg, i, arr) => (
+                <span key={i}>
+                  <span
+                    className="breadcrumb-link"
+                    onClick={() => setCurrentPath('/' + arr.slice(0, i + 1).join('/'))}
+                  >
+                    {seg}
+                  </span>
+                  {i < arr.length - 1 && ' / '}
+                </span>
+              ))}
+            </div>
             <div className="dialog-dir-list">
+              {/* Parent directory */}
               {currentPath !== '/' && (
                 <div
                   className="dialog-dir-item"
@@ -75,6 +114,17 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
                   此目录为空
                 </div>
               )}
+            </div>
+            {/* Create new directory */}
+            <div className="dialog-mkdir">
+              <input
+                type="text"
+                placeholder="新目录名称..."
+                value={newDirName}
+                onChange={e => setNewDirName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreateDir(); }}
+              />
+              <button onClick={handleCreateDir}>创建</button>
             </div>
             <div className="dialog-actions">
               <button className="cancel-btn" onClick={() => setShowDialog(false)}>取消</button>
