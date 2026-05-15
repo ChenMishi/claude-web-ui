@@ -469,7 +469,7 @@ router.post('/session/:id/title', async (req, res) => {
       headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 30,
+        max_tokens: 100,
         messages: [{ role: 'user', content: `用不超过15个汉字为以下对话生成一个简短的标题，直接返回标题文本，不要带引号、不要解释：${prompt}` }],
         stream: false,
       }),
@@ -481,7 +481,8 @@ router.post('/session/:id/title', async (req, res) => {
     }
 
     const data = await proxyRes.json();
-    const title = (data.content?.[0]?.text || '').trim().slice(0, 30);
+    const textBlock = (data.content || []).find(c => c.type === 'text');
+    const title = (textBlock?.text || '').trim().slice(0, 30);
 
     if (title) {
       // Save title to sidecar metadata
