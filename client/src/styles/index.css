@@ -1057,6 +1057,59 @@ html, body, #root {
 .dialog-actions .cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
 .dialog-actions .confirm-btn { background: var(--accent); color: white; }
 
+/* Inline confirmation popup (for project unlink) */
+.confirm-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.confirm-popup {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  z-index: 101;
+  min-width: 180px;
+}
+
+.confirm-popup-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.confirm-popup-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.confirm-popup-actions button {
+  padding: 5px 18px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  border: none;
+}
+
+.confirm-popup-cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.confirm-popup-cancel:hover { color: var(--text-primary); }
+
+.confirm-popup-ok {
+  background: var(--danger);
+  color: white;
+}
+.confirm-popup-ok:hover { background: #e55; }
+
 /* Ask User Dialog */
 .ask-user-dialog {
   background: var(--bg-secondary);

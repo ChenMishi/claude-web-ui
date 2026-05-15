@@ -10,6 +10,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
   const [dirs, setDirs] = useState([]);
   const [newDirName, setNewDirName] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null); // { id, x, y }
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -38,15 +39,20 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
     }
   };
 
-  const handleUnlink = async (e, id) => {
-    e.stopPropagation();
-    if (!confirm('确定取消链接此项目？会话文件不会被删除。')) return;
+  const handleUnlink = async (id) => {
     try {
       await unlinkProject(id);
+      setConfirmDel(null);
       onLink();
     } catch (err) {
       alert(err.message);
     }
+  };
+
+  const handleDelClick = (e, id) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setConfirmDel({ id, x: rect.left + rect.width / 2, y: rect.top });
   };
 
   const handleCreateDir = async () => {
@@ -96,7 +102,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
               <span className="project-dropdown-count">({p.sessionCount})</span>
               <button
                 className="project-dropdown-del"
-                onClick={(e) => handleUnlink(e, p.id)}
+                onClick={(e) => handleDelClick(e, p.id)}
                 title="取消链接"
               >
                 ×
@@ -109,9 +115,29 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
       <div className="project-actions">
         <button onClick={() => setShowDialog(true)}>+ 链接项目</button>
         {currentProjectId && (
-          <button className="danger" onClick={(e) => handleUnlink(e, currentProjectId)}>取消链接</button>
+          <button className="danger" onClick={(e) => handleDelClick(e, currentProjectId)}>取消链接</button>
         )}
       </div>
+
+      {/* Inline confirmation popup */}
+      {confirmDel && (
+        <div
+          className="confirm-popup-overlay"
+          onClick={() => setConfirmDel(null)}
+        >
+          <div
+            className="confirm-popup"
+            style={{ left: confirmDel.x, top: confirmDel.y - 10 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="confirm-popup-text">确定取消链接？</div>
+            <div className="confirm-popup-actions">
+              <button className="confirm-popup-cancel" onClick={() => setConfirmDel(null)}>取消</button>
+              <button className="confirm-popup-ok" onClick={() => handleUnlink(confirmDel.id)}>确定</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDialog && (
         <div className="dialog-overlay" onClick={() => setShowDialog(false)}>
