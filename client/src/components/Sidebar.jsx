@@ -111,6 +111,10 @@ export default function Sidebar() {
         <div className="sidebar-theme-row">
           <span className="sidebar-theme-label">主题</span>
           <div className="theme-slider">
+            <div
+              className="theme-slider-knob"
+              style={{ transform: `translateX(${THEMES.findIndex(t => t.key === theme) * 100}%)` }}
+            />
             {THEMES.map(t => (
               <button
                 key={t.key}

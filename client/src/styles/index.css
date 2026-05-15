@@ -286,47 +286,63 @@ html, body, #root {
 .sidebar-nav button:hover { background: rgba(108, 99, 255, 0.08); color: var(--text-primary); }
 .sidebar-nav button.active { background: rgba(108, 99, 255, 0.12); color: var(--accent); }
 
-/* Sidebar theme row — label + segmented slider */
+/* Sidebar theme row — label left, animated slider right */
 .sidebar-theme-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 12px 4px;
 }
 
 .sidebar-theme-label {
-  display: block;
   font-size: 11px;
   color: var(--text-muted);
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .theme-slider {
+  flex: 1;
+  position: relative;
   display: flex;
   background: var(--bg-primary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 7px;
   overflow: hidden;
 }
 
+.theme-slider-knob {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 33.333%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 6px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 0;
+}
+
 .theme-slider-btn {
+  position: relative;
+  z-index: 1;
   flex: 1;
-  padding: 6px 4px;
+  padding: 5px 2px;
   background: transparent;
   border: none;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s;
   white-space: nowrap;
+  text-align: center;
 }
 
 .theme-slider-btn:hover {
   color: var(--text-primary);
-  background: rgba(108, 99, 255, 0.06);
 }
 
 .theme-slider-btn.active {
-  background: var(--accent);
   color: #fff;
   font-weight: 500;
 }
