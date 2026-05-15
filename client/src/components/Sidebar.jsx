@@ -35,10 +35,16 @@ export default function Sidebar() {
     }).catch(() => {});
   }, []);
 
-  // When project changes, load sessions
+  // When project changes, load sessions and auto-select most recent
   useEffect(() => {
     if (currentProjectId) {
-      getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
+      getProjectSessions(currentProjectId).then(sessions => {
+        setSessions(sessions);
+        // Auto-select most recent session if none is active
+        if (!currentSessionId && sessions.length > 0) {
+          selectSession(sessions[0].id);
+        }
+      }).catch(() => {});
     }
   }, [currentProjectId]);
 
