@@ -72,27 +72,29 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
+    <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
         <h2>Claude Web UI</h2>
       </div>
 
-      <div className="sidebar-body">
-        <ProjectSelector
-          projects={projects}
-          currentProjectId={currentProjectId}
-          onSelect={selectProject}
-          onLink={(cwd) => {
-            getProjects().then(setProjects).catch(() => {});
-          }}
-        />
+      {activeView === 'chat' && (
+        <div className="sidebar-body">
+          <ProjectSelector
+            projects={projects}
+            currentProjectId={currentProjectId}
+            onSelect={selectProject}
+            onLink={(cwd) => {
+              getProjects().then(setProjects).catch(() => {});
+            }}
+          />
 
-        <button className="new-chat-btn" onClick={handleNewChat}>
-          + 新建对话
-        </button>
+          <button className="new-chat-btn" onClick={handleNewChat}>
+            + 新建对话
+          </button>
 
-        <SessionList />
-      </div>
+          <SessionList />
+        </div>
+      )}
 
       <nav className="sidebar-nav">
         <button className={activeView === 'chat' ? 'active' : ''} onClick={() => setView('chat')}>

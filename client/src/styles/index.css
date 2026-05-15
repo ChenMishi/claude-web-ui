@@ -267,6 +267,12 @@ html, body, #root {
   gap: 2px;
 }
 
+/* Compact mode: body hidden, nav moves to top */
+.sidebar.compact .sidebar-nav {
+  border-top: none;
+  margin-top: 0;
+}
+
 .sidebar-nav button {
   width: 100%;
   padding: 10px 12px;
