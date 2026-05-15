@@ -131,6 +131,13 @@ html, body, #root {
   -webkit-text-fill-color: transparent;
 }
 
+.sidebar-version {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+
 .sidebar-body {
   flex: 1 1 0px;
   min-height: 0;
