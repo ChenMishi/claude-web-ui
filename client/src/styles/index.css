@@ -721,32 +721,48 @@ html, body, #root {
 .stop-btn:hover { background: #e55; }
 
 /* Compact selectors in input bar */
-.input-select {
-  padding: 6px 8px;
+.input-select-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
+  padding: 0 6px;
+  height: 36px;
+  align-self: center;
+  transition: border-color 0.2s;
+}
+
+.input-select-icon {
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.input-select {
+  padding: 4px 2px;
+  background: transparent;
+  border: none;
   color: var(--text-primary);
   font-size: 12px;
   cursor: pointer;
   outline: none;
-  height: 36px;
-  align-self: flex-end;
-  transition: border-color 0.2s;
+  height: 100%;
 }
 
-.input-select-model { min-width: 110px; }
-.input-select-perm { min-width: 90px; }
+.input-select-model { min-width: 130px; }
+.input-select-perm { min-width: 82px; }
 
-.input-select:focus { border-color: var(--accent); }
+.input-select-group:focus-within { border-color: var(--accent); }
 
 /* Permission level color accents */
 .perm-auto { border-color: var(--border); }
 .perm-confirm-dangerous { border-color: rgba(255, 183, 77, 0.5); }
 .perm-confirm-all { border-color: rgba(255, 107, 107, 0.5); }
 
-.perm-confirm-dangerous:focus { border-color: #ffb74d; }
-.perm-confirm-all:focus { border-color: var(--danger); }
+.perm-confirm-dangerous:focus-within { border-color: #ffb74d; }
+.perm-confirm-all:focus-within { border-color: var(--danger); }
 
 /* Error message */
 .error-msg {

@@ -52,16 +52,22 @@ export default function ChatInput({ onSend, onStop, disabled }) {
           onInput={handleInput}
           disabled={disabled && !isStreaming}
         />
-        <select className="input-select input-select-model" value={model} onChange={e => setSetting('model', e.target.value)} title="模型">
-          <option value="claude-opus-4-7">Claude Opus</option>
-          <option value="claude-sonnet-4-6">Claude Sonnet</option>
-          <option value="claude-haiku-4-5-20251001">Claude Haiku</option>
-        </select>
-        <select className={`input-select input-select-perm perm-${permissionLevel}`} value={permissionLevel} onChange={e => setSetting('permissionLevel', e.target.value)} title="工具权限">
-          <option value="auto">自动执行</option>
-          <option value="confirm-dangerous">写入确认</option>
-          <option value="confirm-all">全部确认</option>
-        </select>
+        <div className="input-select-group">
+          <span className="input-select-icon" title="模型">🧠</span>
+          <select className="input-select input-select-model" value={model} onChange={e => setSetting('model', e.target.value)} title="模型">
+            <option value="claude-opus-4-7">Claude Opus 4.7</option>
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+          </select>
+        </div>
+        <div className="input-select-group">
+          <span className="input-select-icon" title="工具权限">🛡</span>
+          <select className={`input-select input-select-perm perm-${permissionLevel}`} value={permissionLevel} onChange={e => setSetting('permissionLevel', e.target.value)} title="工具权限">
+            <option value="auto">自动执行</option>
+            <option value="confirm-dangerous">写入确认</option>
+            <option value="confirm-all">全部确认</option>
+          </select>
+        </div>
         {isStreaming && (
           <button className="stop-btn" onClick={handleStop}>
             ⏹ 中止
