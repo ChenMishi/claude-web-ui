@@ -10,14 +10,21 @@ export default function SessionList() {
   } = useApp();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+  const [confirmDel, setConfirmDel] = useState(null); // { id, x, y }
 
   const handleSelect = (id) => {
     selectSession(id);
   };
 
-  const handleDelete = async (e, id) => {
+  const handleDelClick = (e, id) => {
     e.stopPropagation();
-    if (!confirm('确定删除此会话？')) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setConfirmDel({ id, x: rect.left + rect.width / 2, y: rect.top });
+  };
+
+  const handleDelete = async () => {
+    const id = confirmDel?.id;
+    if (!id) return;
     try {
       await deleteSession(id);
       if (currentSessionId === id) selectSession(null);
@@ -26,6 +33,7 @@ export default function SessionList() {
     } catch (err) {
       alert(err.message);
     }
+    setConfirmDel(null);
   };
 
   const handleRenameStart = (e, id, title) => {
@@ -85,7 +93,7 @@ export default function SessionList() {
               </div>
               <div className="session-item-actions">
                 <button onClick={(e) => handleRenameStart(e, s.id, s.title)}>✏</button>
-                <button className="danger" onClick={(e) => handleDelete(e, s.id)}>✕</button>
+                <button className="danger" onClick={(e) => handleDelClick(e, s.id)}>✕</button>
               </div>
             </>
           )}
@@ -94,6 +102,23 @@ export default function SessionList() {
       {sessions.length === 0 && (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: 20 }}>
           暂无会话
+        </div>
+      )}
+
+      {/* Inline confirmation popup */}
+      {confirmDel && (
+        <div className="confirm-popup-overlay" onClick={() => setConfirmDel(null)}>
+          <div
+            className="confirm-popup"
+            style={{ left: confirmDel.x, top: confirmDel.y - 10 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="confirm-popup-text">确定删除此会话？</div>
+            <div className="confirm-popup-actions">
+              <button className="confirm-popup-cancel" onClick={() => setConfirmDel(null)}>取消</button>
+              <button className="confirm-popup-ok" onClick={handleDelete}>确定</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
