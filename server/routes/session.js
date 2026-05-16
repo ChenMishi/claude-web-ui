@@ -118,7 +118,8 @@ function buildSDKOptions(runtime, body) {
     cwd: runtime.cwd,
     allowedTools: agentOptions.allowedTools || ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'AskUserQuestion'],
     permissionMode: permMap[level] || 'default',
-    pathToClaudeCodeExecutable: SDK_BINARY,
+    // Only use CLI binary for auto mode; custom levels need SDK's canUseTool
+    ...(level === 'auto' ? { pathToClaudeCodeExecutable: SDK_BINARY } : {}),
     ...runtime.sessionId ? { resume: runtime.sessionId } : {},
     ...agentOptions.model !== undefined ? { model: agentOptions.model } : {},
     ...agentOptions.maxTurns !== undefined ? { maxTurns: agentOptions.maxTurns } : {},
@@ -131,7 +132,7 @@ function buildSDKOptions(runtime, body) {
     ...runtime.abort ? { abortController: runtime.abort } : {},
   };
 
-  // AskUserQuestion pauses for user input; all other tools auto-approved
+  // Permission callback — only active when not using CLI binary (non-auto modes)
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
       return new Promise((resolve) => {
@@ -139,7 +140,25 @@ function buildSDKOptions(runtime, body) {
         broadcast(runtime, 'ask_user', { questions: input.questions || [] });
       });
     }
-    return { behavior: 'allow', updatedInput: input };
+
+    // Auto mode uses CLI binary, this callback not reached
+    if (level === 'auto') return { behavior: 'allow', updatedInput: input };
+
+    // confirm-dangerous: only pause for Bash / Write / Edit
+    const dangerous = new Set(['Bash', 'Write', 'Edit']);
+    if (level === 'confirm-dangerous' && !dangerous.has(toolName)) {
+      return { behavior: 'allow', updatedInput: input };
+    }
+
+    // confirm-all or dangerous tool: ask user
+    const desc = input?.description || input?.command || input?.file_path || '';
+    const action = desc ? `${toolName}: ${desc}`.slice(0, 80) : toolName;
+    return new Promise((resolve) => {
+      setPendingApproval(runtime.sessionId || 'pending', resolve);
+      broadcast(runtime, 'ask_user', {
+        questions: [{ question: `允许执行 ${action}？`, header: action, options: ['允许', '拒绝'] }],
+      });
+    });
   };
 
   return options;
