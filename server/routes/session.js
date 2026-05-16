@@ -112,14 +112,12 @@ function handleSDKMessage(message, runtime, isStreaming) {
 function buildSDKOptions(runtime, body) {
   const agentOptions = body.options || {};
   const level = agentOptions.permissionLevel || 'auto';
-  const permMap = { auto: 'bypassPermissions', 'confirm-dangerous': 'default', 'confirm-all': 'default' };
 
   const options = {
     cwd: runtime.cwd,
     allowedTools: agentOptions.allowedTools || ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'AskUserQuestion'],
-    permissionMode: permMap[level] || 'default',
-    // Only use CLI binary for auto mode; custom levels need SDK's canUseTool
-    ...(level === 'auto' ? { pathToClaudeCodeExecutable: SDK_BINARY } : {}),
+    permissionMode: 'default',
+    pathToClaudeCodeExecutable: SDK_BINARY,
     ...runtime.sessionId ? { resume: runtime.sessionId } : {},
     ...agentOptions.model !== undefined ? { model: agentOptions.model } : {},
     ...agentOptions.maxTurns !== undefined ? { maxTurns: agentOptions.maxTurns } : {},
@@ -439,6 +437,7 @@ router.post('/session/:id/message', async (req, res) => {
       });
     }
   } catch (err) {
+    console.error('[SESSION] Error details:', err?.message, err?.stack?.split('\n').slice(0,3).join('\n'));
     logError('Session message error', err);
     if (err.name === 'AbortError') {
       try {
