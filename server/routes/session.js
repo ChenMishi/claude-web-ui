@@ -151,18 +151,15 @@ function buildSDKOptions(runtime, body) {
     }
 
     // Confirm-all or confirm-dangerous with dangerous tool: ask user
-    const desc = input?.description || input?.command || input?.file_path || input?.file_path || '';
+    const desc = input?.description || input?.command || input?.file_path || '';
     const action = desc ? `${toolName}: ${desc}`.slice(0, 80) : toolName;
-    const body = {
+    const confirmBody = {
       questions: [{ question: `允许执行 ${action}？`, header: action, options: ['允许', '拒绝'] }],
       _type: 'confirm',
     };
-    setPendingApproval(runtime.sessionId || 'pending', { resolve: null, input });
     return new Promise((resolve) => {
-      // Store resolve and original input for later
-      const entry = pendingApprovals.get(runtime.sessionId || 'pending');
-      if (entry) entry.resolve = resolve;
-      broadcast(runtime, 'ask_user', body);
+      setPendingApproval(runtime.sessionId || 'pending', resolve);
+      broadcast(runtime, 'ask_user', confirmBody);
     });
   };
 
