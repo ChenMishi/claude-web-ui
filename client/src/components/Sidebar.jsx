@@ -51,15 +51,16 @@ export default function Sidebar() {
           const chatMsgs = [];
           for (const m of msgs) {
             const content = m.message?.content;
+            const ts = m.timestamp ? new Date(m.timestamp).getTime() : null;
             if (typeof content === 'string' && content.trim()) {
-              chatMsgs.push({ role: 'user', content });
+              chatMsgs.push({ role: 'user', content, ...(ts && { timestamp: ts }) });
               continue;
             }
             if (!Array.isArray(content)) continue;
             const textBlocks = content.filter(c => c.type === 'text');
             if (textBlocks.length > 0) {
               const text = textBlocks.map(c => c.text).join('');
-              chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text });
+              chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text, ...(ts && { timestamp: ts }) });
             }
           }
           setMessages(chatMsgs);
@@ -82,15 +83,16 @@ export default function Sidebar() {
       const chatMsgs = [];
       for (const m of msgs) {
         const content = m.message?.content;
+        const ts = m.timestamp ? new Date(m.timestamp).getTime() : null;
         if (typeof content === 'string' && content.trim()) {
-          chatMsgs.push({ role: 'user', content });
+          chatMsgs.push({ role: 'user', content, ...(ts && { timestamp: ts }) });
           continue;
         }
         if (!Array.isArray(content)) { console.log('[loadMessages] skipping non-array content:', typeof content); continue; }
         const textBlocks = content.filter(c => c.type === 'text');
         if (textBlocks.length > 0) {
           const text = textBlocks.map(c => c.text).join('');
-          chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text });
+          chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text, ...(ts && { timestamp: ts }) });
         }
       }
       console.log('[loadMessages] converted to', chatMsgs.length, 'text messages');
