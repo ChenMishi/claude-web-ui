@@ -131,13 +131,39 @@ function buildSDKOptions(runtime, body) {
 
   // canUseTool approves all tools; AskUserQuestion pauses for user input
   options.canUseTool = async (toolName, input) => {
+    // AskUserQuestion always pauses for user input
     if (toolName === 'AskUserQuestion') {
       return new Promise((resolve) => {
         setPendingApproval(runtime.sessionId || 'pending', resolve);
-        broadcast(runtime, 'ask_user', { questions: input.questions || [] });
+        broadcast(runtime, 'ask_user', { questions: input.questions || [], _type: 'ask' });
       });
     }
-    return { behavior: 'allow', updatedInput: input };
+
+    const level = agentOptions.permissionLevel || 'auto';
+
+    // Auto: approve all tools except AskUserQuestion
+    if (level === 'auto') return { behavior: 'allow', updatedInput: input };
+
+    // Confirm-dangerous: only pause for Bash / Write / Edit
+    const dangerous = new Set(['Bash', 'Write', 'Edit']);
+    if (level === 'confirm-dangerous' && !dangerous.has(toolName)) {
+      return { behavior: 'allow', updatedInput: input };
+    }
+
+    // Confirm-all or confirm-dangerous with dangerous tool: ask user
+    const desc = input?.description || input?.command || input?.file_path || input?.file_path || '';
+    const action = desc ? `${toolName}: ${desc}`.slice(0, 80) : toolName;
+    const body = {
+      questions: [{ question: `允许执行 ${action}？`, header: action, options: ['允许', '拒绝'] }],
+      _type: 'confirm',
+    };
+    setPendingApproval(runtime.sessionId || 'pending', { resolve: null, input });
+    return new Promise((resolve) => {
+      // Store resolve and original input for later
+      const entry = pendingApprovals.get(runtime.sessionId || 'pending');
+      if (entry) entry.resolve = resolve;
+      broadcast(runtime, 'ask_user', body);
+    });
   };
 
   return options;
@@ -474,9 +500,14 @@ router.post('/session/:id/message/resolve', (req, res) => {
   if (!body.answers || typeof body.answers !== 'object') {
     return res.status(400).json({ error: 'answers is required' });
   }
-  // Try URL param first; for new sessions (id='new') the approval was stored under 'pending'
-  let ok = resolvePendingApproval(id, { behavior: 'allow', updatedInput: { answers: body.answers } });
-  if (!ok) ok = resolvePendingApproval('pending', { behavior: 'allow', updatedInput: { answers: body.answers } });
+  // Check if this is a tool confirmation (user chose 允许/拒绝)
+  const firstAnswer = Object.values(body.answers)[0];
+  const decision = firstAnswer === '拒绝'
+    ? { behavior: 'deny', message: '用户拒绝执行' }
+    : { behavior: 'allow', updatedInput: { answers: body.answers } };
+
+  let ok = resolvePendingApproval(id, decision);
+  if (!ok) ok = resolvePendingApproval('pending', decision);
   if (!ok) return res.status(409).json({ error: 'No pending question for this session' });
   res.json({ ok: true });
 });

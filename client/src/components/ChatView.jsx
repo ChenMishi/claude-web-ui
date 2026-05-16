@@ -57,7 +57,7 @@ export default function ChatView() {
     chatMessages, appendMessage, updateLastMessage,
     isStreaming, setStreaming, currentProjectId, currentSessionId,
     model, systemPrompt, setSessionId, projects,
-    setProjects, setSessions,
+    setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
   } = useApp();
   const containerRef = useRef(null);
@@ -249,7 +249,7 @@ export default function ChatView() {
       sessionId,
       cwd,
       prompt: text,
-      options: { model, systemPrompt: systemPrompt || undefined },
+      options: { model, systemPrompt: systemPrompt || undefined, permissionLevel },
       onThinking: ({ text: thinkingText, usage }) => {
         execPhase({ phase: 'thinking', detail: thinkingText });
         if (usage) execTokens(toTokens(usage));

@@ -1,7 +1,7 @@
 import { useApp } from '../context/AppContext';
 
 export default function SettingsPanel() {
-  const { model, systemPrompt, setSetting, projects, currentProjectId } = useApp();
+  const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId } = useApp();
 
   const project = projects.find(p => p.id === currentProjectId);
 
@@ -15,6 +15,15 @@ export default function SettingsPanel() {
           <option value="claude-opus-4-7">Claude Opus 4.7</option>
           <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
           <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+        </select>
+      </div>
+
+      <div className="settings-group">
+        <label>工具权限</label>
+        <select value={permissionLevel} onChange={e => setSetting('permissionLevel', e.target.value)}>
+          <option value="auto">无需确认 — 所有操作自动执行</option>
+          <option value="confirm-dangerous">部分确认 — Bash / 写入 / 编辑需确认</option>
+          <option value="confirm-all">每步确认 — 所有工具操作需确认</option>
         </select>
       </div>
 

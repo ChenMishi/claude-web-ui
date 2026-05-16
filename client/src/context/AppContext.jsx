@@ -42,6 +42,7 @@ const initialState = {
   sidebarOpen: true,
   activeView: 'chat',
   theme: loadState('theme', 'dark'),
+  permissionLevel: loadState('permissionLevel', 'auto'),
   model: loadState('model', 'claude-opus-4-7'),
   systemPrompt: loadState('systemPrompt', ''),
   execStatus: {
@@ -191,10 +192,11 @@ export function AppContextProvider({ children }) {
       localStorage.setItem('claude-ui:currentProjectId', JSON.stringify(state.currentProjectId));
       localStorage.setItem('claude-ui:currentSessionId', JSON.stringify(state.currentSessionId));
       localStorage.setItem('claude-ui:theme', JSON.stringify(state.theme));
+      localStorage.setItem('claude-ui:permissionLevel', JSON.stringify(state.permissionLevel));
       localStorage.setItem('claude-ui:model', JSON.stringify(state.model));
       localStorage.setItem('claude-ui:systemPrompt', JSON.stringify(state.systemPrompt));
     } catch {}
-  }, [state.currentProjectId, state.currentSessionId, state.theme, state.model, state.systemPrompt]);
+  }, [state.currentProjectId, state.currentSessionId, state.theme, state.permissionLevel, state.model, state.systemPrompt]);
 
   // Sync theme to <html data-theme> attribute
   useEffect(() => {
