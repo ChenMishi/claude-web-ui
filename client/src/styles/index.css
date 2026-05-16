@@ -722,7 +722,7 @@ html, body, #root {
 
 /* Compact selectors in input bar */
 .input-select {
-  padding: 6px 4px;
+  padding: 6px 8px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -732,9 +732,21 @@ html, body, #root {
   outline: none;
   height: 36px;
   align-self: flex-end;
-  min-width: 0;
+  transition: border-color 0.2s;
 }
+
+.input-select-model { min-width: 110px; }
+.input-select-perm { min-width: 90px; }
+
 .input-select:focus { border-color: var(--accent); }
+
+/* Permission level color accents */
+.perm-auto { border-color: var(--border); }
+.perm-confirm-dangerous { border-color: rgba(255, 183, 77, 0.5); }
+.perm-confirm-all { border-color: rgba(255, 107, 107, 0.5); }
+
+.perm-confirm-dangerous:focus { border-color: #ffb74d; }
+.perm-confirm-all:focus { border-color: var(--danger); }
 
 /* Error message */
 .error-msg {
