@@ -111,11 +111,13 @@ function handleSDKMessage(message, runtime, isStreaming) {
 
 function buildSDKOptions(runtime, body) {
   const agentOptions = body.options || {};
+  const level = agentOptions.permissionLevel || 'auto';
+  const permMap = { auto: 'bypassPermissions', 'confirm-dangerous': 'default', 'confirm-all': 'default' };
 
   const options = {
     cwd: runtime.cwd,
     allowedTools: agentOptions.allowedTools || ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'AskUserQuestion'],
-    permissionMode: 'default',
+    permissionMode: permMap[level] || 'default',
     pathToClaudeCodeExecutable: SDK_BINARY,
     ...runtime.sessionId ? { resume: runtime.sessionId } : {},
     ...agentOptions.model !== undefined ? { model: agentOptions.model } : {},
@@ -129,38 +131,15 @@ function buildSDKOptions(runtime, body) {
     ...runtime.abort ? { abortController: runtime.abort } : {},
   };
 
-  // canUseTool approves all tools; AskUserQuestion pauses for user input
+  // AskUserQuestion pauses for user input; all other tools auto-approved
   options.canUseTool = async (toolName, input) => {
-    // AskUserQuestion always pauses for user input
     if (toolName === 'AskUserQuestion') {
       return new Promise((resolve) => {
         setPendingApproval(runtime.sessionId || 'pending', resolve);
-        broadcast(runtime, 'ask_user', { questions: input.questions || [], _type: 'ask' });
+        broadcast(runtime, 'ask_user', { questions: input.questions || [] });
       });
     }
-
-    const level = agentOptions.permissionLevel || 'auto';
-
-    // Auto: approve all tools except AskUserQuestion
-    if (level === 'auto') return { behavior: 'allow', updatedInput: input };
-
-    // Confirm-dangerous: only pause for Bash / Write / Edit
-    const dangerous = new Set(['Bash', 'Write', 'Edit']);
-    if (level === 'confirm-dangerous' && !dangerous.has(toolName)) {
-      return { behavior: 'allow', updatedInput: input };
-    }
-
-    // Confirm-all or confirm-dangerous with dangerous tool: ask user
-    const desc = input?.description || input?.command || input?.file_path || '';
-    const action = desc ? `${toolName}: ${desc}`.slice(0, 80) : toolName;
-    const confirmBody = {
-      questions: [{ question: `允许执行 ${action}？`, header: action, options: ['允许', '拒绝'] }],
-      _type: 'confirm',
-    };
-    return new Promise((resolve) => {
-      setPendingApproval(runtime.sessionId || 'pending', resolve);
-      broadcast(runtime, 'ask_user', confirmBody);
-    });
+    return { behavior: 'allow', updatedInput: input };
   };
 
   return options;
