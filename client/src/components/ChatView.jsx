@@ -313,7 +313,7 @@ export default function ChatView() {
         appendMessage({ role: 'system', content: `错误: ${err.message}` });
       },
     });
-  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, systemPrompt, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer]);
+  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer]);
 
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;
