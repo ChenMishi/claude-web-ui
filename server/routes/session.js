@@ -115,8 +115,7 @@ function buildSDKOptions(runtime, body) {
 
   const options = {
     cwd: runtime.cwd,
-    allowedTools: agentOptions.allowedTools || ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'AskUserQuestion'],
-    permissionMode: 'default',
+    permissionMode: 'acceptEdits',
     pathToClaudeCodeExecutable: SDK_BINARY,
     ...runtime.sessionId ? { resume: runtime.sessionId } : {},
     ...agentOptions.model !== undefined ? { model: agentOptions.model } : {},
@@ -130,17 +129,18 @@ function buildSDKOptions(runtime, body) {
     ...runtime.abort ? { abortController: runtime.abort } : {},
   };
 
-  // Permission callback — only active when not using CLI binary (non-auto modes)
+  // Always set canUseTool — acceptEdits mode calls it for Write/Edit/Bash
   options.canUseTool = async (toolName, input) => {
+    console.log('[canUseTool] called for:', toolName, 'level:', level);
+    // Auto mode: allow all tools
+    if (level === 'auto') return { behavior: 'allow', updatedInput: input };
+
     if (toolName === 'AskUserQuestion') {
       return new Promise((resolve) => {
         setPendingApproval(runtime.sessionId || 'pending', resolve);
         broadcast(runtime, 'ask_user', { questions: input.questions || [] });
       });
     }
-
-    // Auto mode uses CLI binary, this callback not reached
-    if (level === 'auto') return { behavior: 'allow', updatedInput: input };
 
     // confirm-dangerous: only pause for Bash / Write / Edit
     const dangerous = new Set(['Bash', 'Write', 'Edit']);
