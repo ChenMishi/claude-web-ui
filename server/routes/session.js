@@ -129,18 +129,16 @@ function buildSDKOptions(runtime, body) {
     ...runtime.abort ? { abortController: runtime.abort } : {},
   };
 
-  // Always set canUseTool — acceptEdits mode calls it for Write/Edit/Bash
   options.canUseTool = async (toolName, input) => {
-    console.log('[canUseTool] called for:', toolName, 'level:', level);
-    // Auto mode: allow all tools
-    if (level === 'auto') return { behavior: 'allow', updatedInput: input };
-
     if (toolName === 'AskUserQuestion') {
       return new Promise((resolve) => {
         setPendingApproval(runtime.sessionId || 'pending', resolve);
         broadcast(runtime, 'ask_user', { questions: input.questions || [] });
       });
     }
+
+    // Auto mode: allow all tools
+    if (level === 'auto') return { behavior: 'allow', updatedInput: input };
 
     // confirm-dangerous: only pause for Bash / Write / Edit
     const dangerous = new Set(['Bash', 'Write', 'Edit']);

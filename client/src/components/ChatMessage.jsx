@@ -58,9 +58,9 @@ function ToolCallBlock({ toolCall }) {
     return map[name] || '🔨';
   };
 
-  const inputPreview = typeof toolCall.input === 'string'
+  const inputPreview = (typeof toolCall.input === 'string'
     ? toolCall.input.slice(0, 120)
-    : JSON.stringify(toolCall.input).slice(0, 120);
+    : JSON.stringify(toolCall.input ?? {}).slice(0, 120)) || '';
 
   return (
     <div className="tool-call-block">
