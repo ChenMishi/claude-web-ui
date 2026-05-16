@@ -720,6 +720,22 @@ html, body, #root {
 .stop-btn { background: var(--danger); color: white; }
 .stop-btn:hover { background: #e55; }
 
+/* Compact selectors in input bar */
+.input-select {
+  padding: 6px 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  height: 36px;
+  align-self: flex-end;
+  min-width: 0;
+}
+.input-select:focus { border-color: var(--accent); }
+
 /* Error message */
 .error-msg {
   align-self: center;

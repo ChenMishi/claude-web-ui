@@ -4,7 +4,7 @@ import { abortSession } from '../api';
 import ExecutionBar from './ExecutionBar';
 
 export default function ChatInput({ onSend, onStop, disabled }) {
-  const { isStreaming, currentSessionId, execStatus } = useApp();
+  const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting } = useApp();
   const inputRef = useRef(null);
 
   const handleSend = useCallback(() => {
@@ -52,6 +52,16 @@ export default function ChatInput({ onSend, onStop, disabled }) {
           onInput={handleInput}
           disabled={disabled && !isStreaming}
         />
+        <select className="input-select" value={model} onChange={e => setSetting('model', e.target.value)} title="模型">
+          <option value="claude-opus-4-7">Opus</option>
+          <option value="claude-sonnet-4-6">Sonnet</option>
+          <option value="claude-haiku-4-5-20251001">Haiku</option>
+        </select>
+        <select className="input-select" value={permissionLevel} onChange={e => setSetting('permissionLevel', e.target.value)} title="工具权限">
+          <option value="auto">🟢</option>
+          <option value="confirm-dangerous">🟡</option>
+          <option value="confirm-all">🔴</option>
+        </select>
         {isStreaming && (
           <button className="stop-btn" onClick={handleStop}>
             ⏹ 中止
