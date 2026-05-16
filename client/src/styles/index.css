@@ -1158,6 +1158,34 @@ html, body, #root {
 
 .ask-user-options button:hover { border-color: var(--accent); background: rgba(108, 99, 255, 0.08); }
 
+.ask-user-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  font-family: var(--font);
+}
+.ask-user-input:focus { border-color: var(--accent); }
+
+.ask-user-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ask-user-option:hover { border-color: var(--accent); }
+.ask-user-option input { accent-color: var(--accent); }
+
 .ask-user-submit {
   width: 100%;
   padding: 10px;

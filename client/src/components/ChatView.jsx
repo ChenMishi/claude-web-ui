@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle, reconnectSession, getSessionInfo } from '../api';
+import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle, reconnectSession, getSessionInfo, resolveQuestion } from '../api';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
@@ -65,6 +65,7 @@ export default function ChatView() {
   const textAccum = useRef('');
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
+  const [askUser, setAskUser] = useState(null); // { questions: [...] } when Claude asks
 
   useEffect(() => {
     if (containerRef.current) {
@@ -275,6 +276,9 @@ export default function ChatView() {
       onToolResult: ({ tool_use_id, content, is_error }) => {
         appendMessage({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error } });
       },
+      onAskUser: ({ questions }) => {
+        setAskUser({ questions });
+      },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost }) => {
         updateLastMessage(null);
         setStreaming(false);
@@ -311,6 +315,12 @@ export default function ChatView() {
     });
   }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, systemPrompt, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer]);
 
+  const handleResolveAsk = useCallback((answers) => {
+    if (!askUser || !currentSessionId) return;
+    resolveQuestion(currentSessionId, answers).catch(() => {});
+    setAskUser(null);
+  }, [askUser, currentSessionId]);
+
   const hasMessages = chatMessages.length > 0;
 
   return (
@@ -320,6 +330,63 @@ export default function ChatView() {
         {chatMessages.map((msg, i) => (
           <ChatMessage key={i} message={msg} />
         ))}
+        {/* AskUserQuestion dialog */}
+        {askUser && (
+          <div className="ask-user-dialog">
+            <h4>🤔 Claude 想确认几个问题</h4>
+            {(askUser.questions || []).map((q, qi) => (
+              <div key={qi} className="ask-user-question">
+                <p>{q.question || q.header || `问题 ${qi + 1}`}</p>
+                {q.options && q.options.length > 0 ? (
+                  <div className="ask-user-options">
+                    {q.options.map((opt, oi) => (
+                      <label key={oi} className="ask-user-option">
+                        <input
+                          type={q.multiSelect ? 'checkbox' : 'radio'}
+                          name={`q-${qi}`}
+                          value={typeof opt === 'string' ? opt : opt.label || opt}
+                          onChange={() => {}} /* managed by form submit */
+                        />
+                        <span>{typeof opt === 'string' ? opt : opt.label || opt}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    className="ask-user-input"
+                    placeholder="输入你的回答..."
+                    data-q={qi}
+                  />
+                )}
+              </div>
+            ))}
+            <button className="ask-user-submit" onClick={() => {
+              const answers = {};
+              const inputs = document.querySelectorAll('.ask-user-dialog [data-q], .ask-user-dialog input[type="radio"]:checked, .ask-user-dialog input[type="checkbox"]:checked');
+              // Build answers object from the questions
+              const qs = askUser.questions || [];
+              const collected = {};
+              qs.forEach((q, qi) => {
+                if (q.options && q.options.length > 0) {
+                  if (q.multiSelect) {
+                    const checked = document.querySelectorAll(`.ask-user-dialog input[name="q-${qi}"]:checked`);
+                    collected[`q${qi}`] = Array.from(checked).map(c => c.value);
+                  } else {
+                    const checked = document.querySelector(`.ask-user-dialog input[name="q-${qi}"]:checked`);
+                    collected[`q${qi}`] = checked ? checked.value : '';
+                  }
+                } else {
+                  const inp = document.querySelector(`.ask-user-dialog [data-q="${qi}"]`);
+                  collected[`q${qi}`] = inp ? inp.value : '';
+                }
+              });
+              handleResolveAsk({ answers: collected });
+            }}>
+              提交
+            </button>
+          </div>
+        )}
       </div>
       <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} />
     </>
