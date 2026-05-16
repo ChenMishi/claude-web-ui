@@ -14,7 +14,7 @@ function safeUrl(url) {
 }
 
 export default function MarkdownRenderer({ content }) {
-  if (!content) return null;
+  if (!content || typeof content !== 'string') return null;
   const html = DOMPurify.sanitize(renderMarkdown(content), {
     ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'h1', 'h2', 'h3', 'h4',
       'ul', 'ol', 'li', 'pre', 'code', 'blockquote', 'hr', 'a', 'img'],

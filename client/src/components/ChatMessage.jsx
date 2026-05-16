@@ -31,6 +31,7 @@ export default function ChatMessage({ message }) {
   }
 
   const labels = { user: '你', assistant: 'Claude' };
+  const safeContent = typeof content === 'string' ? content : '';
 
   return (
     <div className={`message ${role}`}>
@@ -39,7 +40,7 @@ export default function ChatMessage({ message }) {
         {timestamp && <span className="message-time">{formatTime(timestamp)}</span>}
       </div>
       <div className="message-content">
-        <MarkdownRenderer content={content} />
+        <MarkdownRenderer content={safeContent} />
       </div>
     </div>
   );
@@ -84,7 +85,7 @@ function ToolResultBlock({ toolResult }) {
 
   const preview = typeof toolResult.content === 'string'
     ? toolResult.content
-    : JSON.stringify(toolResult.content);
+    : JSON.stringify(toolResult.content ?? '');
 
   const truncated = preview.length > MAX_PREVIEW;
 
