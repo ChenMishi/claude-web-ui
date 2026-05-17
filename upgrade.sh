@@ -76,6 +76,8 @@ git pull origin master 2>&1 | tail -3
 # ---------- 更新依赖 ----------
 log "检查服务端依赖..."
 npm install --production 2>&1 | tail -1
+log "编译原生模块 (node-pty)..."
+npm rebuild node-pty 2>&1 | tail -1
 
 log "检查前端依赖..."
 cd client && npm install 2>&1 | tail -1

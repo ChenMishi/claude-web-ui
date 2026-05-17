@@ -136,6 +136,8 @@ install_deps() {
     cd "$PROJECT_DIR"
     log "安装服务端依赖..."
     npm install --production 2>&1 | tail -1
+    log "编译原生模块 (node-pty)..."
+    npm rebuild node-pty 2>&1 | tail -1
     log "安装前端依赖..."
     cd client && npm install 2>&1 | tail -1
     cd "$PROJECT_DIR"
