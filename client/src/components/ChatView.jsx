@@ -330,6 +330,11 @@ export default function ChatView() {
   }, [askUser, currentSessionId]);
 
   const hasMessages = chatMessages.length > 0;
+  const askQs = askUser?.questions || [];
+  const isToolConfirm = askQs.length === 1 && askQs[0]?.options
+    && askQs[0].options.length === 2
+    && askQs[0].options.includes('允许')
+    && askQs[0].options.includes('拒绝');
 
   return (
     <>
@@ -338,11 +343,24 @@ export default function ChatView() {
         {chatMessages.map((msg, i) => (
           <ChatMessage key={i} message={msg} />
         ))}
-        {/* AskUserQuestion dialog */}
-        {askUser && (
+        {/* AskUserQuestion / Tool confirmation dialog */}
+        {askUser && isToolConfirm && (
+          <div className="ask-user-dialog" ref={askRef}>
+            <h4>🤔 {askQs[0].question || askQs[0].header}</h4>
+            <div className="confirm-buttons">
+              <button className="confirm-btn-allow" onClick={() => handleResolveAsk({ answers: { q0: '允许' } })}>
+                允许
+              </button>
+              <button className="confirm-btn-deny" onClick={() => handleResolveAsk({ answers: { q0: '拒绝' } })}>
+                拒绝
+              </button>
+            </div>
+          </div>
+        )}
+        {askUser && !isToolConfirm && (
           <div className="ask-user-dialog" ref={askRef}>
             <h4>🤔 Claude 想确认几个问题</h4>
-            {(askUser.questions || []).map((q, qi) => (
+            {askQs.map((q, qi) => (
               <div key={qi} className="ask-user-question">
                 <p>{q.question || q.header || `问题 ${qi + 1}`}</p>
                 {q.options && q.options.length > 0 ? (
@@ -353,29 +371,20 @@ export default function ChatView() {
                           type={q.multiSelect ? 'checkbox' : 'radio'}
                           name={`q-${qi}`}
                           value={typeof opt === 'string' ? opt : opt.label || opt}
-                          onChange={() => {}} /* managed by form submit */
+                          onChange={() => {}}
                         />
                         <span>{typeof opt === 'string' ? opt : opt.label || opt}</span>
                       </label>
                     ))}
                   </div>
                 ) : (
-                  <input
-                    type="text"
-                    className="ask-user-input"
-                    placeholder="输入你的回答..."
-                    data-q={qi}
-                  />
+                  <input type="text" className="ask-user-input" placeholder="输入你的回答..." data-q={qi} />
                 )}
               </div>
             ))}
             <button className="ask-user-submit" onClick={() => {
-              const answers = {};
-              const inputs = document.querySelectorAll('.ask-user-dialog [data-q], .ask-user-dialog input[type="radio"]:checked, .ask-user-dialog input[type="checkbox"]:checked');
-              // Build answers object from the questions
-              const qs = askUser.questions || [];
               const collected = {};
-              qs.forEach((q, qi) => {
+              askQs.forEach((q, qi) => {
                 if (q.options && q.options.length > 0) {
                   if (q.multiSelect) {
                     const checked = document.querySelectorAll(`.ask-user-dialog input[name="q-${qi}"]:checked`);

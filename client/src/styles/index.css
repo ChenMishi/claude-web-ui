@@ -1244,6 +1244,40 @@ html, body, #root {
   margin-top: 8px;
 }
 
+.ask-user-submit:hover { background: var(--accent-hover); }
+
+/* Tool confirmation buttons (允许 / 拒绝) */
+.confirm-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.confirm-btn-allow,
+.confirm-btn-deny {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.confirm-btn-allow {
+  background: var(--accent);
+  color: white;
+}
+.confirm-btn-allow:hover { opacity: 0.85; }
+
+.confirm-btn-deny {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.confirm-btn-deny:hover { background: var(--danger-bg); }
+
 /* Tool Call Blocks */
 .tool-call-block {
   align-self: flex-start;
