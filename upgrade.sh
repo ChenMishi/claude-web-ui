@@ -53,13 +53,19 @@ cd "$PROJECT_DIR"
 ensure_node
 
 # ---------- 停止服务 ----------
+if [ -f .port ]; then
+    OLD_PORT=$(cat .port)
+    if lsof -i ":$OLD_PORT" &>/dev/null 2>&1; then
+        log "停止旧服务 (端口 $OLD_PORT)"
+        kill $(lsof -t -i ":$OLD_PORT") 2>/dev/null
+        sleep 2
+        lsof -i ":$OLD_PORT" &>/dev/null 2>&1 && kill -9 $(lsof -t -i ":$OLD_PORT") 2>/dev/null
+    fi
+fi
 if [ -f .pid ]; then
     OLD_PID=$(cat .pid)
-    if kill -0 "$OLD_PID" 2>/dev/null; then
-        log "停止旧服务 (PID $OLD_PID)"
-        kill "$OLD_PID"
-        sleep 1
-    fi
+    kill -0 "$OLD_PID" 2>/dev/null && kill "$OLD_PID" 2>/dev/null
+    rm -f .pid
 fi
 
 # ---------- 拉取最新代码 ----------

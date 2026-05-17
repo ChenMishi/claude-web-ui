@@ -142,20 +142,27 @@ start_server() {
     local port=$1
     cd "$PROJECT_DIR"
 
-    # 停止旧进程
+    # 停止旧进程（按端口 + 按 PID 双重保险）
+    if [ -f .port ]; then
+        OLD_PORT=$(cat .port)
+        if lsof -i ":$OLD_PORT" &>/dev/null 2>&1; then
+            log "停止旧服务 (端口 $OLD_PORT)"
+            kill $(lsof -t -i ":$OLD_PORT") 2>/dev/null
+            sleep 2
+            lsof -i ":$OLD_PORT" &>/dev/null 2>&1 && kill -9 $(lsof -t -i ":$OLD_PORT") 2>/dev/null
+        fi
+    fi
     if [ -f .pid ]; then
         OLD_PID=$(cat .pid)
-        if kill -0 "$OLD_PID" 2>/dev/null; then
-            log "停止旧进程 (PID $OLD_PID)"
-            kill "$OLD_PID"
-            sleep 1
-        fi
+        kill -0 "$OLD_PID" 2>/dev/null && kill "$OLD_PID" 2>/dev/null
+        rm -f .pid
     fi
 
     # 写入端口
     export PORT=$port
 
     log "启动服务 (端口 $port)..."
+    echo "$port" > .port
     nohup node server.js > server.log 2>&1 &
     NEW_PID=$!
     echo "$NEW_PID" > .pid
