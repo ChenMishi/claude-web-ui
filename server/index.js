@@ -8,8 +8,8 @@ const { PORT, CLAUDE_PROJECTS_DIR } = require('./config');
 
 let pty = null;
 let WebSocket = null;
-try { pty = require('node-pty'); } catch {}
-try { WebSocket = require('ws'); } catch {}
+try { pty = require('node-pty'); } catch(e) { console.error('[终端] node-pty 加载失败:', e.message); }
+try { WebSocket = require('ws'); } catch(e) { console.error('[终端] ws 加载失败:', e.message); }
 
 function createApp() {
   const app = express();
