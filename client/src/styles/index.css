@@ -1156,24 +1156,6 @@ html, body, #root {
 .confirm-popup-ok:hover { background: #e55; }
 
 /* Ask User Dialog */
-.ask-user-dialog {
-  background: var(--bg-secondary);
-  border: 1px solid var(--accent);
-  border-radius: 12px;
-  padding: 20px;
-  margin: 8px 0;
-  align-self: flex-start;
-  width: auto;
-  min-width: 280px;
-  max-width: 100%;
-}
-
-.ask-user-dialog h4 {
-  font-size: 14px;
-  margin-bottom: 12px;
-  color: var(--accent);
-}
-
 .ask-user-question {
   margin-bottom: 14px;
 }
@@ -1249,36 +1231,53 @@ html, body, #root {
 /* Tool confirmation buttons (允许 / 拒绝) */
 .confirm-buttons {
   display: flex;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .confirm-btn-allow,
 .confirm-btn-deny {
-  flex: 1;
-  padding: 10px 0;
+  padding: 6px 20px;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: 6px;
+  font-size: 13px;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: all 0.15s;
 }
 
 .confirm-btn-allow {
   background: var(--accent);
-  color: white;
+  color: #fff;
 }
-.confirm-btn-allow:hover { opacity: 0.85; }
+.confirm-btn-allow:hover { filter: brightness(1.1); }
 
 .confirm-btn-deny {
   background: transparent;
-  color: var(--danger);
-  border: 1px solid var(--danger);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
-.confirm-btn-deny:hover { background: var(--danger-bg); }
+.confirm-btn-deny:hover { border-color: var(--danger); color: var(--danger); }
 
-/* Tool Call Blocks */
+/* Ask user dialog — compact inline card */
+.ask-user-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 6px 0;
+  align-self: flex-start;
+  width: auto;
+  min-width: 260px;
+  max-width: 100%;
+}
+
+.ask-user-dialog h4 {
+  font-size: 13px;
+  margin-bottom: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+}
 .tool-call-block {
   align-self: flex-start;
   width: auto;
