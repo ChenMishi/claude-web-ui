@@ -18,7 +18,10 @@ err()  { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # ---------- 确保 Node.js ----------
 ensure_node() {
-    if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+    if command -v node &>/dev/null; then
+        log "Node.js $(node -v) 就绪"
+        return
+    fi
         warn "未检测到 Node.js，正在安装..."
         if command -v apt &>/dev/null; then
             curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1

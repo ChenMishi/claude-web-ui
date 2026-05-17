@@ -54,8 +54,8 @@ setup_code() {
 
 # ---------- 安装 Node.js ----------
 install_node() {
-    if command -v node &>/dev/null && command -v npm &>/dev/null; then
-        log "Node.js $(node -v) / npm $(npm -v) 已就绪"
+    if command -v node &>/dev/null; then
+        log "Node.js $(node -v) 已就绪"
         return
     fi
 
@@ -115,6 +115,16 @@ install_git() {
         pacman -S --noconfirm git 2>&1 | tail -1
     fi
     log "git 安装完成"
+}
+
+# ---------- 安装项目依赖 ----------
+install_deps() {
+    cd "$PROJECT_DIR"
+    log "安装服务端依赖..."
+    npm install --production 2>&1 | tail -1
+    log "安装前端依赖..."
+    cd client && npm install 2>&1 | tail -1
+    cd "$PROJECT_DIR"
 }
 
 # ---------- 构建前端 ----------
