@@ -60,10 +60,8 @@ install_node() {
 
     if [ "$need_install" = false ]; then
         log "Node.js $(node -v) / npm $(npm -v 2>/dev/null || echo '?') 已就绪"
-        return
-    fi
-
-    warn "未检测到完整 Node.js 环境，正在安装..."
+    else
+        warn "未检测到完整 Node.js 环境，正在安装..."
 
     if command -v apt &>/dev/null; then
         # Debian / Ubuntu - nodejs package may not include npm
@@ -92,10 +90,15 @@ install_node() {
         exit 1
     fi
 
-    if ! command -v node &>/dev/null; then
-        err "Node.js 安装失败"
-        exit 1
+
+        if ! command -v node &>/dev/null; then
+            err "Node.js 安装失败"
+            exit 1
+        fi
+        log "Node.js $(node -v) 安装完成"
     fi
+
+    # 编译工具（node-pty 原生模块需要，无论 node 是否已安装都要检查）
     if command -v apt &>/dev/null; then
         apt install -y build-essential python3 2>&1 | tail -1
     elif command -v dnf &>/dev/null; then
