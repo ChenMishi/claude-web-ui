@@ -134,8 +134,9 @@ html, body, #root {
 .sidebar-version {
   font-size: 10px;
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: 'SF Mono', 'Menlo', 'Consolas', 'Courier New', monospace;
   margin-top: 2px;
+  letter-spacing: 0.5px;
 }
 
 .sidebar-body {
