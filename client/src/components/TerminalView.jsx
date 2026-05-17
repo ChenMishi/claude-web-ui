@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 
 export default function TerminalView() {
-  const { currentProjectId } = useApp();
+  const { currentProjectId, projects } = useApp();
   const containerRef = useRef(null);
   const termRef = useRef(null);
   const wsRef = useRef(null);
@@ -40,11 +40,12 @@ export default function TerminalView() {
 
       termRef.current = term;
 
-      // Determine WebSocket URL
+      // Determine WebSocket URL with actual cwd from project list
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      const cwdParam = currentProjectId ? `cwd=${encodeURIComponent(currentProjectId)}` : '';
-      // In dev, Vite proxy handles /api -> :3000 with ws:true
+      const project = projects.find(p => p.id === currentProjectId);
+      const cwd = project?.cwd || '';
+      const cwdParam = cwd ? `cwd=${encodeURIComponent(cwd)}` : '';
       const wsUrl = `${protocol}//${host}/api/terminal?${cwdParam}`;
 
       ws = new WebSocket(wsUrl);
@@ -104,7 +105,7 @@ export default function TerminalView() {
       ws?.close();
       term?.dispose();
     };
-  }, [currentProjectId]);
+  }, [currentProjectId, projects]);
 
   return <div className="terminal-view" ref={containerRef} />;
 }
