@@ -185,6 +185,7 @@ start_server() {
         echo "  ║  停止: kill ${NEW_PID}"
         echo "  ╚════════════════════════════════════╝"
         echo ""
+    else
         err "服务启动失败，查看日志: $PROJECT_DIR/server.log"
         exit 1
     fi
