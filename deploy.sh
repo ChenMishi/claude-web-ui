@@ -160,8 +160,9 @@ start_server() {
     NEW_PID=$!
     echo "$NEW_PID" > .pid
 
-    sleep 2
-    if kill -0 "$NEW_PID" 2>/dev/null; then
+    sleep 3
+    # Check if port is actually listening (more reliable than PID check)
+    if lsof -i ":$port" &>/dev/null; then
         SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
         [ -z "$SERVER_IP" ] && SERVER_IP="localhost"
         log "服务启动成功"

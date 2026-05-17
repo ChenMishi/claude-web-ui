@@ -102,8 +102,9 @@ nohup node server.js > server.log 2>&1 &
 NEW_PID=$!
 echo "$NEW_PID" > .pid
 
-sleep 2
-if kill -0 "$NEW_PID" 2>/dev/null; then
+sleep 3
+# Check if port is actually listening
+if lsof -i ":$PORT" &>/dev/null; then
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     [ -z "$SERVER_IP" ] && SERVER_IP="localhost"
     log "升级完成！"
