@@ -96,7 +96,16 @@ install_node() {
         err "Node.js 安装失败"
         exit 1
     fi
-    log "Node.js $(node -v) 安装完成"
+    if command -v apt &>/dev/null; then
+        apt install -y build-essential python3 2>&1 | tail -1
+    elif command -v dnf &>/dev/null; then
+        dnf install -y make gcc python3 2>&1 | tail -1
+    elif command -v yum &>/dev/null; then
+        yum install -y make gcc python3 2>&1 | tail -1
+    elif command -v apk &>/dev/null; then
+        apk add --no-cache build-base python3 2>&1 | tail -1
+    fi
+    log "编译工具已就绪"
 }
 
 # ---------- 安装 git ----------
