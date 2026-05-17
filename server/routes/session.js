@@ -150,7 +150,10 @@ function buildSDKOptions(runtime, body) {
     const desc = input?.description || input?.command || input?.file_path || '';
     const action = desc ? `${toolName}: ${desc}`.slice(0, 80) : toolName;
     return new Promise((resolve) => {
-      setPendingApproval(runtime.sessionId || 'pending', resolve, 'confirm');
+      setPendingApproval(runtime.sessionId || 'pending', (result) => {
+        console.log('[canUseTool] user answered:', JSON.stringify(result));
+        resolve(result);
+      }, 'confirm');
       broadcast(runtime, 'ask_user', {
         questions: [{ question: `允许执行 ${action}？`, header: action, options: ['允许', '拒绝'] }],
       });
@@ -498,8 +501,11 @@ router.post('/session/:id/message/resolve', (req, res) => {
     ? { behavior: 'deny', message: '用户拒绝执行' }
     : { behavior: 'allow', updatedInput: { answers: body.answers } };
 
+  console.log('[resolve] answer:', firstAnswer, 'decision:', JSON.stringify(decision));
+
   let ok = resolvePendingApproval(id, decision);
   if (!ok) ok = resolvePendingApproval('pending', decision);
+  console.log('[resolve] resolved:', ok);
   if (!ok) return res.status(409).json({ error: 'No pending question for this session' });
   res.json({ ok: true });
 });

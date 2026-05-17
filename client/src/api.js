@@ -34,7 +34,7 @@ export const reconnectSession = (id) => fetch(`${BASE}/session/${id}/stream`, {
   headers: { Accept: 'text/event-stream' },
 });
 export const getSessionMessages = (id, offset) => fetchJSON(`/session/${id}/message${offset != null ? `?offset=${offset}` : ''}`);
-export const resolveQuestion = (id, answers) => fetchJSON(`/session/${id}/message/resolve`, { method: 'POST', body: JSON.stringify({ answers }) });
+export const resolveQuestion = (id, answers) => fetchJSON(`/session/${id}/message/resolve`, { method: 'POST', body: JSON.stringify(answers) });
 
 // Agent SDK chat (full tool calling via session endpoint)
 export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem, onAssistant, onToolResult, onToolUse, onAskUser, onThinking, onDone, onError }) {
