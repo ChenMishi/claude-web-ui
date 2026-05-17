@@ -18,8 +18,8 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 log()  { echo -e "${GREEN}[INFO]${NC}  $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC}  $1"; }
-err()  { echo -e "${RED}[ERROR]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC}  $1" >&2; }
+err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
 # ---------- 端口检测 ----------
 find_port() {
@@ -32,7 +32,7 @@ find_port() {
             exit 1
         fi
     done
-    echo -n "$port"
+    echo "$port"
 }
 
 # ---------- 拉取代码 ----------
@@ -162,16 +162,21 @@ start_server() {
 
     sleep 2
     if kill -0 "$NEW_PID" 2>/dev/null; then
-        log "服务启动成功 — http://0.0.0.0:$port"
+        SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+        [ -z "$SERVER_IP" ] && SERVER_IP="localhost"
+        log "服务启动成功"
         echo ""
-        echo "  Claude Web UI 已运行"
-        echo "  地址: http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost'):$port"
-        echo "  文档: http://localhost:$port/docs"
-        echo "  日志: $PROJECT_DIR/server.log"
-        echo "  PID:  $NEW_PID"
+        echo "  ╔════════════════════════════════════╗"
+        echo "  ║   Claude Web UI 已启动              ║"
+        echo "  ╠════════════════════════════════════╣"
+        echo "  ║  地址: http://${SERVER_IP}:${port}"
+        echo "  ║  文档: http://${SERVER_IP}:${port}/docs"
+        echo "  ║  日志: ${PROJECT_DIR}/server.log"
+        echo "  ║  PID : ${NEW_PID}"
+        echo "  ╠════════════════════════════════════╣"
+        echo "  ║  停止: kill ${NEW_PID}"
+        echo "  ╚════════════════════════════════════╝"
         echo ""
-        echo "  停止: kill \$(cat $PROJECT_DIR/.pid)"
-    else
         err "服务启动失败，查看日志: $PROJECT_DIR/server.log"
         exit 1
     fi

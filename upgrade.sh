@@ -13,8 +13,8 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 log()  { echo -e "${GREEN}[INFO]${NC}  $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC}  $1"; }
-err()  { echo -e "${RED}[ERROR]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC}  $1" >&2; }
+err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
 # ---------- 确保 Node.js ----------
 ensure_node() {
@@ -90,6 +90,7 @@ while lsof -i ":$PORT" &>/dev/null 2>&1; do
     warn "端口 $PORT 已被占用"
     PORT=$((PORT + 1))
     [ $PORT -gt 3020 ] && { err "无可用端口"; exit 1; }
+    echo "$PORT" > .port
 done
 
 # ---------- 启动服务 ----------
@@ -103,11 +104,17 @@ echo "$NEW_PID" > .pid
 
 sleep 2
 if kill -0 "$NEW_PID" 2>/dev/null; then
+    SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -z "$SERVER_IP" ] && SERVER_IP="localhost"
     log "升级完成！"
     echo ""
-    echo "  地址: http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost'):$PORT"
-    echo "  PID:  $NEW_PID"
-    echo "  升级前端口若有变化，会自动适配"
+    echo "  ╔════════════════════════════════════╗"
+    echo "  ║   Claude Web UI 已更新              ║"
+    echo "  ╠════════════════════════════════════╣"
+    echo "  ║  地址: http://${SERVER_IP}:${PORT}"
+    echo "  ║  PID : ${NEW_PID}"
+    echo "  ╚════════════════════════════════════╝"
+    echo ""
 else
     err "启动失败，查看日志: $PROJECT_DIR/server.log"
     exit 1
