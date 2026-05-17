@@ -149,17 +149,12 @@ function startServer(opts = {}) {
 
         // Validate cwd: must exist on disk, no traversal
         const resolved = path.resolve(cwd);
-        if (resolved !== cwd && !cwd.startsWith('/')) {
-          console.warn(`Terminal: rejected non-absolute cwd=${cwd}`);
-          ws.close();
-          return;
-        }
         if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-          console.warn(`Terminal: rejected non-existent cwd=${cwd}`);
-          ws.close();
-          return;
+          console.warn(`Terminal: cwd=${cwd} 不存在，回退到主目录`);
+          cwd = os.homedir();
+        } else {
+          cwd = resolved;
         }
-        cwd = resolved;
 
         const shell = process.env.SHELL || 'bash';
         console.log(`Terminal: cwd=${cwd}, shell=${shell}`);
