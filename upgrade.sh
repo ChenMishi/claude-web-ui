@@ -16,6 +16,29 @@ log()  { echo -e "${GREEN}[INFO]${NC}  $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 err()  { echo -e "${RED}[ERROR]${NC} $1"; }
 
+# ---------- 确保 Node.js ----------
+ensure_node() {
+    if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+        warn "未检测到 Node.js，正在安装..."
+        if command -v apt &>/dev/null; then
+            curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+            apt install -y nodejs 2>&1 | tail -1
+        elif command -v dnf &>/dev/null; then
+            curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+            dnf install -y nodejs 2>&1 | tail -1
+        elif command -v yum &>/dev/null; then
+            curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+            yum install -y nodejs 2>&1 | tail -1
+        elif command -v apk &>/dev/null; then
+            apk add --no-cache nodejs npm 2>&1 | tail -1
+        else
+            err "请先手动安装 Node.js >= 18"
+            exit 1
+        fi
+    fi
+    log "Node.js $(node -v) 就绪"
+}
+
 echo ""
 echo "  ╔══════════════════════════════╗"
 echo "  ║   Claude Web UI 一键升级     ║"
@@ -23,6 +46,8 @@ echo "  ╚═══════════════════════
 echo ""
 
 cd "$PROJECT_DIR"
+
+ensure_node
 
 # ---------- 停止服务 ----------
 if [ -f .pid ]; then

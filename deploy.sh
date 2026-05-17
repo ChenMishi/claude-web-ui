@@ -52,14 +52,69 @@ setup_code() {
     fi
 }
 
-# ---------- 安装依赖 ----------
-install_deps() {
-    cd "$PROJECT_DIR"
-    log "安装服务端依赖..."
-    npm install --production 2>&1 | tail -1
-    log "安装前端依赖..."
-    cd client && npm install 2>&1 | tail -1
-    cd "$PROJECT_DIR"
+# ---------- 安装 Node.js ----------
+install_node() {
+    if command -v node &>/dev/null && command -v npm &>/dev/null; then
+        log "Node.js $(node -v) / npm $(npm -v) 已就绪"
+        return
+    fi
+
+    warn "未检测到 Node.js，正在自动安装..."
+
+    if command -v apt &>/dev/null; then
+        # Debian / Ubuntu
+        log "检测到 apt，安装 Node.js 22.x..."
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+        apt install -y nodejs 2>&1 | tail -1
+    elif command -v dnf &>/dev/null; then
+        # Fedora / RHEL 8+
+        log "检测到 dnf，安装 Node.js 22.x..."
+        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+        dnf install -y nodejs 2>&1 | tail -1
+    elif command -v yum &>/dev/null; then
+        # CentOS / RHEL 7
+        log "检测到 yum，安装 Node.js 22.x..."
+        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+        yum install -y nodejs 2>&1 | tail -1
+    elif command -v apk &>/dev/null; then
+        # Alpine
+        log "检测到 apk，安装 Node.js..."
+        apk add --no-cache nodejs npm 2>&1 | tail -1
+    elif command -v pacman &>/dev/null; then
+        # Arch
+        log "检测到 pacman，安装 Node.js..."
+        pacman -S --noconfirm nodejs npm 2>&1 | tail -1
+    else
+        err "无法识别包管理器，请手动安装 Node.js >= 18"
+        echo "  下载: https://nodejs.org/"
+        exit 1
+    fi
+
+    if ! command -v node &>/dev/null; then
+        err "Node.js 安装失败"
+        exit 1
+    fi
+    log "Node.js $(node -v) 安装完成"
+}
+
+# ---------- 安装 git ----------
+install_git() {
+    if command -v git &>/dev/null; then
+        return
+    fi
+    warn "未检测到 git，正在安装..."
+    if command -v apt &>/dev/null; then
+        apt install -y git 2>&1 | tail -1
+    elif command -v dnf &>/dev/null; then
+        dnf install -y git 2>&1 | tail -1
+    elif command -v yum &>/dev/null; then
+        yum install -y git 2>&1 | tail -1
+    elif command -v apk &>/dev/null; then
+        apk add --no-cache git 2>&1 | tail -1
+    elif command -v pacman &>/dev/null; then
+        pacman -S --noconfirm git 2>&1 | tail -1
+    fi
+    log "git 安装完成"
 }
 
 # ---------- 构建前端 ----------
@@ -120,6 +175,8 @@ echo ""
 PORT=$(find_port "${1:-3000}")
 log "使用端口: $PORT"
 
+install_node
+install_git
 setup_code
 install_deps
 build_client
