@@ -24,7 +24,6 @@ err()  { echo -e "${RED}[ERROR]${NC} $1"; }
 # ---------- 端口检测 ----------
 find_port() {
     local port=${1:-3000}
-    # 检查指定端口是否被占用
     while lsof -i ":$port" &>/dev/null; do
         warn "端口 $port 已被占用"
         port=$((port + 1))
@@ -33,7 +32,7 @@ find_port() {
             exit 1
         fi
     done
-    echo "$port"
+    echo -n "$port"
 }
 
 # ---------- 拉取代码 ----------
@@ -54,34 +53,37 @@ setup_code() {
 
 # ---------- 安装 Node.js ----------
 install_node() {
-    if command -v node &>/dev/null; then
-        log "Node.js $(node -v) 已就绪"
+    local need_install=false
+
+    if ! command -v node &>/dev/null; then need_install=true; fi
+    if ! command -v npm &>/dev/null; then need_install=true; fi
+
+    if [ "$need_install" = false ]; then
+        log "Node.js $(node -v) / npm $(npm -v 2>/dev/null || echo '?') 已就绪"
         return
     fi
 
-    warn "未检测到 Node.js，正在自动安装..."
+    warn "未检测到完整 Node.js 环境，正在安装..."
 
     if command -v apt &>/dev/null; then
-        # Debian / Ubuntu
-        log "检测到 apt，安装 Node.js 22.x..."
-        curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-        apt install -y nodejs 2>&1 | tail -1
+        # Debian / Ubuntu - nodejs package may not include npm
+        log "检测到 apt，安装 Node.js 及 npm..."
+        if ! command -v node &>/dev/null; then
+            curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+        fi
+        apt install -y nodejs npm 2>&1 | tail -1
     elif command -v dnf &>/dev/null; then
-        # Fedora / RHEL 8+
-        log "检测到 dnf，安装 Node.js 22.x..."
+        log "检测到 dnf，安装 Node.js..."
         curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
         dnf install -y nodejs 2>&1 | tail -1
     elif command -v yum &>/dev/null; then
-        # CentOS / RHEL 7
-        log "检测到 yum，安装 Node.js 22.x..."
+        log "检测到 yum，安装 Node.js..."
         curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
         yum install -y nodejs 2>&1 | tail -1
     elif command -v apk &>/dev/null; then
-        # Alpine
         log "检测到 apk，安装 Node.js..."
         apk add --no-cache nodejs npm 2>&1 | tail -1
     elif command -v pacman &>/dev/null; then
-        # Arch
         log "检测到 pacman，安装 Node.js..."
         pacman -S --noconfirm nodejs npm 2>&1 | tail -1
     else
