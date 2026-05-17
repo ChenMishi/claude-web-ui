@@ -38,7 +38,6 @@ ensure_node() {
             err "请先手动安装 Node.js >= 18"
             exit 1
         fi
-    fi
     log "Node.js $(node -v) 就绪"
 }
 
