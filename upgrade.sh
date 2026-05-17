@@ -68,6 +68,8 @@ if [ -f .pid ]; then
 fi
 
 # ---------- 拉取最新代码 ----------
+# 删除运行时文件避免 git pull 冲突（会被脚本重新生成）
+rm -f .pid .port
 log "拉取最新代码..."
 git pull origin master 2>&1 | tail -3
 
