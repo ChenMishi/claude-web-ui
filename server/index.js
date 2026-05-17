@@ -147,16 +147,19 @@ function startServer(opts = {}) {
         const url = new URL(req.url, `http://localhost`);
         let cwd = url.searchParams.get('cwd') || os.homedir();
 
-        // Validate cwd is within an allowed path
-        const allowedRoots = [os.homedir()];
-        if (fs.existsSync(CLAUDE_PROJECTS_DIR)) allowedRoots.push(CLAUDE_PROJECTS_DIR);
-        const { isPathInside } = require('./utils');
-        const safe = allowedRoots.some(root => isPathInside(cwd, root));
-        if (!safe) {
-          console.warn(`Terminal: rejected unsafe cwd=${cwd}`);
+        // Validate cwd: must exist on disk, no traversal
+        const resolved = path.resolve(cwd);
+        if (resolved !== cwd && !cwd.startsWith('/')) {
+          console.warn(`Terminal: rejected non-absolute cwd=${cwd}`);
           ws.close();
           return;
         }
+        if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+          console.warn(`Terminal: rejected non-existent cwd=${cwd}`);
+          ws.close();
+          return;
+        }
+        cwd = resolved;
 
         const shell = process.env.SHELL || 'bash';
         console.log(`Terminal: cwd=${cwd}, shell=${shell}`);
