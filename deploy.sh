@@ -1,0 +1,126 @@
+#!/bin/bash
+# ============================================================
+# Claude Web UI — 一键部署脚本
+# 用法: ./deploy.sh [端口号]
+#       ./deploy.sh        # 默认 3000，被占用则自动选择
+#       ./deploy.sh 8080   # 指定端口
+# ============================================================
+set -e
+
+GOGS_REPO="http://10.178.5.224:3000/gogs/claude-web-ui.git"
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_NAME="claude-web-ui"
+
+# ---------- 颜色 ----------
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+log()  { echo -e "${GREEN}[INFO]${NC}  $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC}  $1"; }
+err()  { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# ---------- 端口检测 ----------
+find_port() {
+    local port=${1:-3000}
+    # 检查指定端口是否被占用
+    while lsof -i ":$port" &>/dev/null; do
+        warn "端口 $port 已被占用"
+        port=$((port + 1))
+        if [ $port -gt 3020 ]; then
+            err "端口范围 3000-3020 全部被占用，请手动指定"
+            exit 1
+        fi
+    done
+    echo "$port"
+}
+
+# ---------- 拉取代码 ----------
+setup_code() {
+    if [ -f "$PROJECT_DIR/server/index.js" ]; then
+        log "已有代码，跳过克隆"
+        return
+    fi
+    PARENT_DIR="$(dirname "$PROJECT_DIR")"
+    if [ "$(basename "$PROJECT_DIR")" = "$PROJECT_NAME" ] && [ ! -f "$PROJECT_DIR/server/index.js" ]; then
+        log "克隆代码: $GOGS_REPO"
+        cd "$PARENT_DIR"
+        git clone "$GOGS_REPO" "$(basename "$PROJECT_DIR")"
+    else
+        log "项目目录: $PROJECT_DIR"
+    fi
+}
+
+# ---------- 安装依赖 ----------
+install_deps() {
+    cd "$PROJECT_DIR"
+    log "安装服务端依赖..."
+    npm install --production 2>&1 | tail -1
+    log "安装前端依赖..."
+    cd client && npm install 2>&1 | tail -1
+    cd "$PROJECT_DIR"
+}
+
+# ---------- 构建前端 ----------
+build_client() {
+    cd "$PROJECT_DIR/client"
+    log "构建前端..."
+    npm run build 2>&1 | tail -1
+    cd "$PROJECT_DIR"
+}
+
+# ---------- 启动服务 ----------
+start_server() {
+    local port=$1
+    cd "$PROJECT_DIR"
+
+    # 停止旧进程
+    if [ -f .pid ]; then
+        OLD_PID=$(cat .pid)
+        if kill -0 "$OLD_PID" 2>/dev/null; then
+            log "停止旧进程 (PID $OLD_PID)"
+            kill "$OLD_PID"
+            sleep 1
+        fi
+    fi
+
+    # 写入端口
+    export PORT=$port
+
+    log "启动服务 (端口 $port)..."
+    nohup node server.js > server.log 2>&1 &
+    NEW_PID=$!
+    echo "$NEW_PID" > .pid
+
+    sleep 2
+    if kill -0 "$NEW_PID" 2>/dev/null; then
+        log "服务启动成功 — http://0.0.0.0:$port"
+        echo ""
+        echo "  Claude Web UI 已运行"
+        echo "  地址: http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost'):$port"
+        echo "  文档: http://localhost:$port/docs"
+        echo "  日志: $PROJECT_DIR/server.log"
+        echo "  PID:  $NEW_PID"
+        echo ""
+        echo "  停止: kill \$(cat $PROJECT_DIR/.pid)"
+    else
+        err "服务启动失败，查看日志: $PROJECT_DIR/server.log"
+        exit 1
+    fi
+}
+
+# ==================== 主流程 ====================
+echo ""
+echo "  ╔══════════════════════════════╗"
+echo "  ║   Claude Web UI 一键部署     ║"
+echo "  ╚══════════════════════════════╝"
+echo ""
+
+PORT=$(find_port "${1:-3000}")
+log "使用端口: $PORT"
+
+setup_code
+install_deps
+build_client
+start_server "$PORT"
