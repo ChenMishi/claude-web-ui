@@ -87,17 +87,13 @@ cd client && npm run build 2>&1 | tail -1
 cd "$PROJECT_DIR"
 
 # ---------- 读取端口 ----------
-PORT=${PORT:-3000}
-if [ -f .port ]; then
-    PORT=$(cat .port)
-fi
+PORT=${OLD_PORT:-3000}
 
-# 检查端口是否可用
+# 检查端口是否可用（如果被占用了说明之前的停止失败，顺延）
 while lsof -i ":$PORT" &>/dev/null 2>&1; do
     warn "端口 $PORT 已被占用"
     PORT=$((PORT + 1))
     [ $PORT -gt 3020 ] && { err "无可用端口"; exit 1; }
-    echo "$PORT" > .port
 done
 
 # ---------- 启动服务 ----------
