@@ -1161,10 +1161,11 @@ html, body, #root {
   border: 1px solid var(--accent);
   border-radius: 12px;
   padding: 20px;
-  margin: 12px 0;
-  align-self: center;
-  max-width: 500px;
-  width: 100%;
+  margin: 8px 0;
+  align-self: flex-start;
+  width: auto;
+  min-width: 280px;
+  max-width: 100%;
 }
 
 .ask-user-dialog h4 {

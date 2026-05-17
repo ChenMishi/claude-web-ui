@@ -65,7 +65,15 @@ export default function ChatView() {
   const textAccum = useRef('');
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
-  const [askUser, setAskUser] = useState(null); // { questions: [...] } when Claude asks
+  const [askUser, setAskUser] = useState(null);
+  const askRef = useRef(null);
+
+  // Auto-scroll when ask dialog appears
+  useEffect(() => {
+    if (askUser && askRef.current) {
+      askRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [askUser]);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -332,7 +340,7 @@ export default function ChatView() {
         ))}
         {/* AskUserQuestion dialog */}
         {askUser && (
-          <div className="ask-user-dialog">
+          <div className="ask-user-dialog" ref={askRef}>
             <h4>🤔 Claude 想确认几个问题</h4>
             {(askUser.questions || []).map((q, qi) => (
               <div key={qi} className="ask-user-question">

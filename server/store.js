@@ -64,7 +64,7 @@ function resolvePendingApproval(sessionId, decision) {
   pendingApprovals.delete(sessionId);
   // Tool confirmations don't need updatedInput.answers, strip them to avoid SDK errors
   if (entry.type === 'confirm' && decision.behavior === 'allow') {
-    entry.resolve({ behavior: 'allow' });
+    entry.resolve({ behavior: 'allow', updatedInput: {} });
   } else {
     entry.resolve(decision);
   }
