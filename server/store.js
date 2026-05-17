@@ -54,15 +54,20 @@ function assignSessionId(runtime, sessionId) {
   runtimeSessions.set(sessionId, runtime);
 }
 
-function setPendingApproval(sessionId, resolve) {
-  pendingApprovals.set(sessionId, resolve);
+function setPendingApproval(sessionId, resolve, type) {
+  pendingApprovals.set(sessionId, { resolve, type: type || 'ask' });
 }
 
 function resolvePendingApproval(sessionId, decision) {
-  const resolve = pendingApprovals.get(sessionId);
-  if (!resolve) return false;
+  const entry = pendingApprovals.get(sessionId);
+  if (!entry) return false;
   pendingApprovals.delete(sessionId);
-  resolve(decision);
+  // Tool confirmations don't need updatedInput.answers, strip them to avoid SDK errors
+  if (entry.type === 'confirm' && decision.behavior === 'allow') {
+    entry.resolve({ behavior: 'allow' });
+  } else {
+    entry.resolve(decision);
+  }
   return true;
 }
 

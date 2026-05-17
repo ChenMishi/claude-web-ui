@@ -150,7 +150,7 @@ function buildSDKOptions(runtime, body) {
     const desc = input?.description || input?.command || input?.file_path || '';
     const action = desc ? `${toolName}: ${desc}`.slice(0, 80) : toolName;
     return new Promise((resolve) => {
-      setPendingApproval(runtime.sessionId || 'pending', resolve);
+      setPendingApproval(runtime.sessionId || 'pending', resolve, 'confirm');
       broadcast(runtime, 'ask_user', {
         questions: [{ question: `允许执行 ${action}？`, header: action, options: ['允许', '拒绝'] }],
       });
