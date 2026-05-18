@@ -151,6 +151,9 @@ export default function Sidebar() {
         <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
           ⚙ 设置
         </button>
+        <button className={activeView === 'version' ? 'active' : ''} onClick={() => setView('version')}>
+          🏷 版本
+        </button>
 
         <div className="sidebar-theme-row">
           <div

@@ -4,6 +4,7 @@ import ChatView from './ChatView';
 import FileBrowser from './FileBrowser';
 import TerminalView from './TerminalView';
 import SettingsPanel from './SettingsPanel';
+import VersionPanel from './VersionPanel';
 
 export default function Layout() {
   const { sidebarOpen, activeView, toggleSidebar } = useApp();
@@ -21,6 +22,7 @@ export default function Layout() {
         {activeView === 'files' && <FileBrowser />}
         {activeView === 'terminal' && <TerminalView />}
         {activeView === 'settings' && <SettingsPanel />}
+        {activeView === 'version' && <VersionPanel />}
       </main>
     </div>
   );
