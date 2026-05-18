@@ -6,13 +6,19 @@ import FileViewer from './FileViewer';
 export default function FileBrowser() {
   const { currentProjectId } = useApp();
   const [tree, setTree] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileContent, setFileContent] = useState('');
   const [fileSize, setFileSize] = useState(0);
 
   useEffect(() => {
     if (currentProjectId) {
-      getProjectTree(currentProjectId).then(setTree).catch(() => {});
+      setLoading(true);
+      setError(null);
+      getProjectTree(currentProjectId)
+        .then(data => { setTree(data); setLoading(false); })
+        .catch(err => { setError(err.message); setLoading(false); });
     }
   }, [currentProjectId]);
 
@@ -42,9 +48,19 @@ export default function FileBrowser() {
         {tree.map(item => (
           <FileTreeNode key={item.path} item={item} onFileClick={handleFileClick} depth={0} />
         ))}
-        {tree.length === 0 && (
+        {error && (
+          <div style={{ textAlign: 'center', color: 'var(--danger)', fontSize: 12, padding: 20 }}>
+            加载失败: {error}
+          </div>
+        )}
+        {!error && loading && (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: 20 }}>
             加载中...
+          </div>
+        )}
+        {!error && !loading && tree.length === 0 && (
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: 20 }}>
+            目录为空
           </div>
         )}
       </div>

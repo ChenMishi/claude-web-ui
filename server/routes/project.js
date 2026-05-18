@@ -151,8 +151,14 @@ router.get('/project/:id/session', (req, res) => {
 // File tree
 router.get('/project/:id/tree', (req, res) => {
   const { id } = req.params;
-  const cwd = dirNameToCwd(id);
-  if (!fs.existsSync(cwd)) return res.status(404).json({ error: 'Project not found' });
+  // Prefer .cwd metadata file, fallback to dirNameToCwd
+  let cwd = null;
+  const cwdFile = path.join(CLAUDE_PROJECTS_DIR, id, '.cwd');
+  if (fs.existsSync(cwdFile)) {
+    try { cwd = fs.readFileSync(cwdFile, 'utf8').trim(); } catch {}
+  }
+  if (!cwd) cwd = dirNameToCwd(id);
+  if (!fs.existsSync(cwd)) return res.status(404).json({ error: `项目目录不存在: ${cwd}` });
   const relPath = req.query.path ?? '/';
   const absPath = path.resolve(cwd, relPath.replace(/^[/\\]/, ''));
   if (!isPathInside(absPath, cwd)) return res.status(403).json({ error: 'Forbidden' });
