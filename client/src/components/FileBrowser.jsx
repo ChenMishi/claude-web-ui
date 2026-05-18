@@ -11,6 +11,7 @@ export default function FileBrowser() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileContent, setFileContent] = useState('');
   const [fileSize, setFileSize] = useState(0);
+  const [expandVersion, setExpandVersion] = useState(0);
   const [expandAll, setExpandAll] = useState(false);
 
   useEffect(() => {
@@ -46,12 +47,12 @@ export default function FileBrowser() {
         <div className="file-tree-header">
           <span className="file-tree-title">📁 文件浏览</span>
           <div className="file-tree-toggle">
-            <button onClick={() => setExpandAll(true)} title="全部展开">展开</button>
-            <button onClick={() => setExpandAll(false)} title="全部收折">收折</button>
+            <button onClick={() => { setExpandAll(true); setExpandVersion(v => v + 1); }} title="全部展开">展开</button>
+            <button onClick={() => { setExpandAll(false); setExpandVersion(v => v + 1); }} title="全部收折">收折</button>
           </div>
         </div>
         {tree.map(item => (
-          <FileTreeNode key={item.path} item={item} onFileClick={handleFileClick} depth={0} expandAll={expandAll} />
+          <FileTreeNode key={item.path} item={item} onFileClick={handleFileClick} depth={0} expandAll={expandAll} expandVersion={expandVersion} />
         ))}
         {error && (
           <div style={{ textAlign: 'center', color: 'var(--danger)', fontSize: 12, padding: 20 }}>
@@ -78,13 +79,12 @@ export default function FileBrowser() {
   );
 }
 
-function FileTreeNode({ item, onFileClick, depth, expandAll }) {
+function FileTreeNode({ item, onFileClick, depth, expandAll, expandVersion }) {
   const [expanded, setExpanded] = useState(false);
 
-  // Sync with expandAll toggle
   useEffect(() => {
     setExpanded(expandAll);
-  }, [expandAll]);
+  }, [expandAll, expandVersion]);
 
   if (item.type === 'dir') {
     return (
@@ -99,7 +99,7 @@ function FileTreeNode({ item, onFileClick, depth, expandAll }) {
         {expanded && item.children && (
           <div className="file-tree-children">
             {item.children.map(child => (
-              <FileTreeNode key={child.path} item={child} onFileClick={onFileClick} depth={depth + 1} expandAll={expandAll} />
+              <FileTreeNode key={child.path} item={child} onFileClick={onFileClick} depth={depth + 1} expandAll={expandAll} expandVersion={expandVersion} />
             ))}
           </div>
         )}
