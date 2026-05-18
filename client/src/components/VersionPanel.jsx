@@ -26,11 +26,6 @@ export default function VersionPanel() {
     }).catch(() => {});
   }, []);
 
-  // Auto-scroll upgrade log
-  useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [upgradeLog]);
-
   // Periodic check
   useEffect(() => {
     if (checkInterval <= 0) return;
