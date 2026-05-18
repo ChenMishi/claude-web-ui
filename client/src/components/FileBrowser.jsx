@@ -46,8 +46,8 @@ export default function FileBrowser() {
         <div className="file-tree-header">
           <span className="file-tree-title">📁 文件浏览</span>
           <div className="file-tree-toggle">
-            <button onClick={() => setExpandAll(true)} title="全部展开">⊞</button>
-            <button onClick={() => setExpandAll(false)} title="全部收折">⊟</button>
+            <button onClick={() => setExpandAll(true)} title="全部展开">展开</button>
+            <button onClick={() => setExpandAll(false)} title="全部收折">收折</button>
           </div>
         </div>
         {tree.map(item => (
@@ -82,7 +82,9 @@ function FileTreeNode({ item, onFileClick, depth, expandAll }) {
   const [expanded, setExpanded] = useState(false);
 
   // Sync with expandAll toggle
-  const isExpanded = expandAll !== undefined ? expandAll : expanded;
+  useEffect(() => {
+    setExpanded(expandAll);
+  }, [expandAll]);
 
   if (item.type === 'dir') {
     return (
@@ -92,9 +94,9 @@ function FileTreeNode({ item, onFileClick, depth, expandAll }) {
           onClick={() => setExpanded(!expanded)}
           style={{ paddingLeft: 8 + depth * 16 }}
         >
-          {(isExpanded || expanded) ? '📂' : '📁'} {item.name}
+          {(expanded) ? '📂' : '📁'} {item.name}
         </div>
-        {(isExpanded || expanded) && item.children && (
+        {expanded && item.children && (
           <div className="file-tree-children">
             {item.children.map(child => (
               <FileTreeNode key={child.path} item={child} onFileClick={onFileClick} depth={depth + 1} expandAll={expandAll} />
