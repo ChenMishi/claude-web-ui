@@ -10,11 +10,13 @@ export default function VersionPanel() {
   const [checkResult, setCheckResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
-  const [upgradeLog, setUpgradeLog] = useState('');
+  const [upgradeProgress, setUpgradeProgress] = useState(0);
+  const [upgradeMsg, setUpgradeMsg] = useState('');
+  const [upgradeDone, setUpgradeDone] = useState(false);
   const [checkInterval, setCheckInterval] = useState(() => {
     return parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0;
   });
-  const logRef = useRef(null);
+  const pollRef = useRef(null);
 
   // Load info
   useEffect(() => {
@@ -65,41 +67,43 @@ export default function VersionPanel() {
 
   const handleUpgrade = useCallback(async () => {
     setUpgrading(true);
-    setUpgradeLog('');
+    setUpgradeProgress(0);
+    setUpgradeMsg('启动升级...');
+    setUpgradeDone(false);
 
     try {
+      // Start upgrade
       const res = await fetch(`${BASE}/version/upgrade`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ remote }),
       });
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      const data = await res.json();
+      if (!data.ok) { setUpgradeMsg(data.error || '启动失败'); setUpgrading(false); return; }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                setUpgradeLog(prev => prev + (data.text || ''));
-                if (data.message) setUpgradeLog(prev => prev + `\n[错误] ${data.message}\n`);
-              } catch {}
-            }
+      // Poll progress
+      pollRef.current = setInterval(async () => {
+        try {
+          const r = await fetch(`${BASE}/version/upgrade/status`);
+          const s = await r.json();
+          setUpgradeProgress(s.progress || 0);
+          setUpgradeMsg(s.message || '');
+          if (s.status === 'done') {
+            clearInterval(pollRef.current);
+            setUpgradeDone(true);
+            setUpgrading(false);
+            setCheckResult(null);
+          } else if (s.status === 'error') {
+            clearInterval(pollRef.current);
+            setUpgradeMsg(s.message || '升级失败');
+            setUpgrading(false);
           }
-        }
-      }
+        } catch {}
+      }, 800);
     } catch (err) {
-      setUpgradeLog(prev => prev + `\n连接中断: ${err.message}\n`);
+      setUpgradeMsg(`启动失败: ${err.message}`);
+      setUpgrading(false);
     }
-    setCheckResult(null);
-    setUpgrading(false);
   }, [remote]);
 
   const handleIntervalChange = (v) => {
@@ -175,13 +179,24 @@ export default function VersionPanel() {
       {/* One-click upgrade */}
       <div className="settings-group">
         <label>一键升级</label>
-        <button className="version-btn version-btn-upgrade" onClick={handleUpgrade} disabled={upgrading}>
-          {upgrading ? '升级中...' : '执行升级 (upgrade.sh)'}
-        </button>
-        {upgradeLog && (
-          <div className="version-upgrade-log" ref={logRef}>
-            <pre>{upgradeLog}</pre>
+        {upgrading || upgradeDone ? (
+          <div className="version-upgrade-progress">
+            <div className="progress-bar-track">
+              <div className="progress-bar-fill" style={{ width: `${upgradeProgress}%` }} />
+            </div>
+            <div className="progress-bar-text">
+              {upgradeProgress}% — {upgradeMsg}
+            </div>
+            {upgradeDone && (
+              <div className="version-refresh-hint">
+                服务已重启，请<button onClick={() => location.reload()} className="version-refresh-btn">刷新页面</button>访问新版本
+              </div>
+            )}
           </div>
+        ) : (
+          <button className="version-btn version-btn-upgrade" onClick={handleUpgrade}>
+            执行升级 (upgrade.sh)
+          </button>
         )}
       </div>
 

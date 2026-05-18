@@ -6,6 +6,10 @@ const router = Router();
 
 const PROJECT_DIR = path.resolve(__dirname, '..', '..');
 const VERSION_FILE = path.join(PROJECT_DIR, 'VERSION');
+const UPGRADE_STATUS_FILE = '/tmp/claude-web-ui-upgrade.status';
+
+// Upgrade state: { status: 'running'|'done'|'error', progress: 0-100, message: '', newVersion: '' }
+let upgradeState = null;
 
 function getGitRemote() {
   try {
@@ -66,19 +70,17 @@ router.post('/version/check', (req, res) => {
   }
 });
 
-// Run upgrade
+// Start upgrade (background)
 router.post('/version/upgrade', (req, res) => {
   const { remote } = req.body || {};
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
+  if (upgradeState && upgradeState.status === 'running') {
+    return res.status(409).json({ error: '升级已在执行中' });
+  }
 
   const upgradeScript = path.join(PROJECT_DIR, 'upgrade.sh');
   if (!fs.existsSync(upgradeScript)) {
-    res.write(`event: error\ndata: ${JSON.stringify({ message: 'upgrade.sh 脚本不存在' })}\n\n`);
-    return res.end();
+    return res.status(500).json({ error: 'upgrade.sh 脚本不存在' });
   }
 
   // Update remote if provided
@@ -86,49 +88,86 @@ router.post('/version/upgrade', (req, res) => {
     try {
       execSync(`git remote set-url origin "${remote}"`, { cwd: PROJECT_DIR, timeout: 5000 });
     } catch (err) {
-      res.write(`event: error\ndata: ${JSON.stringify({ message: `设置远程地址失败: ${err.message}` })}\n\n`);
-      return res.end();
+      return res.status(500).json({ error: `设置远程地址失败: ${err.message}` });
     }
   }
 
-  let keepalive = setInterval(() => {
-    try { if (!res.writableEnded) res.write(':keepalive\n\n'); } catch {}
-  }, 15000);
+  // Reset state
+  upgradeState = { status: 'running', progress: 0, message: '启动升级...', newVersion: '' };
 
-  const proc = spawn('bash', [upgradeScript], { cwd: PROJECT_DIR, env: { ...process.env, PORT: process.env.PORT || '3000' } });
+  // Run upgrade in background via nohup, write output to temp file
+  const logFile = '/tmp/claude-web-ui-upgrade.log';
+  const pidFile = '/tmp/claude-web-ui-upgrade.pid';
 
-  proc.stdout.on('data', (data) => {
-    if (!res.writableEnded) {
-      res.write(`event: log\ndata: ${JSON.stringify({ text: data.toString() })}\n\n`);
+  const child = spawn('nohup', ['bash', upgradeScript], {
+    cwd: PROJECT_DIR,
+    env: { ...process.env, PORT: process.env.PORT || '3000' },
+    stdio: ['ignore', fs.openSync(logFile, 'w'), fs.openSync(logFile, 'a')],
+    detached: true,
+  });
+  child.unref();
+  fs.writeFileSync(pidFile, String(child.pid));
+
+  // Update progress based on log file (poll in background)
+  const totalSteps = 4; // git pull, npm install server, npm install client, build
+  let lastCheck = 0;
+
+  const progressInterval = setInterval(() => {
+    if (!upgradeState || upgradeState.status !== 'running') {
+      clearInterval(progressInterval);
+      return;
     }
-  });
+    try {
+      const log = fs.readFileSync(logFile, 'utf8');
+      // Count progress markers from upgrade.sh stages
+      const steps = [
+        '拉取最新代码', '服务端依赖', '前端依赖', '重新构建前端',
+        '启动服务', '升级完成'
+      ];
+      let matched = 0;
+      for (const step of steps) {
+        if (log.includes(step)) matched++;
+      }
+      const progress = Math.min(Math.round((matched / steps.length) * 100), 95);
+      upgradeState.progress = progress;
+      if (matched >= 3) upgradeState.message = '构建前端...';
+      if (matched >= 4) upgradeState.message = '重启服务...';
+    } catch {}
+  }, 500);
 
-  proc.stderr.on('data', (data) => {
-    if (!res.writableEnded) {
-      res.write(`event: log\ndata: ${JSON.stringify({ text: data.toString() })}\n\n`);
-    }
-  });
+  // Check if process is done
+  const doneInterval = setInterval(() => {
+    try {
+      const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim());
+      try { process.kill(pid, 0); } catch {
+        // Process exited
+        clearInterval(progressInterval);
+        clearInterval(doneInterval);
+        const log = fs.readFileSync(logFile, 'utf8');
+        const success = log.includes('升级完成') || log.includes('启动成功');
+        // Get new version
+        let newVersion = '?';
+        try { newVersion = fs.readFileSync(VERSION_FILE, 'utf8').trim(); } catch {}
 
-  proc.on('close', (code) => {
-    clearInterval(keepalive);
-    if (!res.writableEnded) {
-      res.write(`event: done\ndata: ${JSON.stringify({ exitCode: code, success: code === 0 })}\n\n`);
-      res.end();
-    }
-  });
+        upgradeState = {
+          status: success ? 'done' : 'error',
+          progress: 100,
+          message: success ? '升级完成，请刷新页面' : '升级失败，查看日志',
+          newVersion,
+        };
+        // Cleanup
+        fs.unlinkSync(pidFile);
+      }
+    } catch {}
+  }, 1000);
 
-  proc.on('error', (err) => {
-    clearInterval(keepalive);
-    if (!res.writableEnded) {
-      res.write(`event: error\ndata: ${JSON.stringify({ message: err.message })}\n\n`);
-      res.end();
-    }
-  });
+  res.json({ ok: true, message: '升级已启动' });
+});
 
-  res.on('close', () => {
-    clearInterval(keepalive);
-    proc.kill();
-  });
+// Poll upgrade status
+router.get('/version/upgrade/status', (_req, res) => {
+  if (!upgradeState) return res.json({ status: 'idle', progress: 0 });
+  res.json(upgradeState);
 });
 
 module.exports = router;
