@@ -818,6 +818,41 @@ html, body, #root {
   padding: 12px;
 }
 
+.file-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.file-tree-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.file-tree-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.file-tree-toggle button {
+  padding: 1px 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1.3;
+  transition: all 0.15s;
+}
+
+.file-tree-toggle button:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
 .file-tree-panel::-webkit-scrollbar { width: 4px; }
 .file-tree-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 

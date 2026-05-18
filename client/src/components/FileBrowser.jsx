@@ -11,6 +11,7 @@ export default function FileBrowser() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileContent, setFileContent] = useState('');
   const [fileSize, setFileSize] = useState(0);
+  const [expandAll, setExpandAll] = useState(false);
 
   useEffect(() => {
     if (currentProjectId) {
@@ -42,11 +43,15 @@ export default function FileBrowser() {
   return (
     <div className="file-browser">
       <div className="file-tree-panel">
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--accent)' }}>
-          📁 文件浏览
+        <div className="file-tree-header">
+          <span className="file-tree-title">📁 文件浏览</span>
+          <div className="file-tree-toggle">
+            <button onClick={() => setExpandAll(true)} title="全部展开">⊞</button>
+            <button onClick={() => setExpandAll(false)} title="全部收折">⊟</button>
+          </div>
         </div>
         {tree.map(item => (
-          <FileTreeNode key={item.path} item={item} onFileClick={handleFileClick} depth={0} />
+          <FileTreeNode key={item.path} item={item} onFileClick={handleFileClick} depth={0} expandAll={expandAll} />
         ))}
         {error && (
           <div style={{ textAlign: 'center', color: 'var(--danger)', fontSize: 12, padding: 20 }}>
@@ -73,8 +78,11 @@ export default function FileBrowser() {
   );
 }
 
-function FileTreeNode({ item, onFileClick, depth }) {
-  const [expanded, setExpanded] = useState(depth < 1);
+function FileTreeNode({ item, onFileClick, depth, expandAll }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Sync with expandAll toggle
+  const isExpanded = expandAll !== undefined ? expandAll : expanded;
 
   if (item.type === 'dir') {
     return (
@@ -84,12 +92,12 @@ function FileTreeNode({ item, onFileClick, depth }) {
           onClick={() => setExpanded(!expanded)}
           style={{ paddingLeft: 8 + depth * 16 }}
         >
-          {expanded ? '📂' : '📁'} {item.name}
+          {(isExpanded || expanded) ? '📂' : '📁'} {item.name}
         </div>
-        {expanded && item.children && (
+        {(isExpanded || expanded) && item.children && (
           <div className="file-tree-children">
             {item.children.map(child => (
-              <FileTreeNode key={child.path} item={child} onFileClick={onFileClick} depth={depth + 1} />
+              <FileTreeNode key={child.path} item={child} onFileClick={onFileClick} depth={depth + 1} expandAll={expandAll} />
             ))}
           </div>
         )}
