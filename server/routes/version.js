@@ -128,55 +128,6 @@ router.post('/version/upgrade', (req, res) => {
   child.unref();
   fs.writeFileSync(pidFile, String(child.pid));
 
-  // Update progress based on log file (poll in background)
-  const totalSteps = 4; // git pull, npm install server, npm install client, build
-  let lastCheck = 0;
-
-  const progressInterval = setInterval(() => {
-    const cur = readUpgradeState();
-    if (!cur || cur.status !== 'running') {
-      clearInterval(progressInterval);
-      return;
-    }
-    try {
-      const log = fs.readFileSync(logFile, 'utf8');
-      // Parse [PROGRESS] markers from upgrade.sh
-      const matches = log.match(/\[PROGRESS\] (\d+)/g);
-      if (matches) {
-        const last = matches[matches.length - 1];
-        const pct = parseInt(last.match(/\d+/)[0]);
-        cur.progress = Math.min(pct, 99);
-        if (pct >= 80) cur.message = '重启服务中...';
-        else if (pct >= 60) cur.message = '构建前端...';
-        else if (pct >= 20) cur.message = '安装依赖...';
-        else if (pct >= 10) cur.message = '拉取代码...';
-        else cur.message = '准备升级...';
-        writeUpgradeState(cur);
-      }
-    } catch {}
-  }, 500);
-
-  const doneInterval = setInterval(() => {
-    try {
-      const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim());
-      try { process.kill(pid, 0); } catch {
-        clearInterval(progressInterval);
-        clearInterval(doneInterval);
-        const log = fs.readFileSync(logFile, 'utf8');
-        const success = log.includes('升级完成') || log.includes('启动成功');
-        let newVersion = '?';
-        try { newVersion = fs.readFileSync(VERSION_FILE, 'utf8').trim(); } catch {}
-        writeUpgradeState({
-          status: success ? 'done' : 'error',
-          progress: 100,
-          message: success ? '升级完成，请刷新页面' : '升级失败，查看日志',
-          newVersion,
-        });
-        try { fs.unlinkSync(pidFile); } catch {}
-      }
-    } catch {}
-  }, 1000);
-
   res.json({ ok: true, message: '升级已启动' });
 });
 
