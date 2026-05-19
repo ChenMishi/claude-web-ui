@@ -1467,6 +1467,10 @@ html, body, #root {
   font-family: var(--font-mono);
   font-size: 12px;
 }
+.exec-bar-tokens {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
 
 .exec-bar-cost {
   color: var(--accent);

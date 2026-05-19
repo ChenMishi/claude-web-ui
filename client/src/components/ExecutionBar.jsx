@@ -53,10 +53,18 @@ export default function ExecutionBar() {
 
   const tok = tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
+  // During execution: ↑↓ input + 📥 cache. After done: show all separately.
   const tokParts = [];
-  if (tok.input > 0) tokParts.push(`↑ ${fmtTok(tok.input)}`);
-  tokParts.push(`↓ ${fmtTok(tok.output)}`);
-  if (tok.cacheRead > 0) tokParts.push(`📥 ${fmtTok(tok.cacheRead)}`);
+  const cachePart = tok.cacheRead > 0 ? `📥 ${fmtTok(tok.cacheRead)}` : '';
+  if (!done) {
+    // Running: double-arrow pulse style
+    tokParts.push(`↑↓ ${fmtTok(tok.input)}`);
+    if (cachePart) tokParts.push(cachePart);
+  } else {
+    if (tok.input > 0) tokParts.push(`↑ ${fmtTok(tok.input)}`);
+    tokParts.push(`↓ ${fmtTok(tok.output)}`);
+    if (cachePart) tokParts.push(cachePart);
+  }
   const tokStr = tokParts.join(' ');
 
   return (

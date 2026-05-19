@@ -68,6 +68,10 @@ function handleSDKMessage(message, runtime, isStreaming) {
 
   if (message.type === 'assistant') {
     if (isStreaming) {
+      // Log usage for debugging
+      if (message.message?.usage) {
+        console.log('[SDK usage]', JSON.stringify(message.message.usage));
+      }
       broadcast(runtime, 'message', {
         type: 'assistant',
         uuid: message.uuid || '',
