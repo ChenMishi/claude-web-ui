@@ -13,6 +13,7 @@ export default function VersionPanel() {
   const [upgradeProgress, setUpgradeProgress] = useState(0);
   const [upgradeMsg, setUpgradeMsg] = useState('');
   const [upgradeDone, setUpgradeDone] = useState(false);
+  const [upgradeError, setUpgradeError] = useState(null);
   const [checkInterval, setCheckInterval] = useState(() => {
     return parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0;
   });
@@ -65,16 +66,20 @@ export default function VersionPanel() {
     setUpgradeProgress(0);
     setUpgradeMsg('启动升级...');
     setUpgradeDone(false);
+    setUpgradeError(null);
 
     try {
-      // Start upgrade
       const res = await fetch(`${BASE}/version/upgrade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ remote }),
       });
       const data = await res.json();
-      if (!data.ok) { setUpgradeMsg(data.error || '启动失败'); setUpgrading(false); return; }
+      if (!data.ok) {
+        setUpgradeError(data.error || '启动失败');
+        setUpgrading(false);
+        return;
+      }
 
       // Poll progress (retries on connection loss during server restart)
       pollRef.current = setInterval(async () => {
@@ -99,7 +104,7 @@ export default function VersionPanel() {
         }
       }, 800);
     } catch (err) {
-      setUpgradeMsg(`启动失败: ${err.message}`);
+      setUpgradeError(`启动失败: ${err.message}`);
       setUpgrading(false);
     }
   }, [remote]);
@@ -206,6 +211,11 @@ export default function VersionPanel() {
             {!checkResult && (
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                 请先点击"检测新版本"查看是否有更新
+              </div>
+            )}
+            {upgradeError && (
+              <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 6 }}>
+                {upgradeError}
               </div>
             )}
           </>
