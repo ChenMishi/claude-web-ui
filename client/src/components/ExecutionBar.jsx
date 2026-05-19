@@ -10,6 +10,8 @@ const TOOL_VERBS = {
   Glob: '搜索', Grep: '查找', AskUserQuestion: '询问',
 };
 
+const PHASE_LABELS = { thinking: 'thinking', running: 'running', responding: 'responding' };
+
 function fmtTime(s) {
   if (s < 60) return `${s}s`;
   return `${Math.floor(s / 60)}m ${s % 60}s`;
@@ -50,25 +52,26 @@ export default function ExecutionBar() {
   }
 
   const tok = tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-  // Active direction (turns green): thinking/responding → output active, running → input active
   const outActive = !done && (phase === 'thinking' || phase === 'responding');
-  const inActive = !done && (phase === 'running');
+  const inActive = !done && phase === 'running';
+
+  const tokParts = [];
+  if (tok.input > 0) tokParts.push(`↑ ${fmtTok(tok.input)}`);
+  if (tok.output > 0) tokParts.push(`↓ ${fmtTok(tok.output)}`);
+  if (tok.cacheRead > 0) tokParts.push(`△ ${fmtTok(tok.cacheRead)}`);
+  const tokStr = tokParts.length > 0 ? tokParts.join(' ') : '';
 
   return (
     <div className={`exec-bar ${done ? 'done' : ''}`}>
       <span className="exec-bar-symbol">{symbol}</span>
-      <span className="exec-bar-action">{action}</span>
-
-      {/* Inline token display */}
-      <span className="exec-bar-tokens">
-        <span className={`exec-tok ${inActive ? 'active' : ''}`}>↑ {fmtTok(tok.input)}</span>
-        <span className="exec-tok-sep">·</span>
-        <span className={`exec-tok ${outActive ? 'active' : ''}`}>↓ {fmtTok(tok.output)}</span>
+      <span className="exec-bar-action">{action}…</span>
+      <span className="exec-bar-meta">
+        ({fmtTime(elapsed)}{!done ? ` · ${tokStr} · ${PHASE_LABELS[phase] || phase}` : ''})
       </span>
-
-      <span className="exec-bar-elapsed">{fmtTime(elapsed)}</span>
-
-      {done && cost != null && (
+      {done && tokStr && (
+        <span className="exec-bar-summary">{tokStr}</span>
+      )}
+      {cost != null && (
         <span className="exec-bar-cost">${cost.toFixed(4)}</span>
       )}
     </div>
