@@ -48,8 +48,8 @@ router.post('/version/check', (req, res) => {
     }
     // Fetch latest
     execSync('git fetch origin master --quiet', { cwd: PROJECT_DIR, timeout: 15000 });
-    // Get new commits since current HEAD
-    const log = execSync('git log HEAD..origin/master --oneline --no-merges', {
+    // Get new commits with full messages
+    const log = execSync('git log HEAD..origin/master --no-merges --format="%h||%s"', {
       cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
     }).trim();
     const newVersion = execSync('git show origin/master:VERSION', {
@@ -58,8 +58,15 @@ router.post('/version/check', (req, res) => {
 
     if (log) {
       const commits = log.split('\n').map(line => {
-        const [hash, ...msg] = line.split(' ');
-        return { hash, message: msg.join(' ') };
+        const [hash, ...msg] = line.split('||');
+        const message = msg.join('||');
+        // Categorize: 新增/修复/优化/版本
+        let category = '其他';
+        if (message.startsWith('新增') || message.startsWith('功能')) category = '新增';
+        else if (message.startsWith('修复') || message.startsWith('fix')) category = '修复';
+        else if (message.startsWith('优化')) category = '优化';
+        else if (message.startsWith('版本')) category = '版本';
+        return { hash, message, category };
       });
       res.json({ hasUpdate: true, currentVersion: getCurrentVersion(), newVersion, commits });
     } else {

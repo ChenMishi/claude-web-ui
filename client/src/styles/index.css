@@ -1521,6 +1521,19 @@ html, body, #root {
   background: var(--bg-primary); padding: 1px 5px; border-radius: 3px;
   font-family: var(--font-mono); font-size: 11px;
 }
+.version-commit-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+.tag-新增 { background: rgba(76,175,80,0.15); color: #4caf50; }
+.tag-修复 { background: rgba(255,107,107,0.15); color: #ff6b6b; }
+.tag-优化 { background: rgba(108,99,255,0.15); color: #6c63ff; }
+.tag-版本 { background: rgba(255,183,77,0.15); color: #ffb74d; }
+.tag-其他 { background: rgba(136,136,136,0.15); color: #888; }
 .version-uptodate { font-size: 13px; color: var(--success); }
 .version-check-error { margin-top: 8px; font-size: 12px; color: var(--danger); }
 

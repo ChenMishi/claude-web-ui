@@ -152,10 +152,13 @@ export default function VersionPanel() {
           <div className={`version-check-result ${checkResult.hasUpdate ? 'has-update' : ''}`}>
             {checkResult.hasUpdate ? (
               <>
-                <div className="version-update-badge">有新版本 v{checkResult.newVersion}</div>
+                <div className="version-update-badge">
+                  新版本 v{checkResult.newVersion}（当前 v{checkResult.currentVersion}）
+                </div>
                 <div className="version-update-commits">
                   {checkResult.commits?.map((c, i) => (
                     <div key={i} className="version-commit-item">
+                      <span className={`version-commit-tag tag-${c.category}`}>{c.category}</span>
                       <code>{c.hash?.slice(0, 8)}</code> {c.message}
                     </div>
                   ))}
