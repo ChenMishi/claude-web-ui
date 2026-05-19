@@ -126,6 +126,7 @@ function buildSDKOptions(runtime, body) {
     ...agentOptions.additionalDirectories?.length ? { additionalDirectories: agentOptions.additionalDirectories } : {},
     ...agentOptions.env !== undefined ? { env: agentOptions.env } : {},
     ...agentOptions.thinking !== undefined ? { thinking: agentOptions.thinking } : {},
+    stream_options: { include_usage: true },
     ...runtime.abort ? { abortController: runtime.abort } : {},
   };
 
