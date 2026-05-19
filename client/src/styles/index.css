@@ -1509,6 +1509,7 @@ html, body, #root {
 .version-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .version-btn-check { background: var(--accent); color: #fff; }
 .version-btn-upgrade { background: var(--accent); color: #fff; }
+.version-btn-upgrade:disabled { background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border); cursor: not-allowed; opacity: 1; }
 
 .version-check-result {
   margin-top: 12px; padding: 12px 14px; border-radius: 8px;

@@ -195,8 +195,12 @@ export default function VersionPanel() {
             )}
           </div>
         ) : (
-          <button className="version-btn version-btn-upgrade" onClick={handleUpgrade}>
-            执行升级 (upgrade.sh)
+          <button
+            className="version-btn version-btn-upgrade"
+            onClick={handleUpgrade}
+            disabled={!checkResult?.hasUpdate}
+          >
+            执行升级
           </button>
         )}
       </div>
