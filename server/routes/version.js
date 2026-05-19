@@ -6,10 +6,21 @@ const router = Router();
 
 const PROJECT_DIR = path.resolve(__dirname, '..', '..');
 const VERSION_FILE = path.join(PROJECT_DIR, 'VERSION');
-const UPGRADE_STATUS_FILE = '/tmp/claude-web-ui-upgrade.status';
+const UPGRADE_STATUS_FILE = '/tmp/claude-web-ui-upgrade.status.json';
 
-// Upgrade state: { status: 'running'|'done'|'error', progress: 0-100, message: '', newVersion: '' }
-let upgradeState = null;
+// Read upgrade state from disk (survives server restart)
+function readUpgradeState() {
+  try {
+    if (fs.existsSync(UPGRADE_STATUS_FILE)) {
+      return JSON.parse(fs.readFileSync(UPGRADE_STATUS_FILE, 'utf8'));
+    }
+  } catch {}
+  return null;
+}
+
+function writeUpgradeState(state) {
+  fs.writeFileSync(UPGRADE_STATUS_FILE, JSON.stringify(state), 'utf8');
+}
 
 function getGitRemote() {
   try {
@@ -81,7 +92,8 @@ router.post('/version/check', (req, res) => {
 router.post('/version/upgrade', (req, res) => {
   const { remote } = req.body || {};
 
-  if (upgradeState && upgradeState.status === 'running') {
+  const curState = readUpgradeState();
+  if (curState && curState.status === 'running') {
     return res.status(409).json({ error: '升级已在执行中' });
   }
 
@@ -100,7 +112,8 @@ router.post('/version/upgrade', (req, res) => {
   }
 
   // Reset state
-  upgradeState = { status: 'running', progress: 0, message: '启动升级...', newVersion: '' };
+  const state = { status: 'running', progress: 0, message: '启动升级...', newVersion: '' };
+  writeUpgradeState(state);
 
   // Run upgrade in background via nohup, write output to temp file
   const logFile = '/tmp/claude-web-ui-upgrade.log';
@@ -120,50 +133,40 @@ router.post('/version/upgrade', (req, res) => {
   let lastCheck = 0;
 
   const progressInterval = setInterval(() => {
-    if (!upgradeState || upgradeState.status !== 'running') {
+    const cur = readUpgradeState();
+    if (!cur || cur.status !== 'running') {
       clearInterval(progressInterval);
       return;
     }
     try {
       const log = fs.readFileSync(logFile, 'utf8');
-      // Count progress markers from upgrade.sh stages
-      const steps = [
-        '拉取最新代码', '服务端依赖', '前端依赖', '重新构建前端',
-        '启动服务', '升级完成'
-      ];
+      const steps = ['拉取最新代码', '服务端依赖', '前端依赖', '重新构建前端', '启动服务', '升级完成'];
       let matched = 0;
-      for (const step of steps) {
-        if (log.includes(step)) matched++;
-      }
-      const progress = Math.min(Math.round((matched / steps.length) * 100), 95);
-      upgradeState.progress = progress;
-      if (matched >= 3) upgradeState.message = '构建前端...';
-      if (matched >= 4) upgradeState.message = '重启服务...';
+      for (const step of steps) { if (log.includes(step)) matched++; }
+      cur.progress = Math.min(Math.round((matched / steps.length) * 100), 95);
+      if (matched >= 3) cur.message = '构建前端...';
+      if (matched >= 4) cur.message = '重启服务...';
+      writeUpgradeState(cur);
     } catch {}
   }, 500);
 
-  // Check if process is done
   const doneInterval = setInterval(() => {
     try {
       const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim());
       try { process.kill(pid, 0); } catch {
-        // Process exited
         clearInterval(progressInterval);
         clearInterval(doneInterval);
         const log = fs.readFileSync(logFile, 'utf8');
         const success = log.includes('升级完成') || log.includes('启动成功');
-        // Get new version
         let newVersion = '?';
         try { newVersion = fs.readFileSync(VERSION_FILE, 'utf8').trim(); } catch {}
-
-        upgradeState = {
+        writeUpgradeState({
           status: success ? 'done' : 'error',
           progress: 100,
           message: success ? '升级完成，请刷新页面' : '升级失败，查看日志',
           newVersion,
-        };
-        // Cleanup
-        fs.unlinkSync(pidFile);
+        });
+        try { fs.unlinkSync(pidFile); } catch {}
       }
     } catch {}
   }, 1000);
@@ -173,8 +176,9 @@ router.post('/version/upgrade', (req, res) => {
 
 // Poll upgrade status
 router.get('/version/upgrade/status', (_req, res) => {
-  if (!upgradeState) return res.json({ status: 'idle', progress: 0 });
-  res.json(upgradeState);
+  const state = readUpgradeState();
+  if (!state) return res.json({ status: 'idle', progress: 0 });
+  res.json(state);
 });
 
 module.exports = router;

@@ -76,7 +76,7 @@ export default function VersionPanel() {
       const data = await res.json();
       if (!data.ok) { setUpgradeMsg(data.error || '启动失败'); setUpgrading(false); return; }
 
-      // Poll progress
+      // Poll progress (retries on connection loss during server restart)
       pollRef.current = setInterval(async () => {
         try {
           const r = await fetch(`${BASE}/version/upgrade/status`);
@@ -93,7 +93,10 @@ export default function VersionPanel() {
             setUpgradeMsg(s.message || '升级失败');
             setUpgrading(false);
           }
-        } catch {}
+          // If status is 'idle' or 'running', keep polling
+        } catch {
+          // Server restarting — keep polling, don't stop
+        }
       }, 800);
     } catch (err) {
       setUpgradeMsg(`启动失败: ${err.message}`);
