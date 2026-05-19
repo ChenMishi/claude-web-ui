@@ -757,6 +757,43 @@ html, body, #root {
 
 .input-select-group:focus-within { border-color: var(--accent); }
 
+/* Slash command dropdown */
+.slash-commands {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  padding: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.slash-cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.slash-cmd-item:hover,
+.slash-cmd-item.selected {
+  background: rgba(108, 99, 255, 0.1);
+}
+.slash-cmd-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 500;
+  white-space: nowrap;
+  min-width: 100px;
+}
+.slash-cmd-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* Permission level color accents */
 .perm-auto { border-color: var(--border); }
 .perm-confirm-dangerous { border-color: rgba(255, 183, 77, 0.5); }
