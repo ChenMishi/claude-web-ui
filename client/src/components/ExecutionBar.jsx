@@ -52,14 +52,12 @@ export default function ExecutionBar() {
   }
 
   const tok = tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-  const outActive = !done && (phase === 'thinking' || phase === 'responding');
-  const inActive = !done && phase === 'running';
 
   const tokParts = [];
   if (tok.input > 0) tokParts.push(`↑ ${fmtTok(tok.input)}`);
-  if (tok.output > 0) tokParts.push(`↓ ${fmtTok(tok.output)}`);
-  if (tok.cacheRead > 0) tokParts.push(`△ ${fmtTok(tok.cacheRead)}`);
-  const tokStr = tokParts.length > 0 ? tokParts.join(' ') : '';
+  tokParts.push(`↓ ${fmtTok(tok.output)}`);
+  if (tok.cacheRead > 0) tokParts.push(`📥 ${fmtTok(tok.cacheRead)}`);
+  const tokStr = tokParts.join(' ');
 
   return (
     <div className={`exec-bar ${done ? 'done' : ''}`}>
