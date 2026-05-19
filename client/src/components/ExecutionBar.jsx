@@ -29,13 +29,10 @@ export default function ExecutionBar() {
 
   const done = phase === 'done';
 
-  // Terminal-style status line: ✶ Action… (elapsed · ↓ tokens · phase)
-  let symbol, action, phaseLabel;
-
+  let symbol, action;
   if (phase === 'thinking') {
     symbol = '⏳';
     action = detail ? detail.slice(0, 50) + (detail.length > 50 ? '…' : '') : '思考中';
-    phaseLabel = 'thinking';
   } else if (phase === 'running') {
     const idx = detail.indexOf(':');
     const toolName = idx > 0 ? detail.slice(0, idx) : detail;
@@ -44,40 +41,34 @@ export default function ExecutionBar() {
     const verb = TOOL_VERBS[toolName] || toolName;
     action = desc ? `${verb} ${desc}` : `${verb} ${toolName}`;
     if (action.length > 40) action = action.slice(0, 40) + '…';
-    phaseLabel = 'running';
   } else if (phase === 'responding') {
     symbol = '✶';
     action = '生成回复';
-    phaseLabel = 'responding';
   } else {
     symbol = '✅';
     action = '完成';
-    phaseLabel = 'done';
   }
 
   const tok = tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-  const hasOut = tok.output > 0;
-
-  // Build the inline meta parts
-  const metaParts = [];
-  if (tok.input > 0) metaParts.push(`↑ ${fmtTok(tok.input)}`);
-  if (hasOut) metaParts.push(`↓ ${fmtTok(tok.output)}`);
-  if (tok.cacheRead > 0) metaParts.push(`△ ${fmtTok(tok.cacheRead)}`);
-  const tokStr = metaParts.length > 0 ? ` · ${metaParts.join(' ')}` : '';
+  // Active direction (turns green): thinking/responding → output active, running → input active
+  const outActive = !done && (phase === 'thinking' || phase === 'responding');
+  const inActive = !done && (phase === 'running');
 
   return (
     <div className={`exec-bar ${done ? 'done' : ''}`}>
       <span className="exec-bar-symbol">{symbol}</span>
-      <span className="exec-bar-action">{action}…</span>
-      <span className="exec-bar-meta">
-        ({fmtTime(elapsed)}{!done ? `${tokStr} · ${phaseLabel}` : ''})
+      <span className="exec-bar-action">{action}</span>
+
+      {/* Inline token display */}
+      <span className="exec-bar-tokens">
+        <span className={`exec-tok ${inActive ? 'active' : ''}`}>↑ {fmtTok(tok.input)}</span>
+        <span className="exec-tok-sep">·</span>
+        <span className={`exec-tok ${outActive ? 'active' : ''}`}>↓ {fmtTok(tok.output)}</span>
       </span>
-      {done && (
-        <span className="exec-bar-summary">
-          {metaParts.length > 0 ? metaParts.join(' ') : ''}
-        </span>
-      )}
-      {cost != null && (
+
+      <span className="exec-bar-elapsed">{fmtTime(elapsed)}</span>
+
+      {done && cost != null && (
         <span className="exec-bar-cost">${cost.toFixed(4)}</span>
       )}
     </div>

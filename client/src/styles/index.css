@@ -1439,7 +1439,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
   padding-bottom: 6px;
 }
 
@@ -1459,24 +1459,36 @@ html, body, #root {
   color: var(--success);
 }
 
-.exec-bar-meta {
+.exec-bar-elapsed {
   font-size: 12px;
-}
-
-.exec-bar-summary {
-  font-family: var(--font-mono);
-  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .exec-bar-tokens {
   font-family: var(--font-mono);
   font-size: 12px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.exec-tok {
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+.exec-tok.active {
+  color: #4caf50;
+  font-weight: 600;
+}
+.exec-tok-sep {
+  color: var(--border);
 }
 
 .exec-bar-cost {
-  color: #ffd54f;
+  color: var(--accent);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-left: auto;
 }
 
 /* ── Version Panel ── */
