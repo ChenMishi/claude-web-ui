@@ -195,13 +195,20 @@ export default function VersionPanel() {
             )}
           </div>
         ) : (
-          <button
-            className="version-btn version-btn-upgrade"
-            onClick={handleUpgrade}
-            disabled={!checkResult?.hasUpdate}
-          >
-            执行升级
-          </button>
+          <>
+            <button
+              className="version-btn version-btn-upgrade"
+              onClick={handleUpgrade}
+              disabled={!checkResult?.hasUpdate}
+            >
+              执行升级
+            </button>
+            {!checkResult && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                请先点击"检测新版本"查看是否有更新
+              </div>
+            )}
+          </>
         )}
       </div>
 
