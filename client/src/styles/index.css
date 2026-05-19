@@ -484,6 +484,7 @@ html, body, #root {
 .chat-container {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -766,7 +767,7 @@ html, body, #root {
   padding: 6px;
   max-height: 260px;
   overflow-y: auto;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  scrollbar-width: thin;
 }
 .slash-cmd-item {
   display: flex;

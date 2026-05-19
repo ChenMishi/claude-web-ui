@@ -38,9 +38,18 @@ export default function ChatInput({ onSend, onStop, disabled }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
     setView, setMessages, currentProjectId, selectProject, theme, chatMessages } = useApp();
   const inputRef = useRef(null);
+  const cmdListRef = useRef(null);
   const [showCommands, setShowCommands] = useState(false);
   const [filteredCmds, setFilteredCmds] = useState([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
+
+  // Auto-scroll selected command into view
+  useEffect(() => {
+    if (showCommands && cmdListRef.current) {
+      const el = cmdListRef.current.querySelector('.slash-cmd-item.selected');
+      if (el) el.scrollIntoView({ block: 'nearest' });
+    }
+  }, [selectedIdx, showCommands]);
 
   const handleSend = useCallback(() => {
     const text = inputRef.current?.value?.trim();
@@ -178,7 +187,7 @@ export default function ChatInput({ onSend, onStop, disabled }) {
     <div className="input-area">
       <ExecutionBar />
       {showCommands && (
-        <div className="slash-commands">
+        <div className="slash-commands" ref={cmdListRef}>
           {filteredCmds.map((c, i) => (
             <div
               key={c.cmd}
