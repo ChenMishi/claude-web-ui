@@ -140,13 +140,19 @@ router.post('/version/upgrade', (req, res) => {
     }
     try {
       const log = fs.readFileSync(logFile, 'utf8');
-      const steps = ['拉取最新代码', '服务端依赖', '前端依赖', '重新构建前端', '启动服务', '升级完成'];
-      let matched = 0;
-      for (const step of steps) { if (log.includes(step)) matched++; }
-      cur.progress = Math.min(Math.round((matched / steps.length) * 100), 95);
-      if (matched >= 3) cur.message = '构建前端...';
-      if (matched >= 4) cur.message = '重启服务...';
-      writeUpgradeState(cur);
+      // Parse [PROGRESS] markers from upgrade.sh
+      const matches = log.match(/\[PROGRESS\] (\d+)/g);
+      if (matches) {
+        const last = matches[matches.length - 1];
+        const pct = parseInt(last.match(/\d+/)[0]);
+        cur.progress = Math.min(pct, 99);
+        if (pct >= 80) cur.message = '重启服务中...';
+        else if (pct >= 60) cur.message = '构建前端...';
+        else if (pct >= 20) cur.message = '安装依赖...';
+        else if (pct >= 10) cur.message = '拉取代码...';
+        else cur.message = '准备升级...';
+        writeUpgradeState(cur);
+      }
     } catch {}
   }, 500);
 

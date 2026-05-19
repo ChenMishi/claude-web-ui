@@ -15,6 +15,7 @@ NC='\033[0m'
 log()  { echo -e "${GREEN}[INFO]${NC}  $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC}  $1" >&2; }
 err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+pct()  { echo "[PROGRESS] $1"; }
 
 # ---------- 确保 Node.js ----------
 ensure_node() {
@@ -51,6 +52,7 @@ cd "$PROJECT_DIR"
 
 ensure_node
 
+pct 5
 # ---------- 停止服务 ----------
 if [ -f .port ]; then
     OLD_PORT=$(cat .port)
@@ -70,25 +72,32 @@ fi
 # ---------- 拉取最新代码 ----------
 # 删除运行时文件避免 git pull 冲突（会被脚本重新生成）
 rm -f .pid .port
+pct 10
 log "拉取最新代码..."
 git pull origin master 2>&1 | tail -3
 
 # ---------- 更新依赖 ----------
+pct 20
 log "检查服务端依赖..."
 npm install --production 2>&1 | tail -1
+pct 30
 log "编译原生模块 (node-pty)..."
 npm rebuild node-pty 2>&1 | tail -1
+
+pct 40
 
 log "检查前端依赖..."
 cd client && npm install 2>&1 | tail -1
 cd "$PROJECT_DIR"
 
 # ---------- 重新构建前端 ----------
+pct 60
 log "重新构建前端..."
 cd client && npm run build 2>&1 | tail -1
 cd "$PROJECT_DIR"
 
 # ---------- 读取端口 ----------
+pct 80
 PORT=${OLD_PORT:-3000}
 
 # 检查端口是否可用（如果被占用了说明之前的停止失败，顺延）
@@ -102,6 +111,7 @@ done
 export PORT=$PORT
 echo "$PORT" > .port
 
+pct 90
 log "启动服务 (端口 $PORT)..."
 nohup node server.js > server.log 2>&1 &
 NEW_PID=$!
@@ -110,6 +120,7 @@ echo "$NEW_PID" > .pid
 sleep 3
 # Check if port is actually listening
 if lsof -i ":$PORT" &>/dev/null; then
+    pct 100
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     [ -z "$SERVER_IP" ] && SERVER_IP="localhost"
     log "升级完成！"
