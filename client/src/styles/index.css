@@ -1653,3 +1653,15 @@ html, body, #root {
 .init-test-result { margin-top: 10px; font-size: 13px; font-weight: 500; }
 .init-test-result.success { color: #4caf50; }
 .init-test-result.fail { color: var(--danger); }
+
+.init-env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.init-env-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; background: var(--bg-primary);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.init-env-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.init-env-dot.ok { background: #4caf50; }
+.init-env-dot.warn { background: #ffb74d; }
+.init-env-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.init-env-value { font-size: 12px; color: var(--text-primary); font-family: var(--font-mono); margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

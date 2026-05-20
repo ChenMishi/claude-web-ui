@@ -31,8 +31,36 @@ router.get('/init/status', (_req, res) => {
     claudeProxyUrl: config.claudeProxyUrl || process.env.CLAUDE_PROXY || 'http://127.0.0.1:15721',
     sdkVersion: getSDKVersion(),
     saved: !!fs.existsSync(CONFIG_FILE),
+    env: checkEnvironment(),
   });
 });
+
+function checkCommand(cmd) {
+  try { execSync(`which ${cmd}`, { encoding: 'utf8', timeout: 2000 }); return true; }
+  catch { return false; }
+}
+
+function checkVersion(cmd, args = '--version') {
+  try { return execSync(`${cmd} ${args}`, { encoding: 'utf8', timeout: 3000 }).trim().split('\n')[0]; }
+  catch { return null; }
+}
+
+function checkEnvironment() {
+  return {
+    os: `${os.type()} ${os.release()}`,
+    arch: os.arch(),
+    node: checkCommand('node'),
+    nodeVersion: checkVersion('node', '-v'),
+    npm: checkCommand('npm'),
+    npmVersion: checkVersion('npm', '-v'),
+    git: checkCommand('git'),
+    gitVersion: checkVersion('git', '--version'),
+    curl: checkCommand('curl'),
+    buildTools: checkCommand('make') || checkCommand('gcc'),
+    systemd: checkCommand('systemctl'),
+    home: os.homedir(),
+  };
+}
 
 function checkCCSwitch() {
   try { return execSync('which cc-switch', { encoding: 'utf8', timeout: 3000 }).trim(); }

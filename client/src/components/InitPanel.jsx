@@ -153,6 +153,23 @@ export default function InitPanel() {
         )}
       </div>
 
+      {/* ── 环境信息 ── */}
+      <div className="init-section">
+        <h3>📋 系统环境检测</h3>
+        {status.env && (
+          <div className="init-env-grid">
+            <EnvItem label="操作系统" value={`${status.env.os} (${status.env.arch})`} ok={true} />
+            <EnvItem label="Node.js" value={status.env.nodeVersion || '未安装'} ok={status.env.node} />
+            <EnvItem label="npm" value={status.env.npmVersion || '未安装'} ok={status.env.npm} />
+            <EnvItem label="git" value={status.env.gitVersion || '未安装'} ok={status.env.git} />
+            <EnvItem label="编译工具" value={status.env.buildTools ? '已安装' : '未安装 (node-pty需要)'} ok={status.env.buildTools} />
+            <EnvItem label="curl" value={status.env.curl ? '已安装' : '未安装'} ok={status.env.curl} />
+            <EnvItem label="systemd" value={status.env.systemd ? '已安装' : '未安装'} ok={true} />
+            <EnvItem label="用户目录" value={status.env.home} ok={true} />
+          </div>
+        )}
+      </div>
+
       {/* ── 代理配置 ── */}
       <div className="init-section">
         <h3>⚙ 代理连接配置</h3>
@@ -189,6 +206,16 @@ export default function InitPanel() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function EnvItem({ label, value, ok }) {
+  return (
+    <div className="init-env-item">
+      <span className={`init-env-dot ${ok ? 'ok' : 'warn'}`} />
+      <span className="init-env-label">{label}</span>
+      <span className="init-env-value">{value}</span>
     </div>
   );
 }
