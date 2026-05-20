@@ -1,15 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const BASE = '/api';
 
 export default function InitPanel() {
   const [status, setStatus] = useState(null);
-  const [installing, setInstalling] = useState(null); // 'claude' | 'ccswitch'
+  const [installingCcswitch, setInstallingCcswitch] = useState(false);
   const [installLog, setInstallLog] = useState('');
-  const [installDone, setInstallDone] = useState(false);
   const [proxyUrl, setProxyUrl] = useState('');
   const [proxyPort, setProxyPort] = useState('15721');
   const [testResult, setTestResult] = useState(null);
+  const [installingEnv, setInstallingEnv] = useState(null); // component name or null
+  const [envProgress, setEnvProgress] = useState({});
 
   useEffect(() => {
     fetch(`${BASE}/init/status`).then(r => r.json()).then(d => {
@@ -20,9 +21,8 @@ export default function InitPanel() {
   }, []);
 
   const handleInstallCCSwitch = useCallback(async () => {
-    setInstalling('ccswitch');
+    setInstallingCcswitch(true);
     setInstallLog('');
-    setInstallDone(false);
     try {
       const res = await fetch(`${BASE}/init/install-ccswitch`, {
         method: 'POST',
@@ -44,17 +44,48 @@ export default function InitPanel() {
               try {
                 const data = JSON.parse(line.slice(6));
                 if (data.text) setInstallLog(prev => prev + data.text);
-                if (data.success !== undefined) setInstallDone(data.success);
               } catch {}
             }
           }
         }
       }
-    } catch (err) {
-      setInstallLog(prev => prev + `\n错误: ${err.message}\n`);
-    }
-    setInstalling(null);
-    // Refresh status
+    } catch {}
+    setInstallingCcswitch(false);
+    setTimeout(() => fetch(`${BASE}/init/status`).then(r => r.json()).then(setStatus).catch(() => {}), 1000);
+  }, []);
+
+  const handleInstallEnv = useCallback(async (component) => {
+    setInstallingEnv(component);
+    setEnvProgress(prev => ({ ...prev, [component]: { pct: 5, text: '准备中...' } }));
+    try {
+      const res = await fetch(`${BASE}/init/install-env/${component}`, {
+        method: 'POST',
+        headers: { Accept: 'text/event-stream' },
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.pct !== undefined) {
+                  setEnvProgress(prev => ({ ...prev, [component]: { pct: data.pct, text: data.text || '' } }));
+                }
+              } catch {}
+            }
+          }
+        }
+      }
+    } catch {}
+    setInstallingEnv(null);
     setTimeout(() => fetch(`${BASE}/init/status`).then(r => r.json()).then(setStatus).catch(() => {}), 1000);
   }, []);
 
@@ -66,9 +97,7 @@ export default function InitPanel() {
         body: JSON.stringify({ proxyUrl: `${proxyUrl}:${proxyPort}`, proxyPort }),
       });
       const d = await res.json();
-      if (d.ok) {
-        setStatus(prev => ({ ...prev, saved: true }));
-      }
+      if (d.ok) setStatus(prev => ({ ...prev, saved: true }));
     } catch {}
   }, [proxyUrl, proxyPort]);
 
@@ -87,10 +116,39 @@ export default function InitPanel() {
 
   if (!status) return <div className="init-panel"><p>加载中...</p></div>;
 
+  const env = status.env || {};
+  const envItems = [
+    { key: 'node', label: 'Node.js', ok: env.node, value: env.nodeVersion || '未安装' },
+    { key: 'npm', label: 'npm', ok: env.npm, value: env.npmVersion || '未安装' },
+    { key: 'git', label: 'Git', ok: env.git, value: env.gitVersion || '未安装' },
+    { key: 'buildtools', label: '编译工具', ok: env.buildTools, value: env.buildTools ? '已安装' : '未安装 (node-pty需要)' },
+    { key: 'curl', label: 'curl', ok: env.curl, value: env.curl ? '已安装' : '未安装' },
+  ];
+
+  if (env.os) {
+    envItems.push({ key: 'os', label: '操作系统', ok: true, value: `${env.os} (${env.arch})` });
+  }
+
   return (
     <div className="init-panel">
       <h2>🔧 初始化配置</h2>
       <p className="init-desc">新部署完成后，在此页面安装和配置所需组件</p>
+
+      {/* ── 系统环境 ── */}
+      <div className="init-section">
+        <h3>📋 系统环境检测</h3>
+        <div className="init-env-grid">
+          {envItems.map(item => (
+            <EnvCard
+              key={item.key}
+              item={item}
+              installing={installingEnv === item.key}
+              progress={envProgress[item.key]}
+              onInstall={() => handleInstallEnv(item.key)}
+            />
+          ))}
+        </div>
+      </div>
 
       {/* ── Claude Code ── */}
       <div className="init-section">
@@ -113,9 +171,7 @@ export default function InitPanel() {
           </div>
         </div>
         {!status.claudeInstalled && (
-          <div className="init-note">
-            Claude Code 通过 npm 安装 SDK 时自动部署，运行 <code>npm install</code> 即可
-          </div>
+          <div className="init-note">Claude Code 通过 npm 安装 SDK 时自动部署，运行 <code>npm install</code> 即可</div>
         )}
       </div>
 
@@ -137,35 +193,10 @@ export default function InitPanel() {
         </div>
         {!status.ccSwitchInstalled && (
           <div className="init-deploy-area">
-            <button
-              className="init-btn init-btn-install"
-              onClick={handleInstallCCSwitch}
-              disabled={installing === 'ccswitch'}
-            >
-              {installing === 'ccswitch' ? '安装中...' : '安装 CC-Switch'}
+            <button className="init-btn init-btn-install" onClick={handleInstallCCSwitch} disabled={installingCcswitch}>
+              {installingCcswitch ? '安装中...' : '安装 CC-Switch'}
             </button>
-            {installLog && (
-              <div className="init-install-log">
-                <pre>{installLog}</pre>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── 环境信息 ── */}
-      <div className="init-section">
-        <h3>📋 系统环境检测</h3>
-        {status.env && (
-          <div className="init-env-grid">
-            <EnvItem label="操作系统" value={`${status.env.os} (${status.env.arch})`} ok={true} />
-            <EnvItem label="Node.js" value={status.env.nodeVersion || '未安装'} ok={status.env.node} />
-            <EnvItem label="npm" value={status.env.npmVersion || '未安装'} ok={status.env.npm} />
-            <EnvItem label="git" value={status.env.gitVersion || '未安装'} ok={status.env.git} />
-            <EnvItem label="编译工具" value={status.env.buildTools ? '已安装' : '未安装 (node-pty需要)'} ok={status.env.buildTools} />
-            <EnvItem label="curl" value={status.env.curl ? '已安装' : '未安装'} ok={status.env.curl} />
-            <EnvItem label="systemd" value={status.env.systemd ? '已安装' : '未安装'} ok={true} />
-            <EnvItem label="用户目录" value={status.env.home} ok={true} />
+            {installLog && <div className="init-install-log"><pre>{installLog}</pre></div>}
           </div>
         )}
       </div>
@@ -210,12 +241,22 @@ export default function InitPanel() {
   );
 }
 
-function EnvItem({ label, value, ok }) {
+function EnvCard({ item, installing, progress, onInstall }) {
+  const pct = progress?.pct || 0;
   return (
-    <div className="init-env-item">
-      <span className={`init-env-dot ${ok ? 'ok' : 'warn'}`} />
-      <span className="init-env-label">{label}</span>
-      <span className="init-env-value">{value}</span>
+    <div className={`init-env-card ${installing ? 'installing' : ''}`}>
+      {installing && <div className="init-env-card-fill" style={{ width: `${pct}%` }} />}
+      <div className="init-env-card-content">
+        <span className={`init-env-dot ${item.ok ? 'ok' : 'warn'}`} />
+        <span className="init-env-label">{item.label}</span>
+        {installing ? (
+          <span className="init-env-pct">{pct}%</span>
+        ) : item.ok ? (
+          <span className="init-env-value">{item.value}</span>
+        ) : (
+          <button className="init-env-install-btn" onClick={onInstall}>安装</button>
+        )}
+      </div>
     </div>
   );
 }

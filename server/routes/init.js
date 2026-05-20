@@ -106,7 +106,58 @@ router.post('/init/install-ccswitch', (req, res) => {
   proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
 });
 
-// Save proxy configuration
+// Install system environment component
+router.post('/init/install-env/:component', (req, res) => {
+  const { component } = req.params;
+
+  const installScripts = {
+    node: `curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y nodejs 2>&1`,
+    npm: `apt install -y npm 2>&1`,
+    git: `apt install -y git 2>&1`,
+    buildtools: `apt install -y build-essential python3 2>&1`,
+    curl: `apt install -y curl 2>&1`,
+  };
+
+  const script = installScripts[component];
+  if (!script) return res.status(400).json({ error: '未知组件' });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  const send = (event, data) => {
+    if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  send('progress', { pct: 10, text: `正在安装 ${component}...` });
+
+  const proc = spawn('bash', ['-c', script]);
+  let lastPct = 10;
+
+  proc.stdout.on('data', (d) => {
+    lastPct = Math.min(lastPct + 15, 90);
+    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
+  });
+  proc.stderr.on('data', (d) => {
+    lastPct = Math.min(lastPct + 10, 85);
+    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
+  });
+
+  proc.on('close', (code) => {
+    // Re-check if component is now available
+    const installed = component === 'buildtools'
+      ? (checkCommand('make') || checkCommand('gcc'))
+      : component === 'node'
+        ? checkCommand('node')
+        : checkCommand(component);
+    send('done', { success: installed, pct: 100, text: installed ? `${component} 安装完成` : `${component} 安装失败` });
+    res.end();
+  });
+
+  proc.on('error', (e) => {
+    send('error', { message: e.message });
+    res.end();
+  });
+});
 router.post('/init/config', (req, res) => {
   const { proxyUrl, proxyPort } = req.body || {};
   const config = readConfig();

@@ -1655,13 +1655,31 @@ html, body, #root {
 .init-test-result.fail { color: var(--danger); }
 
 .init-env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.init-env-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; background: var(--bg-primary);
+.init-env-card {
+  position: relative; overflow: hidden;
   border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-primary);
+}
+.init-env-card-fill {
+  position: absolute; top: 0; left: 0; height: 100%;
+  background: rgba(76,175,80,0.12);
+  transition: width 0.4s ease;
+  z-index: 0;
+}
+.init-env-card-content {
+  position: relative; z-index: 1;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
 }
 .init-env-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .init-env-dot.ok { background: #4caf50; }
 .init-env-dot.warn { background: #ffb74d; }
 .init-env-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .init-env-value { font-size: 12px; color: var(--text-primary); font-family: var(--font-mono); margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.init-env-pct { font-size: 12px; font-weight: 600; color: #4caf50; margin-left: auto; font-family: var(--font-mono); }
+.init-env-install-btn {
+  margin-left: auto; padding: 3px 12px; border: 1px solid var(--accent); border-radius: 4px;
+  background: transparent; color: var(--accent); font-size: 11px; cursor: pointer;
+  transition: all 0.15s;
+}
+.init-env-install-btn:hover { background: var(--accent); color: #fff; }
