@@ -91,32 +91,21 @@ export default function VersionPanel() {
       }
 
       // Poll progress with smooth animation
+      let animTarget = 0;
       pollRef.current = setInterval(async () => {
         try {
           const r = await fetch(`${BASE}/version/upgrade/status`);
           const s = await r.json();
-          const target = s.progress || 0;
-          // Start smooth ticker
-          if (!smoothRef.current) {
-            smoothRef.current = setInterval(() => {
-              const cur = progressRef.current;
-              if (cur < target) {
-                progressRef.current = Math.min(cur + 1, target);
-                setUpgradeProgress(progressRef.current);
-              }
-              if (progressRef.current >= 100) {
-                clearInterval(smoothRef.current);
-                smoothRef.current = null;
-              }
-            }, 500);
-          }
+          animTarget = s.progress || 0;
           setUpgradeMsg(s.message || '');
+
           if (s.status === 'done') {
+            // Jump to 100 and stop
+            progressRef.current = 100;
+            setUpgradeProgress(100);
             clearInterval(pollRef.current);
             clearInterval(smoothRef.current);
             smoothRef.current = null;
-            progressRef.current = 100;
-            setUpgradeProgress(100);
             setUpgradeDone(true);
             setUpgrading(false);
             setCheckResult(null);
@@ -129,6 +118,40 @@ export default function VersionPanel() {
           }
         } catch {}
       }, 800);
+
+      // Smooth animation ticker
+      if (!smoothRef.current) {
+        smoothRef.current = setInterval(() => {
+          const cur = progressRef.current;
+          const target = animTarget;
+
+          if (target >= 100 && cur >= 99) {
+            progressRef.current = 100;
+            setUpgradeProgress(100);
+            return;
+          }
+          if (cur >= target && target > 0) return; // already at target
+
+          let inc = 0.1; // default: 1%/sec at 100ms tick
+          if (cur < 5) {
+            inc = 0.15;  // 0→5%: ~1.5%/sec
+          } else if (cur < 10 && target >= 10) {
+            inc = 0.5;   // quickly reach 10%
+          } else if (target >= 90 && cur >= 85) {
+            inc = 2.0;   // fast catch-up to 90%
+          } else if (target > cur + 5) {
+            inc = 0.4;   // gap > 5%: speed up
+          } else if (cur >= 90) {
+            inc = 0.05;  // 90%→: 0.5%/sec slow
+          } else {
+            inc = 0.2;   // normal: 2%/sec
+          }
+
+          const next = Math.min(cur + inc, target || cur + inc, 100);
+          progressRef.current = next;
+          setUpgradeProgress(Math.round(next));
+        }, 100);
+      }
     } catch (err) {
       setUpgradeError(`启动失败: ${err.message}`);
       setUpgrading(false);
