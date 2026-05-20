@@ -117,17 +117,15 @@ export default function InitPanel() {
       <div className="init-section">
         <div className="init-section-header">
           <h3>📋 系统环境检测</h3>
-          {!envChecked && (
-            <button className="init-btn init-btn-check" onClick={() => { loadStatus(); setEnvChecked(true); }}>开始检测</button>
-          )}
+          <button className="init-btn init-btn-check" onClick={() => { loadStatus(); setEnvChecked(true); }}>
+            {envChecked ? '重新检测' : '开始检测'}
+          </button>
         </div>
-        {envChecked && status && (
-          <div className="init-env-grid">
-            {envItems.map(item => (
-              <EnvCard key={item.key} item={item} installing={installingEnv === item.key} progress={envProgress[item.key]} onInstall={() => handleInstallEnv(item.key)} />
-            ))}
-          </div>
-        )}
+        <div className="init-env-grid">
+          {envItems.map(item => (
+            <EnvCard key={item.key} item={item} checked={envChecked} installing={installingEnv === item.key} progress={envProgress[item.key]} onInstall={() => handleInstallEnv(item.key)} />
+          ))}
+        </div>
       </div>
 
       {/* ── Claude Code ── */}
@@ -198,17 +196,24 @@ export default function InitPanel() {
   );
 }
 
-function EnvCard({ item, installing, progress, onInstall }) {
+function EnvCard({ item, checked, installing, progress, onInstall }) {
   const pct = progress?.pct || 0;
+  const showPending = !checked;
+  const showInstalling = installing && checked;
+  const showOk = checked && item.ok;
+  const showWarn = checked && !item.ok && !installing;
+
   return (
-    <div className={`init-env-card ${installing ? 'installing' : ''}`}>
-      {installing && <div className="init-env-card-fill" style={{ width: `${pct}%` }} />}
+    <div className={`init-env-card ${showInstalling ? 'installing' : ''} ${showPending ? 'pending' : ''}`}>
+      {showInstalling && <div className="init-env-card-fill" style={{ width: `${pct}%` }} />}
       <div className="init-env-card-content">
-        <span className={`init-env-dot ${item.ok ? 'ok' : 'warn'}`} />
+        <span className={`init-env-dot ${showPending ? 'pending' : (item.ok ? 'ok' : 'warn')}`} />
         <span className="init-env-label">{item.label}</span>
-        {installing ? (
+        {showInstalling ? (
           <span className="init-env-pct">{pct}%</span>
-        ) : item.ok ? (
+        ) : showPending ? (
+          <span className="init-env-pending">待检测</span>
+        ) : showOk ? (
           <span className="init-env-value">{item.value}</span>
         ) : (
           <button className="init-env-install-btn" onClick={onInstall}>安装</button>
