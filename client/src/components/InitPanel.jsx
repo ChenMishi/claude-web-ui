@@ -34,7 +34,7 @@ export default function InitPanel() {
     // Animate revealing results one by one
     const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
     for (let i = 0; i < items.length; i++) {
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 1000));
       setEnvProgress(prev => ({ ...prev, [items[i]]: { checked: true } }));
     }
   }, []);
@@ -135,7 +135,7 @@ export default function InitPanel() {
       <div className="init-section">
         <div className="init-section-header">
           <h3>📋 系统环境检测</h3>
-          <button className="init-btn init-btn-check" onClick={handleStartCheck} disabled={envChecked && !Object.values(envProgress).some(v => v?.checked === false)}>
+          <button className="init-btn init-btn-check" onClick={handleStartCheck}>
             {envChecked ? '重新检测' : '开始检测'}
           </button>
         </div>
