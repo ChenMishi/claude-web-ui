@@ -6,6 +6,8 @@ export default function InitPanel() {
   const [status, setStatus] = useState(null);
   const [envChecked, setEnvChecked] = useState(false);
   const [installingCcswitch, setInstallingCcswitch] = useState(false);
+  const [installingClaude, setInstallingClaude] = useState(false);
+  const [claudeInstallLog, setClaudeInstallLog] = useState('');
   const [installLog, setInstallLog] = useState('');
   const [proxyUrl, setProxyUrl] = useState('');
   const [proxyPort, setProxyPort] = useState('15721');
@@ -39,6 +41,29 @@ export default function InitPanel() {
 
   // Auto-load status on mount
   useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  const handleInstallClaude = useCallback(async () => {
+    setInstallingClaude(true); setClaudeInstallLog('');
+    try {
+      const res = await fetch(`${BASE}/init/install-claude`, {
+        method: 'POST', headers: { Accept: 'text/event-stream' },
+      });
+      const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try { const data = JSON.parse(line.slice(6)); if (data.text) setClaudeInstallLog(prev => prev + data.text); } catch {}
+            }
+          }
+        }
+      }
+    } catch {}
+    setInstallingClaude(false);
+    setTimeout(() => loadStatus(), 1000);
+  }, [loadStatus]);
 
   const handleInstallCCSwitch = useCallback(async () => {
     setInstallingCcswitch(true); setInstallLog('');
@@ -155,7 +180,14 @@ export default function InitPanel() {
             <div className="init-info-item"><span className="init-info-label">状态</span><span className="init-info-value">{status.claudeInstalled ? `已安装 (${status.claudeVersion || 'v?'})` : '未安装'}</span></div>
             <div className="init-info-item"><span className="init-info-label">路径</span><span className="init-info-value mono">{status.claudePath || '—'}</span></div>
           </div>
-          {!status.claudeInstalled && <div className="init-note">Claude Code 通过 npm 安装 SDK 时自动部署，运行 <code>npm install</code> 即可</div>}
+          {!status.claudeInstalled && (
+            <div className="init-deploy-area">
+              <button className="init-btn init-btn-install" onClick={handleInstallClaude} disabled={installingClaude}>
+                {installingClaude ? '安装中...' : '安装 Claude Code'}
+              </button>
+              {claudeInstallLog && <div className="init-install-log"><pre>{claudeInstallLog}</pre></div>}
+            </div>
+          )}
         </div>
       )}
 

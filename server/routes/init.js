@@ -199,4 +199,35 @@ router.post('/init/test-proxy', async (req, res) => {
   } catch { res.json({ ok: false, url: proxyUrl }); }
 });
 
+// Install Claude Code CLI globally
+router.post('/init/install-claude', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  const send = (event, data) => {
+    if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  send('progress', { pct: 10, text: '正在安装 Claude Code...' });
+
+  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code'], { env: process.env });
+  let lastPct = 10;
+
+  proc.stdout.on('data', (d) => {
+    lastPct = Math.min(lastPct + 15, 90);
+    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
+  });
+  proc.stderr.on('data', (d) => {
+    lastPct = Math.min(lastPct + 10, 85);
+    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
+  });
+
+  proc.on('close', (code) => {
+    const installed = checkClaudeCode() ? true : false;
+    send('done', { success: installed, pct: 100, text: installed ? 'Claude Code 安装完成' : '安装失败' });
+    res.end();
+  });
+  proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
+});
+
 module.exports = router;
