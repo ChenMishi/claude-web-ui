@@ -21,20 +21,18 @@ export default function InitPanel() {
     }).catch(() => {});
   }, []);
 
-  // Animate env check items one by one
   const handleStartCheck = useCallback(async () => {
     setEnvChecked(false);
-    // Trigger the actual check
+    setEnvProgress({}); // clear previous results
     const res = await fetch(`${BASE}/init/status`).then(r => r.json());
     setStatus(res);
     setProxyUrl(res.claudeProxyUrl || res.proxyUrl || 'http://127.0.0.1:15721');
     setProxyPort(String(res.proxyPort || 15721));
     setEnvChecked(true);
 
-    // Animate revealing results one by one
     const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
     for (let i = 0; i < items.length; i++) {
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 700));
       setEnvProgress(prev => ({ ...prev, [items[i]]: { checked: true } }));
     }
   }, []);
