@@ -1671,6 +1671,7 @@ html, body, #root {
 .init-btn { padding: 9px 20px; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
 .init-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .init-btn-install { background: #4caf50; color: #fff; }
+.init-btn-check { background: var(--accent); color: #fff; }
 .init-btn-test { background: var(--accent); color: #fff; }
 .init-btn-save { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--accent); }
 .init-install-log { margin-top: 10px; background: #0d0d1f; border: 1px solid var(--border); border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; line-height: 1.5; color: #e0e0e0; white-space: pre-wrap; }
