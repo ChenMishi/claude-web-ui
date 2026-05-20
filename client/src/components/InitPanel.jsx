@@ -21,6 +21,24 @@ export default function InitPanel() {
     }).catch(() => {});
   }, []);
 
+  // Animate env check items one by one
+  const handleStartCheck = useCallback(async () => {
+    setEnvChecked(false);
+    // Trigger the actual check
+    const res = await fetch(`${BASE}/init/status`).then(r => r.json());
+    setStatus(res);
+    setProxyUrl(res.claudeProxyUrl || res.proxyUrl || 'http://127.0.0.1:15721');
+    setProxyPort(String(res.proxyPort || 15721));
+    setEnvChecked(true);
+
+    // Animate revealing results one by one
+    const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
+    for (let i = 0; i < items.length; i++) {
+      await new Promise(r => setTimeout(r, 400));
+      setEnvProgress(prev => ({ ...prev, [items[i]]: { checked: true } }));
+    }
+  }, []);
+
   // Auto-load status on mount
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
@@ -117,7 +135,7 @@ export default function InitPanel() {
       <div className="init-section">
         <div className="init-section-header">
           <h3>📋 系统环境检测</h3>
-          <button className="init-btn init-btn-check" onClick={() => { loadStatus(); setEnvChecked(true); }}>
+          <button className="init-btn init-btn-check" onClick={handleStartCheck} disabled={envChecked && !Object.values(envProgress).some(v => v?.checked === false)}>
             {envChecked ? '重新检测' : '开始检测'}
           </button>
         </div>
@@ -198,18 +216,22 @@ export default function InitPanel() {
 
 function EnvCard({ item, checked, installing, progress, onInstall }) {
   const pct = progress?.pct || 0;
-  const showPending = !checked;
-  const showInstalling = installing && checked;
-  const showOk = checked && item.ok;
-  const showWarn = checked && !item.ok && !installing;
+  const itemChecked = checked && progress?.checked;
+  const showPending = !itemChecked && !installing;
+  const showInstalling = installing && itemChecked;
+  const showOk = itemChecked && item.ok && !installing;
+  const showWarn = itemChecked && !item.ok && !installing;
+  const showChecking = checked && !itemChecked && !installing;
 
   return (
     <div className={`init-env-card ${showInstalling ? 'installing' : ''} ${showPending ? 'pending' : ''}`}>
       {showInstalling && <div className="init-env-card-fill" style={{ width: `${pct}%` }} />}
       <div className="init-env-card-content">
-        <span className={`init-env-dot ${showPending ? 'pending' : (item.ok ? 'ok' : 'warn')}`} />
+        <span className={`init-env-dot ${showChecking ? 'checking' : (showPending ? 'pending' : (item.ok ? 'ok' : 'warn'))}`} />
         <span className="init-env-label">{item.label}</span>
-        {showInstalling ? (
+        {showChecking ? (
+          <span className="init-env-checking-text">检测中...</span>
+        ) : showInstalling ? (
           <span className="init-env-pct">{pct}%</span>
         ) : showPending ? (
           <span className="init-env-pending">待检测</span>

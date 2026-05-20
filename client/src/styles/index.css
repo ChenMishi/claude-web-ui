@@ -1708,9 +1708,19 @@ html, body, #root {
 .init-env-dot.ok { background: #4caf50; }
 .init-env-dot.warn { background: #ffb74d; }
 .init-env-dot.pending { background: #666; }
+.init-env-dot.checking {
+  background: transparent;
+  border: 2px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  width: 8px; height: 8px;
+  animation: spin-dot 0.6s linear infinite;
+}
+@keyframes spin-dot { to { transform: rotate(360deg); } }
 .init-env-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .init-env-value { font-size: 12px; color: var(--text-primary); font-family: var(--font-mono); margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .init-env-pending { font-size: 11px; color: #666; margin-left: auto; }
+.init-env-checking-text { font-size: 11px; color: var(--accent); margin-left: auto; }
 .init-env-pct { font-size: 12px; font-weight: 600; color: #4caf50; margin-left: auto; font-family: var(--font-mono); }
 .init-env-install-btn {
   margin-left: auto; padding: 3px 12px; border: 1px solid var(--accent); border-radius: 4px;
