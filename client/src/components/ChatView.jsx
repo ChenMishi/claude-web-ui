@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState, useLayoutEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages } from '../api';
 import ChatMessage from './ChatMessage';
@@ -121,8 +122,16 @@ export default function ChatView() {
       // Prepend older messages
       if (olderMsgs.length > 0) {
         const currentMsgs = chatMessagesRef.current || chatMessages;
-        skipScrollRef.current = true;
-        setMessages([...olderMsgs, ...currentMsgs]);
+        // Sync render to avoid visual flicker — measure, apply, correct scroll in one frame
+        flushSync(() => {
+          setMessages([...olderMsgs, ...currentMsgs]);
+        });
+        // Immediately correct scroll (useLayoutEffect also does this as backup)
+        if (containerRef.current && scrollRestoreRef.current) {
+          const { scrollHeight: oldH, scrollTop: oldS } = scrollRestoreRef.current;
+          containerRef.current.scrollTop = oldS + (containerRef.current.scrollHeight - oldH);
+        }
+        scrollRestoreRef.current = null; // consumed
       } else {
         setHasMore(false);
       }
@@ -138,7 +147,7 @@ export default function ChatView() {
     }
   }, [chatMessages]);
 
-  // Restore scroll after prepending older messages (before paint)
+  // Restore scroll after prepending (backup for flushSync path)
   useLayoutEffect(() => {
     if (!scrollRestoreRef.current) return;
     const el = containerRef.current;
