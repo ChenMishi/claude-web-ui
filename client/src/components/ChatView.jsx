@@ -119,11 +119,13 @@ export default function ChatView() {
       if (olderMsgs.length > 0) {
         const currentMsgs = chatMessagesRef.current || chatMessages;
         setMessages([...olderMsgs, ...currentMsgs]);
-        // Restore scroll position after DOM update
+        // Restore scroll after two frames (ensure DOM updated)
         requestAnimationFrame(() => {
-          if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight - scrollRestoreRef.current;
-          }
+          requestAnimationFrame(() => {
+            if (containerRef.current) {
+              containerRef.current.scrollTop = containerRef.current.scrollHeight - scrollRestoreRef.current;
+            }
+          });
         });
       } else {
         setHasMore(false);
