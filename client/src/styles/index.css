@@ -1620,6 +1620,12 @@ html, body, #root {
   font-size: 12px;
   color: var(--text-muted);
 }
+.version-refresh-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.version-refresh-link:hover { color: var(--accent-hover); }
 .version-refresh-hint {
   margin-top: 14px;
   padding: 12px 14px;

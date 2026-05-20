@@ -217,7 +217,11 @@ export default function VersionPanel() {
               <div className="progress-bar-fill" style={{ width: `${upgradeProgress}%` }} />
             </div>
             <div className="progress-bar-text">
-              {upgradeProgress}% — {upgradeMsg}
+              {upgradeDone ? (
+                <>100% — 升级完成，请<a onClick={() => location.reload()} className="version-refresh-link">刷新</a>页面！</>
+              ) : (
+                <>{upgradeProgress}% — {upgradeMsg}</>
+              )}
             </div>
             {upgradeDone && (
               <div className="version-refresh-hint">
