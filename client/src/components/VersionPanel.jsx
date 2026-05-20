@@ -95,7 +95,7 @@ export default function VersionPanel() {
       // 0→5%: 1%/sec
       while (cur < 5) { await tick(); cur = Math.min(cur + 0.1, 5); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('停服中...'); }
       // 5→90%: 2%/sec
-      while (cur < 90) { await tick(); cur = Math.min(cur + 0.2, 90); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('升级中...'); }
+      while (cur < 90) { await tick(); cur = Math.min(cur + 0.3, 90); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('升级中...'); }
       // 90→100%: 1%/sec
       while (cur < 100) { await tick(); cur = Math.min(cur + 0.1, 100); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('启动服务...'); }
 
@@ -212,11 +212,6 @@ export default function VersionPanel() {
                 <>{upgradeProgress}% — {upgradeMsg}</>
               )}
             </div>
-            {upgradeDone && (
-              <div className="version-refresh-hint">
-                服务已重启，请<button onClick={() => location.reload()} className="version-refresh-btn">刷新页面</button>访问新版本
-              </div>
-            )}
           </div>
         ) : (
           <>
