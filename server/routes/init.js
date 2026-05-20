@@ -39,7 +39,7 @@ router.get('/init/status', (_req, res) => {
 });
 
 function checkCommand(cmd) {
-  try { execSync(`which ${cmd}`, { encoding: 'utf8', timeout: 2000 }); return true; }
+  try { execSync(`command -v ${cmd}`, { encoding: 'utf8', timeout: 2000 }); return true; }
   catch { return false; }
 }
 
@@ -66,18 +66,17 @@ function checkEnvironment() {
 }
 
 function checkCCSwitch() {
-  try { return execSync('which cc-switch', { encoding: 'utf8', timeout: 3000 }).trim(); }
+  try { return execSync('command -v cc-switch', { encoding: 'utf8', timeout: 3000 }).trim(); }
   catch { return null; }
 }
 
 function checkClaudeCode() {
-  // Check for globally installed claude CLI (npm install -g @anthropic-ai/claude-code)
-  try { return execSync('which claude', { encoding: 'utf8', timeout: 3000 }).trim(); }
+  try { return require('child_process').execSync('command -v claude', { encoding: 'utf8', timeout: 3000 }).trim(); }
   catch { return null; }
 }
 
 function getClaudeCodeVersion() {
-  try { return execSync('claude --version', { encoding: 'utf8', timeout: 5000 }).trim(); }
+  try { return require('child_process').execSync('claude --version', { encoding: 'utf8', timeout: 5000 }).trim(); }
   catch { return null; }
 }
 
