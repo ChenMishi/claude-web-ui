@@ -91,7 +91,7 @@ export default function InitPanel() {
 
   const handleInstallEnv = useCallback(async (component) => {
     setInstallingEnv(component);
-    setEnvProgress(prev => ({ ...prev, [component]: { pct: 5, text: '准备中...' } }));
+    setEnvProgress(prev => ({ ...prev, [component]: { pct: 5, text: '准备中...', checked: true } }));
     try {
       const res = await fetch(`${BASE}/init/install-env/${component}`, {
         method: 'POST', headers: { Accept: 'text/event-stream' },
@@ -246,9 +246,9 @@ export default function InitPanel() {
 
 function EnvCard({ item, checked, installing, progress, onInstall }) {
   const pct = progress?.pct || 0;
-  const itemChecked = checked && progress?.checked;
+  const itemChecked = checked && (progress?.checked || installing);
   const showPending = !itemChecked && !installing;
-  const showInstalling = installing && itemChecked;
+  const showInstalling = installing;
   const showOk = itemChecked && item.ok && !installing;
   const showWarn = itemChecked && !item.ok && !installing;
   const showChecking = checked && !itemChecked && !installing;

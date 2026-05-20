@@ -40,7 +40,7 @@ const initialState = {
   messageCache: initMessageCache,
   isStreaming: false,
   sidebarOpen: true,
-  updateAvailable: loadState('updateAvailable', false),
+  updateAvailable: false,  // always reset on page load
   activeView: 'chat',
   theme: loadState('theme', 'dark'),
   permissionLevel: loadState('permissionLevel', 'auto'),
