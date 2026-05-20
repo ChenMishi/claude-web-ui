@@ -270,7 +270,7 @@ router.patch('/session/:id', (req, res) => {
 // Get session messages
 router.get('/session/:id/message', (req, res) => {
   const { id } = req.params;
-  const limit = 200;
+  const limit = 500;
   let jsonlPath = null;
   if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
     for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
