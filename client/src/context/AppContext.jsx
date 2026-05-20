@@ -40,6 +40,7 @@ const initialState = {
   messageCache: initMessageCache,
   isStreaming: false,
   sidebarOpen: true,
+  updateAvailable: loadState('updateAvailable', false),
   activeView: 'chat',
   theme: loadState('theme', 'dark'),
   permissionLevel: loadState('permissionLevel', 'auto'),
@@ -132,6 +133,9 @@ function reducer(state, action) {
       next = { ...state, activeView: action.payload }; break;
     case 'TOGGLE_SIDEBAR':
       next = { ...state, sidebarOpen: !state.sidebarOpen }; break;
+    case 'SET_UPDATE':
+      localStorage.setItem('claude-ui:updateAvailable', JSON.stringify(action.payload));
+      next = { ...state, updateAvailable: action.payload }; break;
     case 'SET_SETTING':
       localStorage.setItem(`claude-ui:${action.payload.key}`, JSON.stringify(action.payload.value));
       next = { ...state, [action.payload.key]: action.payload.value }; break;
@@ -177,6 +181,7 @@ export function AppContextProvider({ children }) {
   const setStreaming = useCallback((v) => dispatch({ type: 'SET_STREAMING', payload: v }), []);
   const setView = useCallback((v) => dispatch({ type: 'SET_VIEW', payload: v }), []);
   const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), []);
+  const setUpdateAvailable = useCallback((v) => dispatch({ type: 'SET_UPDATE', payload: v }), []);
   const setSetting = useCallback((key, value) => dispatch({ type: 'SET_SETTING', payload: { key, value } }), []);
 
   const execStart = useCallback(() => dispatch({ type: 'EXEC_START' }), []);
@@ -209,6 +214,7 @@ export function AppContextProvider({ children }) {
     setMessages, appendMessage, updateLastMessage, setStreaming,
     setView, toggleSidebar, setSetting,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
+    setUpdateAvailable,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

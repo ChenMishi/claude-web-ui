@@ -17,6 +17,7 @@ export default function Sidebar() {
     currentProjectId, selectProject, setSessions,
     currentSessionId, setMessages, chatMessages,
     setView, activeView, theme, setSetting,
+    updateAvailable,
   } = useApp();
 
   // Load projects on mount, restore saved project
@@ -153,6 +154,7 @@ export default function Sidebar() {
         </button>
         <button className={activeView === 'version' ? 'active' : ''} onClick={() => setView('version')}>
           🏷 版本
+          {updateAvailable && <span className="nav-badge" />}
         </button>
         <button className={activeView === 'init' ? 'active' : ''} onClick={() => setView('init')}>
           🔧 初始化

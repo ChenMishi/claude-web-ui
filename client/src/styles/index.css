@@ -401,6 +401,20 @@ html, body, #root {
 .sidebar-nav button:hover { background: rgba(108, 99, 255, 0.08); color: var(--text-primary); }
 .sidebar-nav button.active { background: rgba(108, 99, 255, 0.12); color: var(--accent); }
 
+/* Version update badge */
+.nav-badge {
+  display: inline-block;
+  width: 8px; height: 8px;
+  background: #ff5252;
+  border-radius: 50%;
+  margin-left: auto;
+  animation: pulse-badge 1.5s infinite;
+}
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* Sidebar theme slider with animated bottom bar */
 .sidebar-theme-row {
   padding: 6px 12px 8px;

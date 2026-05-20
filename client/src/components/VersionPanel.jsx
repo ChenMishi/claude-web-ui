@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 const BASE = '/api';
 
 export default function VersionPanel() {
-  const { setSetting } = useApp();
+  const { setSetting, setUpdateAvailable } = useApp();
   const [info, setInfo] = useState(null);
   const [remote, setRemote] = useState('');
   const [checkResult, setCheckResult] = useState(null);
@@ -18,6 +18,11 @@ export default function VersionPanel() {
     return parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0;
   });
   const pollRef = useRef(null);
+
+  // Clear update badge when user opens this page
+  useEffect(() => {
+    setUpdateAvailable(false);
+  }, []);
 
   // Load info
   useEffect(() => {
@@ -37,6 +42,7 @@ export default function VersionPanel() {
         body: JSON.stringify({ remote }),
       }).then(r => r.json()).then(d => {
         setCheckResult(d);
+        if (d.hasUpdate) setUpdateAvailable(true);
         localStorage.setItem('claude-ui:lastCheck', JSON.stringify(d));
       }).catch(() => {});
     }, checkInterval * 60000);
@@ -54,6 +60,7 @@ export default function VersionPanel() {
       });
       const data = await res.json();
       setCheckResult(data);
+      if (data.hasUpdate) setUpdateAvailable(true);
       localStorage.setItem('claude-ui:lastCheck', JSON.stringify(data));
     } catch (err) {
       setCheckResult({ error: err.message });
