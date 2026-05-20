@@ -21,9 +21,12 @@ function writeConfig(cfg) {
 // Get current status of all components
 router.get('/init/status', (_req, res) => {
   const config = readConfig();
+  const claudeCodePath = checkClaudeCode();
+  const claudeCodeVersion = claudeCodePath ? getClaudeCodeVersion() : null;
   res.json({
-    claudeInstalled: fs.existsSync(SDK_BIN),
-    claudePath: SDK_BIN,
+    claudeInstalled: !!claudeCodePath,
+    claudePath: claudeCodePath || '未安装',
+    claudeVersion: claudeCodeVersion,
     ccSwitchInstalled: !!checkCCSwitch(),
     ccSwitchPath: checkCCSwitch(),
     proxyUrl: config.proxyUrl || 'http://127.0.0.1:15721',
@@ -64,6 +67,17 @@ function checkEnvironment() {
 
 function checkCCSwitch() {
   try { return execSync('which cc-switch', { encoding: 'utf8', timeout: 3000 }).trim(); }
+  catch { return null; }
+}
+
+function checkClaudeCode() {
+  // Check for globally installed claude CLI (npm install -g @anthropic-ai/claude-code)
+  try { return execSync('which claude', { encoding: 'utf8', timeout: 3000 }).trim(); }
+  catch { return null; }
+}
+
+function getClaudeCodeVersion() {
+  try { return execSync('claude --version', { encoding: 'utf8', timeout: 5000 }).trim(); }
   catch { return null; }
 }
 

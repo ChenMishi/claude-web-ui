@@ -152,7 +152,7 @@ export default function InitPanel() {
             <span className={`init-status-badge ${status.claudeInstalled ? 'ok' : 'warn'}`}>{status.claudeInstalled ? '已安装' : '未安装'}</span>
           </div>
           <div className="init-info-grid">
-            <div className="init-info-item"><span className="init-info-label">状态</span><span className="init-info-value">{status.claudeInstalled ? `已安装 (SDK v${status.sdkVersion})` : '未安装'}</span></div>
+            <div className="init-info-item"><span className="init-info-label">状态</span><span className="init-info-value">{status.claudeInstalled ? `已安装 (${status.claudeVersion || 'v?'})` : '未安装'}</span></div>
             <div className="init-info-item"><span className="init-info-label">路径</span><span className="init-info-value mono">{status.claudePath || '—'}</span></div>
           </div>
           {!status.claudeInstalled && <div className="init-note">Claude Code 通过 npm 安装 SDK 时自动部署，运行 <code>npm install</code> 即可</div>}
