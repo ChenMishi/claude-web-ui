@@ -71,6 +71,7 @@ export default function ChatView() {
   const askRef = useRef(null);
   const chatMessagesRef = useRef(chatMessages);
   chatMessagesRef.current = chatMessages;
+  const skipScrollRef = useRef(false);
   const loadedCountRef = useRef(0);
 
   // Auto-scroll when ask dialog appears
@@ -88,6 +89,7 @@ export default function ChatView() {
   const handleLoadMore = useCallback(async () => {
     if (!currentSessionId || loadingMore) return;
     setLoadingMore(true);
+    skipScrollRef.current = true; // prevent auto-scroll on prepend
     const offset = loadedCountRef.current;
     try {
       const msgs = await getSessionMessages(currentSessionId, offset);
@@ -120,8 +122,9 @@ export default function ChatView() {
     setLoadingMore(false);
   }, [currentSessionId, loadingMore, setMessages]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages (skip when loading older messages)
   useEffect(() => {
+    if (skipScrollRef.current) { skipScrollRef.current = false; return; }
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
