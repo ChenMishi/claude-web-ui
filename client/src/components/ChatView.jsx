@@ -120,6 +120,7 @@ export default function ChatView() {
       // Prepend older messages
       if (olderMsgs.length > 0) {
         const currentMsgs = chatMessagesRef.current || chatMessages;
+        skipScrollRef.current = true;
         setMessages([...olderMsgs, ...currentMsgs]);
         // Compensate for the added height so view stays exactly where it was
         requestAnimationFrame(() => {
