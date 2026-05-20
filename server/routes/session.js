@@ -284,19 +284,24 @@ router.get('/session/:id/message', (req, res) => {
   const messages = [];
   try {
     const allLines = fs.readFileSync(jsonlPath, 'utf8').split('\n').filter(Boolean);
-    // Default: load last <limit> messages from the end of the file
-    const reqOffset = req.query.offset !== undefined ? parseInt(req.query.offset) : null;
-    const offset = reqOffset !== null && !isNaN(reqOffset)
-      ? reqOffset
-      : Math.max(0, allLines.length - limit);
-    for (let i = offset; i < Math.min(allLines.length, offset + limit); i++) {
+    // Collect all user/assistant records
+    const msgRecords = [];
+    for (let i = 0; i < allLines.length; i++) {
       try {
         const rec = JSON.parse(allLines[i]);
         if (rec.type === 'user' || rec.type === 'assistant') {
-          messages.push(rec);
+          msgRecords.push(rec);
         }
       } catch {}
     }
+    // offset = how many of the LATEST messages to skip (reverse pagination).
+    // Default 0: return the last <limit> messages.
+    // offset=200: skip the last 200, return the 200 before them, etc.
+    const reqOffset = req.query.offset !== undefined ? parseInt(req.query.offset) : null;
+    const skip = reqOffset !== null && !isNaN(reqOffset) ? reqOffset : 0;
+    const start = Math.max(0, msgRecords.length - skip - limit);
+    const end = Math.max(0, msgRecords.length - skip);
+    messages.push(...msgRecords.slice(start, end));
   } catch {}
   res.json(messages);
 });

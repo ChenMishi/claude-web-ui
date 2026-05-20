@@ -54,7 +54,7 @@ function buildAbortSummary(execStatus) {
 
 export default function ChatView() {
   const {
-    chatMessages, appendMessage, updateLastMessage,
+    chatMessages, setMessages, appendMessage, updateLastMessage,
     isStreaming, setStreaming, currentProjectId, currentSessionId,
     model, systemPrompt, setSessionId, projects,
     setProjects, setSessions, permissionLevel,
@@ -69,6 +69,8 @@ export default function ChatView() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const askRef = useRef(null);
+  const chatMessagesRef = useRef(chatMessages);
+  chatMessagesRef.current = chatMessages;
   const loadedCountRef = useRef(0);
 
   // Auto-scroll when ask dialog appears
@@ -95,6 +97,10 @@ export default function ChatView() {
       for (const m of msgs) {
         const content = m.message?.content;
         const ts = m.timestamp ? new Date(m.timestamp).getTime() : null;
+        if (typeof content === 'string' && content.trim()) {
+          olderMsgs.push({ role: 'user', content, ...(ts && { timestamp: ts }) });
+          continue;
+        }
         if (!Array.isArray(content)) continue;
         const textBlocks = content.filter(c => c.type === 'text');
         if (textBlocks.length > 0) {
@@ -104,7 +110,9 @@ export default function ChatView() {
       }
       // Prepend older messages
       if (olderMsgs.length > 0) {
-        setMessages(prev => [...olderMsgs, ...prev]);
+        // Use current chatMessages from ref to avoid stale closure
+        const currentMsgs = chatMessagesRef?.current || chatMessages;
+        setMessages([...olderMsgs, ...currentMsgs]);
       } else {
         setHasMore(false);
       }

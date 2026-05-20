@@ -30,7 +30,13 @@ export default function Sidebar() {
         if (targetId !== currentProjectId) {
           selectProject(targetId);
         } else {
-          getProjectSessions(targetId).then(setSessions).catch(() => {});
+          // Saved project matches — load sessions and auto-select latest if none saved
+          getProjectSessions(targetId).then(sessions => {
+            setSessions(sessions);
+            if (!currentSessionId && sessions.length > 0) {
+              selectSession(sessions[0].id);
+            }
+          }).catch(() => {});
         }
       }
     }).catch(() => {});
