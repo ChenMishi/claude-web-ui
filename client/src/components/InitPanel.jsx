@@ -1,9 +1,10 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const BASE = '/api';
 
 export default function InitPanel() {
   const [status, setStatus] = useState(null);
+  const [envChecked, setEnvChecked] = useState(false);
   const [installingCcswitch, setInstallingCcswitch] = useState(false);
   const [installLog, setInstallLog] = useState('');
   const [proxyUrl, setProxyUrl] = useState('');
@@ -19,6 +20,9 @@ export default function InitPanel() {
       setProxyPort(String(d.proxyPort || 15721));
     }).catch(() => {});
   }, []);
+
+  // Auto-load status on mount
+  useEffect(() => { loadStatus(); }, [loadStatus]);
 
   const handleInstallCCSwitch = useCallback(async () => {
     setInstallingCcswitch(true); setInstallLog('');
@@ -113,11 +117,11 @@ export default function InitPanel() {
       <div className="init-section">
         <div className="init-section-header">
           <h3>📋 系统环境检测</h3>
-          {!status && (
-            <button className="init-btn init-btn-check" onClick={loadStatus}>开始检测</button>
+          {!envChecked && (
+            <button className="init-btn init-btn-check" onClick={() => { loadStatus(); setEnvChecked(true); }}>开始检测</button>
           )}
         </div>
-        {status && (
+        {envChecked && status && (
           <div className="init-env-grid">
             {envItems.map(item => (
               <EnvCard key={item.key} item={item} installing={installingEnv === item.key} progress={envProgress[item.key]} onInstall={() => handleInstallEnv(item.key)} />
