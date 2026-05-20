@@ -141,19 +141,30 @@ router.post('/init/install-env/:component', (req, res) => {
     if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  send('progress', { pct: 10, text: `正在安装 ${component}...` });
+  send('progress', { pct: 5, text: `正在安装 ${component}...` });
 
   const proc = spawn('bash', ['-c', script]);
-  let lastPct = 10;
+  let lastPct = 5;
 
-  proc.stdout.on('data', (d) => {
-    lastPct = Math.min(lastPct + 15, 90);
-    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
-  });
-  proc.stderr.on('data', (d) => {
-    lastPct = Math.min(lastPct + 10, 85);
-    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
-  });
+  const onData = (d) => {
+    const text = d.toString();
+    // Parse apt progress like "50%" or "Progress: 50" or "50% done"
+    const pctMatch = text.match(/(\d{1,3})%/);
+    if (pctMatch) {
+      const pct = Math.min(parseInt(pctMatch[1]), 95);
+      if (pct > lastPct) lastPct = pct;
+    } else if (text.includes('Unpacking') || text.includes('Preparing')) {
+      lastPct = Math.min(lastPct + 5, 50);
+    } else if (text.includes('Setting up') || text.includes('Processing')) {
+      lastPct = Math.min(lastPct + 3, 80);
+    } else {
+      lastPct = Math.min(lastPct + 1, 90);
+    }
+    send('progress', { pct: lastPct, text: text.trim().slice(0, 80) });
+  };
+
+  proc.stdout.on('data', onData);
+  proc.stderr.on('data', onData);
 
   proc.on('close', (code) => {
     // Re-check if component is now available

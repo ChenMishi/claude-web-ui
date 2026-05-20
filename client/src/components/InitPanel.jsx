@@ -113,8 +113,17 @@ export default function InitPanel() {
       }
     } catch {}
     setInstallingEnv(null);
-    setTimeout(() => loadStatus(), 1000);
-  }, [loadStatus]);
+    // Refresh status and update card
+    setTimeout(async () => {
+      const res = await fetch(`${BASE}/init/status`).then(r => r.json());
+      setStatus(res);
+      // Update this component's card directly
+      const envOk = component === 'buildtools'
+        ? (res.env?.buildTools)
+        : component === 'node' ? res.env?.node : res.env?.[component];
+      setEnvProgress(prev => ({ ...prev, [component]: { pct: 100, checked: true, ok: envOk } }));
+    }, 1000);
+  }, []);
 
   const handleSaveConfig = useCallback(async () => {
     try {
@@ -247,10 +256,11 @@ export default function InitPanel() {
 function EnvCard({ item, checked, installing, progress, onInstall }) {
   const pct = progress?.pct || 0;
   const itemChecked = checked && (progress?.checked || installing);
+  const itemOk = progress?.ok !== undefined ? progress.ok : item.ok;
   const showPending = !itemChecked && !installing;
   const showInstalling = installing;
-  const showOk = itemChecked && item.ok && !installing;
-  const showWarn = itemChecked && !item.ok && !installing;
+  const showOk = itemChecked && itemOk && !installing;
+  const showWarn = itemChecked && !itemOk && !installing;
   const showChecking = checked && !itemChecked && !installing;
 
   return (
