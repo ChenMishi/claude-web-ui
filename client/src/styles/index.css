@@ -1542,6 +1542,16 @@ html, body, #root {
   font-weight: 500;
 }
 
+/* Load more messages */
+.load-more-row { text-align: center; padding: 8px 0; }
+.load-more-btn {
+  background: transparent; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-muted); font-size: 12px; padding: 6px 18px; cursor: pointer;
+  transition: all 0.15s;
+}
+.load-more-btn:hover { border-color: var(--accent); color: var(--accent); }
+.load-more-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── Version Panel ── */
 .version-panel {
   padding: 32px;

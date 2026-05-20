@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle, reconnectSession, getSessionInfo, resolveQuestion } from '../api';
+import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages } from '../api';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
@@ -66,7 +66,10 @@ export default function ChatView() {
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
   const [askUser, setAskUser] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const askRef = useRef(null);
+  const loadedCountRef = useRef(0);
 
   // Auto-scroll when ask dialog appears
   useEffect(() => {
@@ -75,6 +78,41 @@ export default function ChatView() {
     }
   }, [askUser]);
 
+  // Track how many messages are loaded
+  useEffect(() => {
+    loadedCountRef.current = chatMessages.length;
+  }, [chatMessages.length]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (!currentSessionId || loadingMore) return;
+    setLoadingMore(true);
+    const offset = loadedCountRef.current;
+    try {
+      const msgs = await getSessionMessages(currentSessionId, offset);
+      if (msgs.length === 0) { setHasMore(false); setLoadingMore(false); return; }
+      // Convert server messages to chat format
+      const olderMsgs = [];
+      for (const m of msgs) {
+        const content = m.message?.content;
+        const ts = m.timestamp ? new Date(m.timestamp).getTime() : null;
+        if (!Array.isArray(content)) continue;
+        const textBlocks = content.filter(c => c.type === 'text');
+        if (textBlocks.length > 0) {
+          const text = textBlocks.map(c => c.text).join('');
+          olderMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text, ...(ts && { timestamp: ts }) });
+        }
+      }
+      // Prepend older messages
+      if (olderMsgs.length > 0) {
+        setMessages(prev => [...olderMsgs, ...prev]);
+      } else {
+        setHasMore(false);
+      }
+    } catch { setHasMore(false); }
+    setLoadingMore(false);
+  }, [currentSessionId, loadingMore, setMessages]);
+
+  // Auto-scroll on new messages
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
@@ -339,6 +377,13 @@ export default function ChatView() {
   return (
     <>
       <div className="chat-container" ref={containerRef}>
+        {hasMore && chatMessages.length > 0 && (
+          <div className="load-more-row">
+            <button className="load-more-btn" onClick={handleLoadMore} disabled={loadingMore}>
+              {loadingMore ? '加载中...' : '加载更早的消息'}
+            </button>
+          </div>
+        )}
         {!hasMessages && <WelcomeScreen onSend={handleSend} />}
         {chatMessages.map((msg, i) => (
           <ChatMessage key={i} message={msg} />
