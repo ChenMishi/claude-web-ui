@@ -234,6 +234,7 @@ export default function VersionPanel() {
         <label>定时检测</label>
         <select value={checkInterval} onChange={e => handleIntervalChange(parseInt(e.target.value))}>
           <option value={0}>关闭</option>
+          <option value={1}>每 1 分钟（测试）</option>
           <option value={30}>每 30 分钟</option>
           <option value={60}>每 1 小时</option>
           <option value={360}>每 6 小时</option>
