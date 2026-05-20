@@ -18,8 +18,6 @@ export default function VersionPanel() {
     return parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0;
   });
   const pollRef = useRef(null);
-  const smoothRef = useRef(null);
-  const progressRef = useRef(0);
 
   // Clear update badge when user opens this page
   useEffect(() => {
@@ -73,7 +71,7 @@ export default function VersionPanel() {
   const handleUpgrade = useCallback(async () => {
     setUpgrading(true);
     setUpgradeProgress(0);
-    setUpgradeMsg('启动升级...');
+    setUpgradeMsg('停服中...');
     setUpgradeDone(false);
     setUpgradeError(null);
 
@@ -90,73 +88,36 @@ export default function VersionPanel() {
         return;
       }
 
-      // Poll progress with smooth animation
-      let animTarget = 0;
-      pollRef.current = setInterval(async () => {
-        try {
-          const r = await fetch(`${BASE}/version/upgrade/status`);
-          const s = await r.json();
-          animTarget = s.progress || 0;
-          setUpgradeMsg(s.message || '');
+      // Pure simulated progress — upgrade runs in background
+      let cur = 0;
+      const tick = () => new Promise(r => setTimeout(r, 100));
 
-          if (s.status === 'done') {
-            // Jump to 100 and stop
-            progressRef.current = 100;
-            setUpgradeProgress(100);
-            clearInterval(pollRef.current);
-            clearInterval(smoothRef.current);
-            smoothRef.current = null;
-            setUpgradeDone(true);
-            setUpgrading(false);
-            setCheckResult(null);
-          } else if (s.status === 'error') {
-            clearInterval(pollRef.current);
-            clearInterval(smoothRef.current);
-            smoothRef.current = null;
-            setUpgradeMsg(s.message || '升级失败');
-            setUpgrading(false);
-          }
-        } catch {}
-      }, 800);
+      // 0→5%: 1%/sec
+      while (cur < 5) { await tick(); cur = Math.min(cur + 0.1, 5); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('停服中...'); }
+      // 5→90%: 2%/sec
+      while (cur < 90) { await tick(); cur = Math.min(cur + 0.2, 90); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('升级中...'); }
+      // 90→100%: 1%/sec
+      while (cur < 100) { await tick(); cur = Math.min(cur + 0.1, 100); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('启动服务...'); }
 
-      // Smooth animation ticker (100ms per tick)
-      if (!smoothRef.current) {
-        smoothRef.current = setInterval(() => {
-          const cur = progressRef.current;
-          const target = animTarget;
+      // Real health check
+      let healthy = false;
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        try { const r = await fetch(`/api/health`); if (r.ok) { healthy = true; break; } } catch {}
+      }
 
-          // Determine status text based on current range
-          if (cur < 5) setUpgradeMsg('停服中...');
-          else if (cur < 90) setUpgradeMsg('升级中...');
-          else setUpgradeMsg('启动服务...');
-
-          if (target >= 100 && cur >= 99) {
-            progressRef.current = 100;
-            setUpgradeProgress(100);
-            setUpgradeMsg('升级完成，请刷新页面！');
-            return;
-          }
-          if (cur >= target && target > 0) return;
-
-          let inc = 0.05; // 0→5%: ~1%/sec slow start
-          if (cur >= 5 && cur < 90) {
-            inc = 0.2; // 5%→90%: 2%/sec
-            if (target > cur + 10) inc = 0.4; // gap > 10%: speed up
-          } else if (target >= 90 && cur >= 80) {
-            inc = 0.5; // fast catch-up to 90%
-          } else if (cur >= 90) {
-            inc = 0.05; // 90%→100%: 0.5%/sec slow
-          }
-
-          const next = Math.min(cur + inc, target || cur + inc, 100);
-          progressRef.current = next;
-          setUpgradeProgress(Math.round(next));
-        }, 100);
+      setUpgradeProgress(100);
+      setUpgradeDone(true);
+      if (healthy) {
+        setUpgradeMsg('升级完成，请刷新页面！');
+      } else {
+        setUpgradeMsg('升级失败，请重试！');
       }
     } catch (err) {
       setUpgradeError(`启动失败: ${err.message}`);
-      setUpgrading(false);
     }
+    setUpgrading(false);
+    setCheckResult(null);
   }, [remote]);
 
   const handleIntervalChange = (v) => {
@@ -242,7 +203,11 @@ export default function VersionPanel() {
             </div>
             <div className="progress-bar-text">
               {upgradeDone ? (
-                <>100% — 升级完成，请<a onClick={() => location.reload()} className="version-refresh-link">刷新</a>页面！</>
+                upgradeMsg.includes('失败') ? (
+                  <>100% — {upgradeMsg}</>
+                ) : (
+                  <>100% — 升级完成，请<a onClick={() => location.reload()} className="version-refresh-link">刷新</a>页面！</>
+                )
               ) : (
                 <>{upgradeProgress}% — {upgradeMsg}</>
               )}
