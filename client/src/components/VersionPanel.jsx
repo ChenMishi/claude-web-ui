@@ -119,32 +119,33 @@ export default function VersionPanel() {
         } catch {}
       }, 800);
 
-      // Smooth animation ticker
+      // Smooth animation ticker (100ms per tick)
       if (!smoothRef.current) {
         smoothRef.current = setInterval(() => {
           const cur = progressRef.current;
           const target = animTarget;
 
+          // Determine status text based on current range
+          if (cur < 5) setUpgradeMsg('停服中...');
+          else if (cur < 90) setUpgradeMsg('升级中...');
+          else setUpgradeMsg('启动服务...');
+
           if (target >= 100 && cur >= 99) {
             progressRef.current = 100;
             setUpgradeProgress(100);
+            setUpgradeMsg('升级完成，请刷新页面！');
             return;
           }
-          if (cur >= target && target > 0) return; // already at target
+          if (cur >= target && target > 0) return;
 
-          let inc = 0.1; // default: 1%/sec at 100ms tick
-          if (cur < 5) {
-            inc = 0.15;  // 0→5%: ~1.5%/sec
-          } else if (cur < 10 && target >= 10) {
-            inc = 0.5;   // quickly reach 10%
-          } else if (target >= 90 && cur >= 85) {
-            inc = 2.0;   // fast catch-up to 90%
-          } else if (target > cur + 5) {
-            inc = 0.4;   // gap > 5%: speed up
+          let inc = 0.05; // 0→5%: ~1%/sec slow start
+          if (cur >= 5 && cur < 90) {
+            inc = 0.2; // 5%→90%: 2%/sec
+            if (target > cur + 10) inc = 0.4; // gap > 10%: speed up
+          } else if (target >= 90 && cur >= 80) {
+            inc = 0.5; // fast catch-up to 90%
           } else if (cur >= 90) {
-            inc = 0.05;  // 90%→: 0.5%/sec slow
-          } else {
-            inc = 0.2;   // normal: 2%/sec
+            inc = 0.05; // 90%→100%: 0.5%/sec slow
           }
 
           const next = Math.min(cur + inc, target || cur + inc, 100);
