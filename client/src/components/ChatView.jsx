@@ -122,15 +122,6 @@ export default function ChatView() {
         const currentMsgs = chatMessagesRef.current || chatMessages;
         skipScrollRef.current = true;
         setMessages([...olderMsgs, ...currentMsgs]);
-        // Compensate for the added height so view stays exactly where it was
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (containerRef.current) {
-              const addedHeight = containerRef.current.scrollHeight - scrollHeightRef.current;
-              containerRef.current.scrollTop = scrollTopRef.current + addedHeight;
-            }
-          });
-        });
       } else {
         setHasMore(false);
       }
