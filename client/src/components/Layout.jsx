@@ -5,6 +5,7 @@ import FileBrowser from './FileBrowser';
 import TerminalView from './TerminalView';
 import SettingsPanel from './SettingsPanel';
 import VersionPanel from './VersionPanel';
+import InitPanel from './InitPanel';
 
 export default function Layout() {
   const { sidebarOpen, activeView, toggleSidebar } = useApp();
@@ -23,6 +24,7 @@ export default function Layout() {
         {activeView === 'terminal' && <TerminalView />}
         {activeView === 'settings' && <SettingsPanel />}
         {activeView === 'version' && <VersionPanel />}
+        {activeView === 'init' && <InitPanel />}
       </main>
     </div>
   );
