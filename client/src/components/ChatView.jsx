@@ -73,7 +73,8 @@ export default function ChatView() {
   chatMessagesRef.current = chatMessages;
   const skipScrollRef = useRef(false);
   const [atTop, setAtTop] = useState(false);
-  const scrollRestoreRef = useRef(0);
+  const scrollTopRef = useRef(0);
+  const scrollHeightRef = useRef(0);
   const loadedCountRef = useRef(0);
 
   // Auto-scroll when ask dialog appears
@@ -91,9 +92,10 @@ export default function ChatView() {
   const handleLoadMore = useCallback(async () => {
     if (!currentSessionId || loadingMore) return;
     setLoadingMore(true);
-    // Save distance from bottom
+    // Save current scroll position (we're at top)
     if (containerRef.current) {
-      scrollRestoreRef.current = containerRef.current.scrollHeight - containerRef.current.scrollTop;
+      scrollTopRef.current = containerRef.current.scrollTop;
+      scrollHeightRef.current = containerRef.current.scrollHeight;
     }
     const offset = loadedCountRef.current;
     try {
@@ -119,11 +121,12 @@ export default function ChatView() {
       if (olderMsgs.length > 0) {
         const currentMsgs = chatMessagesRef.current || chatMessages;
         setMessages([...olderMsgs, ...currentMsgs]);
-        // Restore scroll after two frames (ensure DOM updated)
+        // Compensate for the added height so view stays exactly where it was
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (containerRef.current) {
-              containerRef.current.scrollTop = containerRef.current.scrollHeight - scrollRestoreRef.current;
+              const addedHeight = containerRef.current.scrollHeight - scrollHeightRef.current;
+              containerRef.current.scrollTop = scrollTopRef.current + addedHeight;
             }
           });
         });
