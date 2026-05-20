@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useLayoutEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages } from '../api';
 import ChatMessage from './ChatMessage';
@@ -72,9 +72,8 @@ export default function ChatView() {
   const chatMessagesRef = useRef(chatMessages);
   chatMessagesRef.current = chatMessages;
   const skipScrollRef = useRef(false);
+  const scrollRestoreRef = useRef(null);
   const [atTop, setAtTop] = useState(false);
-  const scrollTopRef = useRef(0);
-  const scrollHeightRef = useRef(0);
   const loadedCountRef = useRef(0);
 
   // Auto-scroll when ask dialog appears
@@ -92,10 +91,12 @@ export default function ChatView() {
   const handleLoadMore = useCallback(async () => {
     if (!currentSessionId || loadingMore) return;
     setLoadingMore(true);
-    // Save current scroll position (we're at top)
+    // Save scroll position before loading
     if (containerRef.current) {
-      scrollTopRef.current = containerRef.current.scrollTop;
-      scrollHeightRef.current = containerRef.current.scrollHeight;
+      scrollRestoreRef.current = {
+        scrollHeight: containerRef.current.scrollHeight,
+        scrollTop: containerRef.current.scrollTop,
+      };
     }
     const offset = loadedCountRef.current;
     try {
@@ -135,6 +136,17 @@ export default function ChatView() {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
+  }, [chatMessages]);
+
+  // Restore scroll after prepending older messages (before paint)
+  useLayoutEffect(() => {
+    if (!scrollRestoreRef.current) return;
+    const el = containerRef.current;
+    if (el) {
+      const { scrollHeight: oldH, scrollTop: oldS } = scrollRestoreRef.current;
+      el.scrollTop = oldS + (el.scrollHeight - oldH);
+    }
+    scrollRestoreRef.current = null;
   }, [chatMessages]);
 
   // Detect scroll to top
