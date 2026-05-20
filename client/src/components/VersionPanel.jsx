@@ -117,7 +117,6 @@ export default function VersionPanel() {
       setUpgradeError(`启动失败: ${err.message}`);
     }
     setUpgrading(false);
-    setCheckResult(null);
   }, [remote]);
 
   const handleIntervalChange = (v) => {
