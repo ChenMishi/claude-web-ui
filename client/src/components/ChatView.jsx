@@ -122,7 +122,7 @@ export default function ChatView() {
       // Prepend older messages
       if (olderMsgs.length > 0) {
         const currentMsgs = chatMessagesRef.current || chatMessages;
-        // Sync render to avoid visual flicker — measure, apply, correct scroll in one frame
+        skipScrollRef.current = true;
         flushSync(() => {
           setMessages([...olderMsgs, ...currentMsgs]);
         });
