@@ -55,7 +55,8 @@ cd "$PROJECT_DIR"
 
 ensure_node
 
-pct 5 "停止旧服务..."
+pct 5 "升级中..."
+log "停止旧服务..."
 
 # ---------- 停止服务 ----------
 if [ -f .port ]; then
@@ -126,7 +127,7 @@ sleep 3
 if lsof -i ":$PORT" &>/dev/null; then
     NEW_VERSION=$(cat VERSION 2>/dev/null || echo "?")
     echo "{\"status\":\"done\",\"progress\":100,\"message\":\"升级完成，请刷新页面\",\"newVersion\":\"$NEW_VERSION\"}" > /tmp/claude-web-ui-upgrade.status.json
-    pct 100 "升级完成"
+    pct 100 "升级完成，请刷新页面！"
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     [ -z "$SERVER_IP" ] && SERVER_IP="localhost"
     log "升级完成！"

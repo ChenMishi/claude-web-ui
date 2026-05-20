@@ -18,6 +18,8 @@ export default function VersionPanel() {
     return parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0;
   });
   const pollRef = useRef(null);
+  const smoothRef = useRef(null);
+  const progressRef = useRef(0);
 
   // Clear update badge when user opens this page
   useEffect(() => {
@@ -88,27 +90,44 @@ export default function VersionPanel() {
         return;
       }
 
-      // Poll progress (retries on connection loss during server restart)
+      // Poll progress with smooth animation
       pollRef.current = setInterval(async () => {
         try {
           const r = await fetch(`${BASE}/version/upgrade/status`);
           const s = await r.json();
-          setUpgradeProgress(s.progress || 0);
+          const target = s.progress || 0;
+          // Start smooth ticker
+          if (!smoothRef.current) {
+            smoothRef.current = setInterval(() => {
+              const cur = progressRef.current;
+              if (cur < target) {
+                progressRef.current = Math.min(cur + 1, target);
+                setUpgradeProgress(progressRef.current);
+              }
+              if (progressRef.current >= 100) {
+                clearInterval(smoothRef.current);
+                smoothRef.current = null;
+              }
+            }, 500);
+          }
           setUpgradeMsg(s.message || '');
           if (s.status === 'done') {
             clearInterval(pollRef.current);
+            clearInterval(smoothRef.current);
+            smoothRef.current = null;
+            progressRef.current = 100;
+            setUpgradeProgress(100);
             setUpgradeDone(true);
             setUpgrading(false);
             setCheckResult(null);
           } else if (s.status === 'error') {
             clearInterval(pollRef.current);
+            clearInterval(smoothRef.current);
+            smoothRef.current = null;
             setUpgradeMsg(s.message || '升级失败');
             setUpgrading(false);
           }
-          // If status is 'idle' or 'running', keep polling
-        } catch {
-          // Server restarting — keep polling, don't stop
-        }
+        } catch {}
       }, 800);
     } catch (err) {
       setUpgradeError(`启动失败: ${err.message}`);
