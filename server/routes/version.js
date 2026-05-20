@@ -94,7 +94,18 @@ router.post('/version/upgrade', (req, res) => {
 
   const curState = readUpgradeState();
   if (curState && curState.status === 'running') {
-    return res.status(409).json({ error: '升级已在执行中' });
+    // Check if the upgrade process is actually still alive
+    const pidFile = '/tmp/claude-web-ui-upgrade.pid';
+    let stillRunning = false;
+    try {
+      const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim());
+      try { process.kill(pid, 0); stillRunning = true; } catch {}
+    } catch {}
+    if (stillRunning) {
+      return res.status(409).json({ error: '升级已在执行中' });
+    }
+    // Stale state — clear it and proceed
+    writeUpgradeState({ status: 'idle', progress: 0 });
   }
 
   const upgradeScript = path.join(PROJECT_DIR, 'upgrade.sh');
