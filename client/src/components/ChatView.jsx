@@ -72,6 +72,8 @@ export default function ChatView() {
   const chatMessagesRef = useRef(chatMessages);
   chatMessagesRef.current = chatMessages;
   const skipScrollRef = useRef(false);
+  const [atTop, setAtTop] = useState(false);
+  const scrollRestoreRef = useRef(0);
   const loadedCountRef = useRef(0);
 
   // Auto-scroll when ask dialog appears
@@ -89,7 +91,10 @@ export default function ChatView() {
   const handleLoadMore = useCallback(async () => {
     if (!currentSessionId || loadingMore) return;
     setLoadingMore(true);
-    skipScrollRef.current = true; // prevent auto-scroll on prepend
+    // Save distance from bottom
+    if (containerRef.current) {
+      scrollRestoreRef.current = containerRef.current.scrollHeight - containerRef.current.scrollTop;
+    }
     const offset = loadedCountRef.current;
     try {
       const msgs = await getSessionMessages(currentSessionId, offset);
@@ -112,9 +117,14 @@ export default function ChatView() {
       }
       // Prepend older messages
       if (olderMsgs.length > 0) {
-        // Use current chatMessages from ref to avoid stale closure
-        const currentMsgs = chatMessagesRef?.current || chatMessages;
+        const currentMsgs = chatMessagesRef.current || chatMessages;
         setMessages([...olderMsgs, ...currentMsgs]);
+        // Restore scroll position after DOM update
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight - scrollRestoreRef.current;
+          }
+        });
       } else {
         setHasMore(false);
       }
@@ -129,6 +139,17 @@ export default function ChatView() {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [chatMessages]);
+
+  // Detect scroll to top
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      setAtTop(el.scrollTop < 20);
+    };
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -388,7 +409,7 @@ export default function ChatView() {
   return (
     <>
       <div className="chat-container" ref={containerRef}>
-        {hasMore && chatMessages.length > 0 && (
+        {hasMore && chatMessages.length > 0 && atTop && (
           <div className="load-more-row">
             <button className="load-more-btn" onClick={handleLoadMore} disabled={loadingMore}>
               {loadingMore ? '加载中...' : '加载更早的消息'}
