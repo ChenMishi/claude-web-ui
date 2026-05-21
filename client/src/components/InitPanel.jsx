@@ -354,6 +354,18 @@ function CCSwitchConfig() {
     fetch(`${BASE}/init/ccswitch-config`).then(r => r.json()).then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
   };
 
+  // Auto-init provider if CC-Switch is running but DB is empty
+  useEffect(() => {
+    if (!ccRunning || !config || loading) return;
+    if (config.error || !(config.providers || []).length) return;
+    const hasDefault = config.providers.some(p => p.id === 'default');
+    if (!hasDefault) {
+      fetch(`${BASE}/init/ccswitch-init-provider`, { method: 'POST' })
+        .then(() => setTimeout(loadConfig, 1500))
+        .catch(() => {});
+    }
+  }, [ccRunning, config, loading]);
+
   useEffect(() => {
     loadConfig();
     fetch(`${BASE}/init/ccswitch-status`).then(r => r.json()).then(d => setCcRunning(d.running)).catch(() => {});

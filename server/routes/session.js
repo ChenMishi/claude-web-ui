@@ -171,39 +171,41 @@ function buildSDKOptions(runtime, body) {
 // Shared helper — generate a short AI title using the proxy
 async function generateSessionTitle(sessionId, prompt, cwd) {
   try {
-    const { PROXY_BASE, CLAUDE_PROJECTS_DIR } = require('../config');
-    const proxyRes = await fetch(`${PROXY_BASE}/v1/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 100,
-        messages: [{ role: 'user', content: `用不超过15个汉字为以下对话生成一个简短的标题，直接返回标题文本，不要带引号、不要解释：${prompt}` }],
-        stream: false,
-      }),
-    });
-
-    if (!proxyRes.ok) {
-      const err = await proxyRes.text().catch(() => '');
-      console.error('Title API error:', err);
-      return null;
-    }
-
-    const data = await proxyRes.json();
-    const textBlock = (data.content || []).find(c => c.type === 'text');
-    const title = (textBlock?.text || '').trim().slice(0, 30);
-
+    const title = await generateTitleText(prompt);
     if (title) {
-      const dirPath = path.join(CLAUDE_PROJECTS_DIR, require('../store').getProjectDirName(cwd || ''));
-      if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-      fs.writeFileSync(path.join(dirPath, `${sessionId}.meta.json`), JSON.stringify({ title }), 'utf8');
+      storeSessionTitle(sessionId, title, cwd);
     }
-
     return title || null;
   } catch (err) {
     console.error('Title generation error:', err?.message);
     return null;
   }
+}
+
+// Lightweight: just call Haiku API, return title text (no disk I/O)
+async function generateTitleText(prompt) {
+  const { PROXY_BASE: proxyBase } = require('../config');
+  const proxyRes = await fetch(`${proxyBase}/v1/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: `用不超过15个汉字为以下对话生成一个简短的标题，直接返回标题文本，不要带引号、不要解释：${prompt}` }],
+      stream: false,
+    }),
+  });
+  if (!proxyRes.ok) return null;
+  const data = await proxyRes.json();
+  const textBlock = (data.content || []).find(c => c.type === 'text');
+  return (textBlock?.text || '').trim().slice(0, 30) || null;
+}
+
+// Store title .meta.json to disk
+function storeSessionTitle(sessionId, title, cwd) {
+  const dirPath = path.join(CLAUDE_PROJECTS_DIR, require('../store').getProjectDirName(cwd || ''));
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+  fs.writeFileSync(path.join(dirPath, `${sessionId}.meta.json`), JSON.stringify({ title }), 'utf8');
 }
 
 // --- Session info ---
@@ -446,6 +448,23 @@ router.post('/session/:id/message', async (req, res) => {
       res.on('close', () => { if (keepalive) clearInterval(keepalive); });
     }
 
+    // Generate AI title immediately before SDK execution
+    let aiTitle = null;
+    if (wantsStream && prompt) {
+      try {
+        aiTitle = await generateTitleText(prompt);
+        if (aiTitle) {
+          runtime.pendingTitle = aiTitle;
+          if (!isNew) {
+            storeSessionTitle(id, aiTitle, runtime.cwd);
+          }
+          broadcast(runtime, 'title', { title: aiTitle, sessionId: isNew ? null : id });
+        }
+      } catch (err) {
+        logError('Title generation error', err);
+      }
+    }
+
     let result;
     const allMessages = [];
 
@@ -466,17 +485,11 @@ router.post('/session/:id/message', async (req, res) => {
     }
 
     if (wantsStream) {
-      // Generate a short AI title asynchronously before closing the stream
-      let aiTitle = null;
-      if (prompt && runtime.sessionId) {
-        try {
-          aiTitle = await generateSessionTitle(runtime.sessionId, prompt, runtime.cwd);
-        } catch (err) {
-          console.error('Title generation error:', err?.message);
-        }
+      // If we have a pending title from before and now know the sessionId, store it
+      if (runtime.pendingTitle && runtime.sessionId && isNew) {
+        storeSessionTitle(runtime.sessionId, runtime.pendingTitle, runtime.cwd);
       }
 
-      broadcast(runtime, 'title', { title: aiTitle, sessionId: runtime.sessionId });
       broadcast(runtime, 'done', {
         sessionId: runtime.sessionId,
         cost: result?.cost,
