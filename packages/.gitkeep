@@ -1,0 +1,4 @@
+将 CC-Switch 的 deb 安装包放到此目录下，文件名格式：
+CC-Switch-v{版本号}-Linux-x86_64.deb
+
+例如：CC-Switch-v3.14.1-Linux-x86_64.deb

@@ -104,11 +104,10 @@ router.post('/init/install-ccswitch', (req, res) => {
 
   send('log', { text: `正在准备安装 CC-Switch v${ver}...\n` });
 
-  // Find deb file: check common locations first
+  // Find deb file: check project packages dir first, then home dir
   const candidates = [
+    path.join(PROJECT_DIR, 'packages', `CC-Switch-v${ver}-Linux-x86_64.deb`),
     path.join(os.homedir(), `CC-Switch-v${ver}-Linux-x86_64.deb`),
-    path.join(PROJECT_DIR, `CC-Switch-v${ver}-Linux-x86_64.deb`),
-    `/tmp/CC-Switch-v${ver}-Linux-x86_64.deb`,
   ];
 
   let debFile = candidates.find(f => fs.existsSync(f));
