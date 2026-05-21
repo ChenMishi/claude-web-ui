@@ -1631,9 +1631,18 @@ html, body, #root {
 /* Chat with execution panel side-by-side */
 .chat-layout {
   display: flex;
+  flex-direction: column;
   flex: 1;
   overflow: hidden;
 }
+
+.chat-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
 .chat-main {
   flex: 1;
   display: flex;

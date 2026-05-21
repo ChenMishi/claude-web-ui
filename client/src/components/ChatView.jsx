@@ -447,87 +447,89 @@ export default function ChatView() {
 
   return (
     <div className="chat-layout">
-      <div className="chat-main">
-        <div className="chat-container" ref={containerRef}>
-        {hasMore && chatMessages.length > 0 && atTop && (
-          <div className="load-more-row">
-            <button className="load-more-btn" onClick={handleLoadMore} disabled={loadingMore}>
-              {loadingMore ? '加载中...' : '加载更早的消息'}
-            </button>
-          </div>
-        )}
-        {!hasMessages && <WelcomeScreen onSend={handleSend} />}
-        {chatMessages.map((msg, i) => (
-          <ChatMessage key={i} message={msg} />
-        ))}
-        {/* AskUserQuestion / Tool confirmation dialog */}
-        {askUser && isToolConfirm && (
-          <div className="ask-user-dialog" ref={askRef}>
-            <h4>🤔 {askQs[0].question || askQs[0].header}</h4>
-            <div className="confirm-buttons">
-              <button className="confirm-btn-allow" onClick={() => handleResolveAsk({ answers: { q0: '允许' } })}>
-                允许
-              </button>
-              <button className="confirm-btn-deny" onClick={() => handleResolveAsk({ answers: { q0: '拒绝' } })}>
-                拒绝
+      <div className="chat-content">
+        <div className="chat-main">
+          <div className="chat-container" ref={containerRef}>
+          {hasMore && chatMessages.length > 0 && atTop && (
+            <div className="load-more-row">
+              <button className="load-more-btn" onClick={handleLoadMore} disabled={loadingMore}>
+                {loadingMore ? '加载中...' : '加载更早的消息'}
               </button>
             </div>
-          </div>
-        )}
-        {askUser && !isToolConfirm && (
-          <div className="ask-user-dialog" ref={askRef}>
-            <h4>🤔 Claude 想确认几个问题</h4>
-            {askQs.map((q, qi) => (
-              <div key={qi} className="ask-user-question">
-                <p>{q.question || q.header || `问题 ${qi + 1}`}</p>
-                {q.options && q.options.length > 0 ? (
-                  <div className="ask-user-options">
-                    {q.options.map((opt, oi) => (
-                      <label key={oi} className="ask-user-option">
-                        <input
-                          type={q.multiSelect ? 'checkbox' : 'radio'}
-                          name={`q-${qi}`}
-                          value={typeof opt === 'string' ? opt : opt.label || opt}
-                          onChange={() => {}}
-                        />
-                        <span>{typeof opt === 'string' ? opt : opt.label || opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <input type="text" className="ask-user-input" placeholder="输入你的回答..." data-q={qi} />
-                )}
+          )}
+          {!hasMessages && <WelcomeScreen onSend={handleSend} />}
+          {chatMessages.map((msg, i) => (
+            <ChatMessage key={i} message={msg} />
+          ))}
+          {/* AskUserQuestion / Tool confirmation dialog */}
+          {askUser && isToolConfirm && (
+            <div className="ask-user-dialog" ref={askRef}>
+              <h4>🤔 {askQs[0].question || askQs[0].header}</h4>
+              <div className="confirm-buttons">
+                <button className="confirm-btn-allow" onClick={() => handleResolveAsk({ answers: { q0: '允许' } })}>
+                  允许
+                </button>
+                <button className="confirm-btn-deny" onClick={() => handleResolveAsk({ answers: { q0: '拒绝' } })}>
+                  拒绝
+                </button>
               </div>
-            ))}
-            <button className="ask-user-submit" onClick={() => {
-              const collected = {};
-              askQs.forEach((q, qi) => {
-                if (q.options && q.options.length > 0) {
-                  if (q.multiSelect) {
-                    const checked = document.querySelectorAll(`.ask-user-dialog input[name="q-${qi}"]:checked`);
-                    collected[`q${qi}`] = Array.from(checked).map(c => c.value);
+            </div>
+          )}
+          {askUser && !isToolConfirm && (
+            <div className="ask-user-dialog" ref={askRef}>
+              <h4>🤔 Claude 想确认几个问题</h4>
+              {askQs.map((q, qi) => (
+                <div key={qi} className="ask-user-question">
+                  <p>{q.question || q.header || `问题 ${qi + 1}`}</p>
+                  {q.options && q.options.length > 0 ? (
+                    <div className="ask-user-options">
+                      {q.options.map((opt, oi) => (
+                        <label key={oi} className="ask-user-option">
+                          <input
+                            type={q.multiSelect ? 'checkbox' : 'radio'}
+                            name={`q-${qi}`}
+                            value={typeof opt === 'string' ? opt : opt.label || opt}
+                            onChange={() => {}}
+                          />
+                          <span>{typeof opt === 'string' ? opt : opt.label || opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <input type="text" className="ask-user-input" placeholder="输入你的回答..." data-q={qi} />
+                  )}
+                </div>
+              ))}
+              <button className="ask-user-submit" onClick={() => {
+                const collected = {};
+                askQs.forEach((q, qi) => {
+                  if (q.options && q.options.length > 0) {
+                    if (q.multiSelect) {
+                      const checked = document.querySelectorAll(`.ask-user-dialog input[name="q-${qi}"]:checked`);
+                      collected[`q${qi}`] = Array.from(checked).map(c => c.value);
+                    } else {
+                      const checked = document.querySelector(`.ask-user-dialog input[name="q-${qi}"]:checked`);
+                      collected[`q${qi}`] = checked ? checked.value : '';
+                    }
                   } else {
-                    const checked = document.querySelector(`.ask-user-dialog input[name="q-${qi}"]:checked`);
-                    collected[`q${qi}`] = checked ? checked.value : '';
+                    const inp = document.querySelector(`.ask-user-dialog [data-q="${qi}"]`);
+                    collected[`q${qi}`] = inp ? inp.value : '';
                   }
-                } else {
-                  const inp = document.querySelector(`.ask-user-dialog [data-q="${qi}"]`);
-                  collected[`q${qi}`] = inp ? inp.value : '';
-                }
-              });
-              handleResolveAsk({ answers: collected });
-            }}>
-              提交
-            </button>
-          </div>
-        )}
+                });
+                handleResolveAsk({ answers: collected });
+              }}>
+                提交
+              </button>
+            </div>
+          )}
+        </div>
+        </div>
+        <div className="right-panels">
+          <TaskPanel />
+          <ExecutionPanel />
+        </div>
       </div>
       <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} />
-      </div>
-      <div className="right-panels">
-        <TaskPanel />
-        <ExecutionPanel />
-      </div>
     </div>
   );
 }
