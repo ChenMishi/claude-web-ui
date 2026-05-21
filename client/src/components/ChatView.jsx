@@ -62,7 +62,7 @@ export default function ChatView() {
     model, systemPrompt, setSessionId, projects,
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
-    addTask, updateTask, setMainTask,
+    addTask, updateTask, setMainTask, updateMainTask,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -346,7 +346,7 @@ export default function ChatView() {
     const myExecId = ++execIdRef.current;
     setStreaming(true);
     execStart();
-    setMainTask(text);
+    setMainTask(text.length > 30 ? text.slice(0, 30) + '…' : text);
     startTimer();
     appendMessage({ role: 'user', content: text, timestamp: Date.now() });
     hasAssistantText.current = false;
@@ -409,12 +409,16 @@ export default function ChatView() {
           if (currentProjectId) {
             getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
           }
-          // Auto-generate a short title from the first message (async, refreshes list on completion)
+        }
+        // Generate AI title for main task (and session list for new sessions)
+        const sid = newId || currentSessionId;
+        if (sid) {
           const firstMsg = text.slice(0, 200);
           const project = projects.find(p => p.id === currentProjectId);
-          generateTitle(newId, firstMsg, project?.cwd)
-            .then(() => {
-              if (currentProjectId) {
+          generateTitle(sid, firstMsg, project?.cwd)
+            .then((result) => {
+              if (result?.title) updateMainTask(result.title);
+              if (newId && !currentSessionId && currentProjectId) {
                 getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
               }
             })

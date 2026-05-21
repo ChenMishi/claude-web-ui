@@ -343,10 +343,13 @@ function CCSwitchConfig() {
   const [editProvider, setEditProvider] = useState(null);
   const [ccRunning, setCcRunning] = useState(null);
   const [restarting, setRestarting] = useState(false);
-  const [initProvider, setInitProvider] = useState(false);
+
+  const loadConfig = () => {
+    fetch(`${BASE}/init/ccswitch-config`).then(r => r.json()).then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
+  };
 
   useEffect(() => {
-    fetch(`${BASE}/init/ccswitch-config`).then(r => r.json()).then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
+    loadConfig();
     fetch(`${BASE}/init/ccswitch-status`).then(r => r.json()).then(d => setCcRunning(d.running)).catch(() => {});
   }, []);
 
@@ -360,51 +363,53 @@ function CCSwitchConfig() {
     setSaving(false);
   };
 
-  const handleInitProvider = async () => {
-    setInitProvider(true);
-    try {
-      const res = await fetch(`${BASE}/init/ccswitch-init-provider`, { method: 'POST' });
-      const d = await res.json();
-      alert(d.message || (d.ok ? '创建成功' : '创建失败'));
-      fetch(`${BASE}/init/ccswitch-config`).then(r => r.json()).then(setConfig).catch(() => {});
-    } catch (err) { alert('创建失败: ' + err.message); }
-    setInitProvider(false);
-  };
-
   const handleRestartCCSwitch = async () => {
     setRestarting(true);
     try {
       const res = await fetch(`${BASE}/init/ccswitch-restart`, { method: 'POST' });
       const d = await res.json();
-      if (d.ok) { setCcRunning(true); alert('CC-Switch 已重启'); }
-      else alert(d.error || '重启失败');
-    } catch (err) { alert('重启失败: ' + err.message); }
+      if (d.ok) {
+        setCcRunning(true);
+        alert('CC-Switch 已启动，等待几秒后刷新配置');
+        // Reload config after a delay (db may need time to be created)
+        setTimeout(loadConfig, 3000);
+      } else alert(d.error || '启动失败');
+    } catch (err) { alert('启动失败: ' + err.message); }
     setRestarting(false);
   };
 
   if (loading) return <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>加载配置中...</div>;
-  if (!config || config.error) return (
-    <div className="init-ccswitch-config">
-      <h4>🔧 Provider 配置</h4>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        {config?.error || 'CC-Switch 数据库未找到，请确认已启动过 CC-Switch'}
-      </div>
-    </div>
-  );
 
-  const defaultProvider = (config.providers || []).find(p => p.id === 'default');
-  if (!defaultProvider) return (
-    <div className="init-ccswitch-config">
-      <h4>🔧 Provider 配置</h4>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-        CC-Switch 数据库中暂无 Provider 配置
-      </div>
-      <button className="init-btn init-btn-install" onClick={handleInitProvider} disabled={initProvider}>
-        {initProvider ? '创建中...' : '初始化默认 Provider'}
+  // Always show run status + start/restart button
+  const statusBar = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <span className={`init-status-badge ${ccRunning ? 'ok' : 'warn'}`} style={{ fontSize: 10 }}>
+        {ccRunning === null ? '检测中' : ccRunning ? '● 运行中' : '○ 未运行'}
+      </span>
+      <button className="init-btn init-btn-install" onClick={handleRestartCCSwitch} disabled={restarting} style={{ fontSize: 11, padding: '5px 12px' }}>
+        {restarting ? '启动中...' : ccRunning ? '重启 CC-Switch' : '启动 CC-Switch'}
       </button>
     </div>
   );
 
+  // No DB or no provider: just show start hint
+  if (!config || config.error || !(config.providers || []).find(p => p.id === 'default')) {
+    return (
+      <div className="init-ccswitch-config">
+        <h4>🔧 Provider 配置</h4>
+        {statusBar}
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          {!ccRunning
+            ? '请先点击"启动 CC-Switch"，首次启动会自动创建数据库和默认 Provider'
+            : config?.error
+              ? config.error
+              : '未找到 Provider，请确认 CC-Switch 已正常启动'}
+        </div>
+      </div>
+    );
+  }
+
+  const defaultProvider = config.providers.find(p => p.id === 'default');
   const cfg = defaultProvider.config || {};
   const env = cfg.env || {};
   const currentPricing = config.pricing || [];
@@ -466,19 +471,14 @@ function CCSwitchConfig() {
   return (
     <div className="init-ccswitch-config">
       <h4>🔧 Provider 配置</h4>
+      {statusBar}
       <div className="init-info-grid">
         <div className="init-info-item"><span className="init-info-label">Provider</span><span className="init-info-value">{defaultProvider.name} ({defaultProvider.id})</span></div>
         <div className="init-info-item"><span className="init-info-label">模型</span><span className="init-info-value mono">{env.ANTHROPIC_MODEL || '未配置'}</span></div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-        <span className={`init-status-badge ${ccRunning ? 'ok' : 'warn'}`} style={{ fontSize: 10 }}>
-          {ccRunning === null ? '检测中' : ccRunning ? '● 运行中' : '○ 未运行'}
-        </span>
-        <button className="init-btn init-btn-test" onClick={() => setEditProvider({ ...defaultProvider, config_json: cfg, pricing: currentPricing })}>编辑配置</button>
-        <button className="init-btn init-btn-install" onClick={handleRestartCCSwitch} disabled={restarting} style={{ fontSize: 11, padding: '5px 12px' }}>
-          {restarting ? '重启中...' : '重启 CC-Switch'}
-        </button>
-      </div>
+      <button className="init-btn init-btn-test" style={{ marginTop: 8 }} onClick={() => setEditProvider({ ...defaultProvider, config_json: cfg, pricing: currentPricing })}>
+        编辑配置
+      </button>
     </div>
   );
 }

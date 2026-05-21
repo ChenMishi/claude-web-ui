@@ -184,6 +184,9 @@ function reducer(state, action) {
       next = { ...state, tasks: [] }; break;
     case 'SET_MAIN_TASK':
       next = { ...state, mainTask: { subject: action.payload.subject, status: 'in_progress' } }; break;
+    case 'UPDATE_MAIN_TASK':
+      if (!state.mainTask) return state;
+      next = { ...state, mainTask: { ...state.mainTask, subject: action.payload.subject } }; break;
     default:
       return state;
   }
@@ -217,6 +220,7 @@ export function AppContextProvider({ children }) {
   const updateTask = useCallback((taskId, status) => dispatch({ type: 'TASK_UPDATE', payload: { taskId, status } }), []);
   const clearTasks = useCallback(() => dispatch({ type: 'TASKS_CLEAR' }), []);
   const setMainTask = useCallback((subject) => dispatch({ type: 'SET_MAIN_TASK', payload: { subject } }), []);
+  const updateMainTask = useCallback((subject) => dispatch({ type: 'UPDATE_MAIN_TASK', payload: { subject } }), []);
 
   // Persist key settings to localStorage
   useEffect(() => {
@@ -241,7 +245,7 @@ export function AppContextProvider({ children }) {
     setMessages, appendMessage, updateLastMessage, setStreaming,
     setView, toggleSidebar, setSetting,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
-    addTask, updateTask, clearTasks, setMainTask,
+    addTask, updateTask, clearTasks, setMainTask, updateMainTask,
     setUpdateAvailable,
   };
 
