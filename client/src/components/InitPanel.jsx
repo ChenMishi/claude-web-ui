@@ -162,26 +162,20 @@ export default function InitPanel() {
         }
       }
     } catch {}
-    // Animate re-check: reset all to unchecked, then reveal one by one
+    // Brief pause then re-check just this component
     setTimeout(async () => {
+      setEnvProgress(prev => ({ ...prev, [component]: { checked: false, pct: 0 } }));
+      await new Promise(r => setTimeout(r, 700));
       const res = await fetch(`${BASE}/init/status`).then(r => r.json());
       setStatus(res);
-      const items = ['node', 'npm', 'git', 'buildtools', 'sqlite3', 'curl', 'os'];
-      // Reset all
-      for (const key of items) {
-        setEnvProgress(prev => ({ ...prev, [key]: { checked: false, pct: 0 } }));
-      }
-      // Reveal one by one
-      for (const key of items) {
-        await new Promise(r => setTimeout(r, 700));
-        const ok = key === 'buildtools' ? res.env?.buildTools
-          : key === 'node' ? res.env?.node
-          : key === 'npm' ? res.env?.npm
-          : key === 'git' ? res.env?.git
-          : key === 'curl' ? res.env?.curl
-          : true;
-        setEnvProgress(prev => ({ ...prev, [key]: { checked: true, ok, pct: 100 } }));
-      }
+      const envOk = component === 'buildtools' ? (res.env?.buildTools)
+        : component === 'node' ? res.env?.node
+        : component === 'npm' ? res.env?.npm
+        : component === 'git' ? res.env?.git
+        : component === 'sqlite3' ? res.env?.sqlite3
+        : component === 'curl' ? res.env?.curl
+        : true;
+      setEnvProgress(prev => ({ ...prev, [component]: { checked: true, ok: envOk, pct: 100 } }));
       setInstallingEnv(null);
     }, 500);
   }, []);
