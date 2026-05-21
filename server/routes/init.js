@@ -64,17 +64,8 @@ function checkEnvironment() {
     curl: checkCommand('curl'),
     buildTools: checkCommand('make') || checkCommand('gcc'),
     systemd: checkCommand('systemctl'),
-    gtk3: checkLib('libgtk-3.so.0') || checkLib('libgdk-3.so.0'),
-    webkit: checkLib('libwebkit2gtk-4.1.so.0') || checkLib('libwebkit2gtk-4.0.so.18'),
     home: os.homedir(),
   };
-}
-
-function checkLib(name) {
-  try {
-    execSync(`ldconfig -p | grep -q "${name}"`, { encoding: 'utf8', timeout: 2000 });
-    return true;
-  } catch { return false; }
 }
 
 function checkCCSwitch() {
@@ -150,7 +141,7 @@ router.post('/init/install-ccswitch', (req, res) => {
 
 function installDeb(debFile, send, res) {
   const proc = spawn('bash', ['-c',
-    `dpkg -i "${debFile}" 2>&1 && echo "INSTALL_DONE"`]);
+    `dpkg -i "${debFile}" 2>&1 && echo "INSTALL_DONE" && apt-get install -f -y 2>&1 && echo "DEPS_FIXED"`]);
   proc.stdout.on('data', (d) => send('log', { text: d.toString() }));
   proc.stderr.on('data', (d) => send('log', { text: d.toString() }));
   proc.on('close', (code) => {
@@ -170,8 +161,6 @@ router.post('/init/install-env/:component', (req, res) => {
     git: `apt install -y git 2>&1`,
     buildtools: `apt install -y build-essential python3 2>&1`,
     curl: `apt install -y curl 2>&1`,
-    gtk3: `apt install -y libgtk-3-0t64 2>&1 || apt install -y libgtk-3-0 2>&1`,
-    webkit: `apt install -y libwebkit2gtk-4.1-0 2>&1 || apt install -y libwebkit2gtk-4.0-37 2>&1`,
   };
 
   const script = installScripts[component];

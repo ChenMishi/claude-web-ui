@@ -38,7 +38,7 @@ export default function InitPanel() {
     setProxyPort(String(res.proxyPort || 15721));
     setEnvChecked(true);
 
-    const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'gtk3', 'webkit', 'os'];
+    const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
     for (let i = 0; i < items.length; i++) {
       await new Promise(r => setTimeout(r, 700));
       setEnvProgress(prev => ({ ...prev, [items[i]]: { checked: true } }));
@@ -170,7 +170,7 @@ export default function InitPanel() {
         ? (res.env?.buildTools)
         : component === 'node' ? res.env?.node : res.env?.[component];
       // Animate each item sequentially (0.7s per item, matching handleStartCheck)
-      const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'gtk3', 'webkit', 'os'];
+      const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
       for (const key of items) {
         const ok = key === 'buildtools' ? res.env?.buildTools
           : key === 'node' ? res.env?.node
@@ -217,8 +217,6 @@ export default function InitPanel() {
     { key: 'git', label: 'Git', ok: env.git, value: env.gitVersion || '未安装' },
     { key: 'buildtools', label: '编译工具', ok: env.buildTools, value: env.buildTools ? '已安装' : '未安装 (node-pty需要)' },
     { key: 'curl', label: 'curl', ok: env.curl, value: env.curl ? '已安装' : '未安装' },
-    { key: 'gtk3', label: 'GTK3 图形库', ok: env.gtk3, value: env.gtk3 ? '已安装' : '未安装 (CC-Switch需要)' },
-    { key: 'webkit', label: 'WebKit 组件', ok: env.webkit, value: env.webkit ? '已安装' : '未安装 (CC-Switch需要)' },
   ];
   if (env.os) envItems.push({ key: 'os', label: '操作系统', ok: true, value: `${env.os} (${env.arch})` });
 

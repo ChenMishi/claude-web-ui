@@ -52,7 +52,7 @@ export default function ChatMessage({ message }) {
 }
 
 function ThinkingBlock({ content }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const safeContent = typeof content === 'string' ? content : '';
 
   return (
