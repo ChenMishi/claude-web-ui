@@ -1,7 +1,7 @@
 /* ===== Base (shared across themes) ===== */
 :root {
   --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  --font-mono: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   --sidebar-width: 280px;
 }
 
@@ -1502,25 +1502,27 @@ html, body, #root {
 
 .tool-call-detail {
   padding: 0 14px 14px;
+  border-top: 1px solid rgba(108, 99, 255, 0.15);
+  padding-top: 10px;
 }
 
 .tool-call-detail pre {
   background: var(--code-block-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 14px;
+  padding: 16px;
   overflow: auto;
   margin: 0;
   min-height: 40px;
   font-family: var(--font-mono);
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.8;
   color: var(--code-block-text);
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
 
-.tool-call-detail code { font-family: var(--font-mono); font-size: 13px; white-space: pre-wrap; }
+.tool-call-detail code { font-family: var(--font-mono); font-size: 13px; line-height: 1.8; white-space: pre-wrap; }
 
 /* Tool Result Blocks */
 .tool-result-block {
@@ -1559,20 +1561,22 @@ html, body, #root {
 
 .tool-result-content {
   padding: 0 14px 14px;
+  border-top: 1px solid rgba(128, 128, 128, 0.1);
+  padding-top: 10px;
 }
 
 .tool-result-content pre {
   background: var(--code-block-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 14px;
+  padding: 16px;
   overflow: auto;
   margin: 0;
   max-height: 500px;
   min-height: 40px;
   font-family: var(--font-mono);
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.8;
   color: var(--code-block-text);
   white-space: pre-wrap;
   overflow-wrap: break-word;
@@ -1815,8 +1819,8 @@ html, body, #root {
 }
 
 .version-btn {
-  padding: 10px 20px; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 500; cursor: pointer;
+  padding: 6px 14px; border: none; border-radius: 6px;
+  font-size: 12px; font-weight: 500; cursor: pointer;
 }
 .version-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .version-btn-check { background: var(--accent); color: #fff; }
