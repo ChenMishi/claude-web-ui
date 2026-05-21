@@ -7,6 +7,10 @@ export default function InitPanel() {
   const [envChecked, setEnvChecked] = useState(false);
   const [installingCcswitch, setInstallingCcswitch] = useState(false);
   const [installingClaude, setInstallingClaude] = useState(false);
+  const [upgradingClaude, setUpgradingClaude] = useState(false);
+  const [upgradeClaudeLog, setUpgradeClaudeLog] = useState('');
+  const [checkingClaudeUpdate, setCheckingClaudeUpdate] = useState(false);
+  const [claudeUpdateInfo, setClaudeUpdateInfo] = useState(null);
   const [installingSDK, setInstallingSDK] = useState(false);
   const [sdkInstallLog, setSdkInstallLog] = useState('');
   const [claudeInstallLog, setClaudeInstallLog] = useState('');
@@ -43,6 +47,27 @@ export default function InitPanel() {
 
   // Auto-load status on mount
   useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  const handleCheckClaudeUpdate = useCallback(async () => {
+    setCheckingClaudeUpdate(true); setClaudeUpdateInfo(null);
+    try { const res = await fetch(`${BASE}/init/check-claude-update`, { method: 'POST' }); setClaudeUpdateInfo(await res.json()); } catch {}
+    setCheckingClaudeUpdate(false);
+  }, []);
+
+  const handleUpgradeClaude = useCallback(async () => {
+    setUpgradingClaude(true); setUpgradeClaudeLog('');
+    try {
+      const res = await fetch(`${BASE}/init/upgrade-claude`, { method: 'POST', headers: { Accept: 'text/event-stream' } });
+      const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        if (value) { buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
+          for (const line of lines) { if (line.startsWith('data: ')) { try { const d = JSON.parse(line.slice(6)); if (d.text) setUpgradeClaudeLog(prev => prev + d.text); } catch {} } }
+        }
+      }
+    } catch {}
+    setUpgradingClaude(false); setTimeout(() => loadStatus(), 1000);
+  }, [loadStatus]);
 
   const handleInstallSDK = useCallback(async () => {
     setInstallingSDK(true); setSdkInstallLog('');
@@ -236,12 +261,20 @@ export default function InitPanel() {
             <div className="init-info-item"><span className="init-info-label">状态</span><span className="init-info-value">{status.claudeInstalled ? `已安装 (${status.claudeVersion || 'v?'})` : '未安装'}</span></div>
             <div className="init-info-item"><span className="init-info-label">路径</span><span className="init-info-value mono">{status.claudePath || '—'}</span></div>
           </div>
-          {!status.claudeInstalled && (
-            <div className="init-deploy-area">
-              <button className="init-btn init-btn-install" onClick={handleInstallClaude} disabled={installingClaude}>
-                {installingClaude ? '安装中...' : '安装 Claude Code'}
+          {status.claudeInstalled && (
+            <div className="init-deploy-area" style={{ marginTop: 10 }}>
+              <button className="init-btn init-btn-test" onClick={handleCheckClaudeUpdate} disabled={checkingClaudeUpdate} style={{ marginRight: 8 }}>
+                {checkingClaudeUpdate ? '检查中...' : '检查更新'}
               </button>
-              {claudeInstallLog && <div className="init-install-log"><pre>{claudeInstallLog}</pre></div>}
+              {claudeUpdateInfo && claudeUpdateInfo.hasUpdate && (
+                <button className="init-btn init-btn-install" onClick={handleUpgradeClaude} disabled={upgradingClaude}>
+                  {upgradingClaude ? '升级中...' : `升级到 v${claudeUpdateInfo.latest}`}
+                </button>
+              )}
+              {claudeUpdateInfo && !claudeUpdateInfo.hasUpdate && claudeUpdateInfo.current && (
+                <span style={{ fontSize: 12, color: 'var(--success)' }}>已是最新 v{claudeUpdateInfo.current}</span>
+              )}
+              {upgradeClaudeLog && <div className="init-install-log"><pre>{upgradeClaudeLog}</pre></div>}
             </div>
           )}
         </div>

@@ -361,4 +361,44 @@ router.post('/init/ccswitch-config', (req, res) => {
   }
 });
 
+// Check Claude Code update
+router.post('/init/check-claude-update', (req, res) => {
+  try {
+    const current = getClaudeCodeVersion() || '';
+    const latest = execSync('npm view @anthropic-ai/claude-code version', { encoding: 'utf8', timeout: 10000 }).trim();
+    res.json({ current, latest, hasUpdate: current && latest && current !== latest });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upgrade Claude Code
+router.post('/init/upgrade-claude', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  const send = (event, data) => {
+    if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  send('progress', { pct: 10, text: '正在升级 Claude Code...' });
+
+  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code@latest'], { env: process.env });
+  let lastPct = 10;
+  const onData = (d) => {
+    const text = d.toString();
+    if (text.includes('added') || text.includes('changed')) lastPct = 90;
+    else lastPct = Math.min(lastPct + 8, 85);
+    send('progress', { pct: lastPct, text: text.trim().slice(0, 80) });
+  };
+  proc.stdout.on('data', onData);
+  proc.stderr.on('data', onData);
+  proc.on('close', (code) => {
+    const newVer = getClaudeCodeVersion() || '?';
+    send('done', { success: code === 0, pct: 100, text: code === 0 ? `升级完成 v${newVer}` : '升级失败' });
+    res.end();
+  });
+  proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
+});
+
 module.exports = router;
