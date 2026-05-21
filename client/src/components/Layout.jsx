@@ -48,12 +48,12 @@ export default function Layout() {
       )}
       <Sidebar />
       <main className="main-content">
-        {activeView === 'chat' && <ChatView />}
-        {activeView === 'files' && <FileBrowser />}
-        {activeView === 'terminal' && <TerminalView />}
-        {activeView === 'settings' && <SettingsPanel />}
-        {activeView === 'version' && <VersionPanel />}
-        {activeView === 'init' && <InitPanel />}
+        <div style={{ display: activeView === 'chat' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><ChatView /></div>
+        <div style={{ display: activeView === 'files' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><FileBrowser /></div>
+        <div style={{ display: activeView === 'terminal' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><TerminalView /></div>
+        <div style={{ display: activeView === 'settings' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><SettingsPanel /></div>
+        <div style={{ display: activeView === 'version' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><VersionPanel /></div>
+        <div style={{ display: activeView === 'init' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><InitPanel /></div>
       </main>
     </div>
   );
