@@ -652,6 +652,37 @@ html, body, #root {
 
 .message-content pre code { padding: 0; background: none; }
 
+/* Syntax highlighting (Prism token colors) */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata { color: #6a9955; }
+.token.punctuation { color: #d4d4d4; }
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted { color: #b5cea8; }
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted { color: #ce9178; }
+.token.operator,
+.token.entity,
+.token.url { color: #d4d4d4; }
+.token.atrule,
+.token.attr-value,
+.token.keyword { color: #569cd6; }
+.token.function,
+.token.class-name { color: #dcdcaa; }
+.token.regex,
+.token.important,
+.token.variable { color: #d16969; }
+
 .message-content ul, .message-content ol { padding-left: 20px; margin: 8px 0; }
 .message-content li { margin-bottom: 4px; }
 
@@ -828,6 +859,60 @@ html, body, #root {
 
 .perm-confirm-dangerous:focus-within { border-color: #ffb74d; }
 .perm-confirm-all:focus-within { border-color: var(--danger); }
+
+/* Thinking Block */
+.thinking-block {
+  align-self: flex-start;
+  width: auto;
+  min-width: 200px;
+  max-width: 100%;
+  margin: 4px 0;
+  border: 1px solid rgba(156, 163, 175, 0.3);
+  border-left: 3px solid rgba(156, 163, 175, 0.5);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(156, 163, 175, 0.04);
+  opacity: 0.85;
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.thinking-header:hover { background: rgba(156, 163, 175, 0.08); }
+
+.thinking-icon { font-size: 13px; }
+.thinking-label { font-weight: 500; color: var(--text-muted); white-space: nowrap; font-size: 12px; }
+.thinking-preview {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+.thinking-toggle { color: var(--text-muted); font-size: 10px; }
+
+.thinking-content {
+  padding: 8px 14px 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  border-top: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.thinking-content p { margin-bottom: 6px; }
+.thinking-content p:last-child { margin-bottom: 0; }
+.thinking-content code { font-size: 12px; opacity: 0.85; }
 
 /* Error message */
 .error-msg {

@@ -341,9 +341,12 @@ function CCSwitchConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editProvider, setEditProvider] = useState(null);
+  const [ccRunning, setCcRunning] = useState(null);
+  const [restarting, setRestarting] = useState(false);
 
   useEffect(() => {
     fetch(`${BASE}/init/ccswitch-config`).then(r => r.json()).then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
+    fetch(`${BASE}/init/ccswitch-status`).then(r => r.json()).then(d => setCcRunning(d.running)).catch(() => {});
   }, []);
 
   const handleSave = async () => {
@@ -355,8 +358,20 @@ function CCSwitchConfig() {
         body: JSON.stringify(editProvider),
       });
       alert('保存成功，重启 CC-Switch 后生效');
+      setEditProvider(null);
     } catch (err) { alert('保存失败: ' + err.message); }
     setSaving(false);
+  };
+
+  const handleRestartCCSwitch = async () => {
+    setRestarting(true);
+    try {
+      const res = await fetch(`${BASE}/init/ccswitch-restart`, { method: 'POST' });
+      const d = await res.json();
+      if (d.ok) { setCcRunning(true); alert('CC-Switch 已重启'); }
+      else alert(d.error || '重启失败');
+    } catch (err) { alert('重启失败: ' + err.message); }
+    setRestarting(false);
   };
 
   if (loading) return <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>加载配置中...</div>;
@@ -452,9 +467,17 @@ function CCSwitchConfig() {
           <span className="init-info-value mono">{env.ANTHROPIC_MODEL || '未配置'}</span>
         </div>
       </div>
-      <button className="init-btn init-btn-test" style={{ marginTop: 8 }} onClick={() => setEditProvider({ ...defaultProvider, config_json: cfg, pricing: currentPricing })}>
-        编辑配置
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+        <span className={`init-status-badge ${ccRunning ? 'ok' : 'warn'}`} style={{ fontSize: 10 }}>
+          {ccRunning === null ? '检测中' : ccRunning ? '● 运行中' : '○ 未运行'}
+        </span>
+        <button className="init-btn init-btn-test" onClick={() => setEditProvider({ ...defaultProvider, config_json: cfg, pricing: currentPricing })}>
+          编辑配置
+        </button>
+        <button className="init-btn init-btn-install" onClick={handleRestartCCSwitch} disabled={restarting} style={{ fontSize: 11, padding: '5px 12px' }}>
+          {restarting ? '重启中...' : '重启 CC-Switch'}
+        </button>
+      </div>
     </div>
   );
 }

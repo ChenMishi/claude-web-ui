@@ -20,6 +20,11 @@ export default function ChatMessage({ message }) {
     );
   }
 
+  // Thinking block display
+  if (role === 'thinking') {
+    return <ThinkingBlock content={content} />;
+  }
+
   // Tool call display
   if (role === 'tool' && toolCall) {
     return <ToolCallBlock toolCall={toolCall} />;
@@ -42,6 +47,27 @@ export default function ChatMessage({ message }) {
       <div className="message-content">
         <MarkdownRenderer content={safeContent} />
       </div>
+    </div>
+  );
+}
+
+function ThinkingBlock({ content }) {
+  const [expanded, setExpanded] = useState(false);
+  const safeContent = typeof content === 'string' ? content : '';
+
+  return (
+    <div className="thinking-block">
+      <div className="thinking-header" onClick={() => setExpanded(!expanded)}>
+        <span className="thinking-icon">💭</span>
+        <span className="thinking-label">思考</span>
+        <span className="thinking-preview">{safeContent.slice(0, 60)}{safeContent.length > 60 ? '...' : ''}</span>
+        <span className="thinking-toggle">{expanded ? '▲' : '▼'}</span>
+      </div>
+      {expanded && (
+        <div className="thinking-content">
+          <MarkdownRenderer content={safeContent} />
+        </div>
+      )}
     </div>
   );
 }

@@ -22,10 +22,10 @@ function saveCache(cache) {
   } catch {}
 }
 
-// Strip tool call/result blocks when restoring a session — only show text conversation
+// Strip tool call/result blocks and thinking when restoring a session — only show text conversation
 function textOnly(msgs) {
   if (!msgs || !msgs.length) return [];
-  return msgs.filter(m => m.role !== 'tool');
+  return msgs.filter(m => m.role !== 'tool' && m.role !== 'thinking');
 }
 
 const initMessageCache = loadState('messageCache', {});

@@ -304,6 +304,32 @@ router.post('/init/install-sdk', (req, res) => {
   proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
 });
 
+// Check CC-Switch running status
+router.get('/init/ccswitch-status', (req, res) => {
+  try {
+    const pid = execSync('pgrep -x cc-switch', { encoding: 'utf8', timeout: 3000 }).trim();
+    res.json({ running: true, pid });
+  } catch {
+    res.json({ running: false, pid: null });
+  }
+});
+
+// Start or restart CC-Switch
+router.post('/init/ccswitch-restart', (req, res) => {
+  try {
+    // Kill existing
+    try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
+    // Start in background
+    spawn('nohup', ['cc-switch'], { detached: true, stdio: 'ignore' }).unref();
+    setTimeout(() => {
+      try { execSync('pgrep -x cc-switch', { timeout: 2000 }); res.json({ ok: true }); }
+      catch { res.json({ ok: false, error: '启动失败，请检查' }); }
+    }, 2000);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get CC-Switch provider config from SQLite
 router.get('/init/ccswitch-config', (req, res) => {
   try {

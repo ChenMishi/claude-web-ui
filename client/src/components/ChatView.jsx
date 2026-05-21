@@ -224,6 +224,11 @@ export default function ChatView() {
                       if (parsed.type === 'assistant') {
                         const textBlocks = (parsed.message?.content || []).filter(c => c.type === 'text');
                         const toolBlocks = (parsed.message?.content || []).filter(c => c.type === 'tool_use');
+                        const thinkingBlocks = (parsed.message?.content || []).filter(c => c.type === 'thinking');
+                        if (thinkingBlocks.length > 0) {
+                          const thinkingText = thinkingBlocks.map(t => t.thinking).join('\n');
+                          appendMessage({ role: 'thinking', content: thinkingText, timestamp: Date.now() });
+                        }
                         if (textBlocks.length > 0) {
                           const text = textBlocks.map(c => c.text).join('');
                           if (!hasAssistantText.current) {
@@ -350,6 +355,7 @@ export default function ChatView() {
       onThinking: ({ text: thinkingText, usage }) => {
         execPhase({ phase: 'thinking', detail: thinkingText });
         if (usage) execTokens(toTokens(usage));
+        appendMessage({ role: 'thinking', content: thinkingText, timestamp: Date.now() });
       },
       onAssistant: ({ content, usage }) => {
         if (!hasAssistantText.current) {
