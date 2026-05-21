@@ -5,6 +5,7 @@ import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle,
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
+import ExecutionPanel from './ExecutionPanel';
 
 const PHASE_LABELS = {
   thinking: '思考',
@@ -425,8 +426,9 @@ export default function ChatView() {
     && askQs[0].options.includes('拒绝');
 
   return (
-    <>
-      <div className="chat-container" ref={containerRef}>
+    <div className="chat-layout">
+      <div className="chat-main">
+        <div className="chat-container" ref={containerRef}>
         {hasMore && chatMessages.length > 0 && atTop && (
           <div className="load-more-row">
             <button className="load-more-btn" onClick={handleLoadMore} disabled={loadingMore}>
@@ -501,6 +503,8 @@ export default function ChatView() {
         )}
       </div>
       <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} />
-    </>
+      </div>
+      <ExecutionPanel />
+    </div>
   );
 }

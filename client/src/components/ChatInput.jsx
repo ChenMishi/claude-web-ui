@@ -2,7 +2,6 @@ import { useRef, useCallback, useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { abortSession } from '../api';
 import ExecutionBar from './ExecutionBar';
-import ExecutionPanel from './ExecutionPanel';
 
 const COMMANDS = [
   { cmd: '/help', desc: '查看所有可用命令', action: 'help' },
@@ -187,7 +186,6 @@ export default function ChatInput({ onSend, onStop, disabled }) {
   return (
     <div className="input-area">
       <ExecutionBar />
-      <ExecutionPanel />
       {showCommands && (
         <div className="slash-commands" ref={cmdListRef}>
           {filteredCmds.map((c, i) => (
