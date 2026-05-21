@@ -332,6 +332,40 @@ export default function InitPanel() {
           </div>
         </div>
       )}
+
+      {/* ── 前端错误日志 ── */}
+      <div className="init-section">
+        <h3>🐛 前端错误日志</h3>
+        <ErrorLog />
+      </div>
+    </div>
+  );
+}
+
+function ErrorLog() {
+  const [lines, setLines] = useState([]);
+  const [open, setOpen] = useState(false);
+
+  const load = () => {
+    fetch(`${BASE}/init/log-errors`).then(r => r.json()).then(d => setLines(d.lines || [])).catch(() => {});
+  };
+
+  useEffect(() => { if (open) load(); }, [open]);
+
+  return (
+    <div>
+      <button className="init-btn init-btn-test" onClick={() => { setOpen(!open); if (!open) load(); }}>
+        {open ? '隐藏日志' : `查看日志 (${lines.length} 条)`}
+      </button>
+      {open && (
+        <div className="init-install-log" style={{ marginTop: 8, maxHeight: 200 }}>
+          {lines.length === 0 ? (
+            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>暂无错误日志</div>
+          ) : (
+            lines.map((l, i) => <div key={i} style={{ fontSize: 11, marginBottom: 4 }}>{l}</div>)
+          )}
+        </div>
+      )}
     </div>
   );
 }

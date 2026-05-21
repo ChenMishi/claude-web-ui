@@ -461,4 +461,27 @@ router.post('/init/ccswitch-init-provider', (req, res) => {
   }
 });
 
+// Frontend error logging
+router.post('/init/log-error', (req, res) => {
+  try {
+    const { message, stack, url } = req.body || {};
+    const logDir = path.join(PROJECT_DIR, 'logs');
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    const line = `${new Date().toISOString()} [${url || 'unknown'}] ${message}\n${stack || ''}\n`;
+    fs.appendFileSync(path.join(logDir, 'frontend-error.log'), line);
+    res.json({ ok: true });
+  } catch { res.json({ ok: false }); }
+});
+
+// Get frontend error logs
+router.get('/init/log-errors', (req, res) => {
+  try {
+    const logPath = path.join(PROJECT_DIR, 'logs', 'frontend-error.log');
+    if (!fs.existsSync(logPath)) return res.json({ lines: [] });
+    const content = fs.readFileSync(logPath, 'utf8');
+    const lines = content.split('\n').filter(Boolean).slice(-50);
+    res.json({ lines });
+  } catch { res.json({ lines: [] }); }
+});
+
 module.exports = router;
