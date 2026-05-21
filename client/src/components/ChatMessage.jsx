@@ -107,7 +107,7 @@ function ToolCallBlock({ toolCall }) {
 
 function ToolResultBlock({ toolResult }) {
   const [expanded, setExpanded] = useState(true);
-  const MAX_PREVIEW = 500;
+  const MAX_PREVIEW = 2000;
 
   const preview = typeof toolResult.content === 'string'
     ? toolResult.content

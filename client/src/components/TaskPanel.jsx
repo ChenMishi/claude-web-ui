@@ -22,7 +22,7 @@ export default function TaskPanel() {
     <div className="task-panel">
       <div className="task-panel-header">
         <span className="task-panel-title">
-          任务进度{hasSubtasks ? ` (${doneCount}/${tasks.length})` : ''}
+          📋 任务进度{hasSubtasks ? ` (${doneCount}/${tasks.length})` : ''}
         </span>
       </div>
       <div className="task-panel-list" ref={listRef}>

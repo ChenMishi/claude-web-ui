@@ -1742,14 +1742,13 @@ html, body, #root {
   overflow: hidden;
 }
 .exec-panel-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; cursor: pointer; user-select: none;
-  transition: background 0.15s;
-  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  user-select: none;
+  flex-shrink: 0;
 }
-.exec-panel-header:hover { background: rgba(108,99,255,0.05); }
-.exec-panel-title { font-size: 12px; color: var(--text-muted); font-weight: 500; }
-.exec-panel-toggle { font-size: 10px; color: var(--text-muted); }
+.exec-panel-title { font-size: 12px; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
+
 
 .exec-panel-steps {
   flex: 1;

@@ -185,20 +185,29 @@ async function generateSessionTitle(sessionId, prompt, cwd) {
 // Lightweight: just call Haiku API, return title text (no disk I/O)
 async function generateTitleText(prompt) {
   const { PROXY_BASE: proxyBase } = require('../config');
-  const proxyRes = await fetch(`${proxyBase}/v1/messages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 100,
-      messages: [{ role: 'user', content: `用不超过15个汉字为以下对话生成一个简短的标题，直接返回标题文本，不要带引号、不要解释：${prompt}` }],
-      stream: false,
-    }),
-  });
-  if (!proxyRes.ok) return null;
-  const data = await proxyRes.json();
-  const textBlock = (data.content || []).find(c => c.type === 'text');
-  return (textBlock?.text || '').trim().slice(0, 30) || null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const proxyRes = await fetch(`${proxyBase}/v1/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 100,
+        messages: [{ role: 'user', content: `用不超过15个汉字为以下对话生成一个简短的标题，直接返回标题文本，不要带引号、不要解释：${prompt}` }],
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+    if (!proxyRes.ok) return null;
+    const data = await proxyRes.json();
+    const textBlock = (data.content || []).find(c => c.type === 'text');
+    return (textBlock?.text || '').trim().slice(0, 30) || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Store title .meta.json to disk
@@ -449,14 +458,14 @@ router.post('/session/:id/message', async (req, res) => {
     }
 
     // Generate AI title immediately before SDK execution
+    // Always broadcast for TaskPanel; only persist to disk for new sessions
     let aiTitle = null;
     if (wantsStream && prompt) {
       try {
         aiTitle = await generateTitleText(prompt);
         if (aiTitle) {
-          runtime.pendingTitle = aiTitle;
-          if (!isNew) {
-            storeSessionTitle(id, aiTitle, runtime.cwd);
+          if (isNew) {
+            runtime.pendingTitle = aiTitle;
           }
           broadcast(runtime, 'title', { title: aiTitle, sessionId: isNew ? null : id });
         }
