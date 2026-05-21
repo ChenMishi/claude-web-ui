@@ -38,7 +38,7 @@ export default function InitPanel() {
     setProxyPort(String(res.proxyPort || 15721));
     setEnvChecked(true);
 
-    const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
+    const items = ['node', 'npm', 'git', 'buildtools', 'sqlite3', 'curl', 'os'];
     for (let i = 0; i < items.length; i++) {
       await new Promise(r => setTimeout(r, 700));
       setEnvProgress(prev => ({ ...prev, [items[i]]: { checked: true } }));
@@ -162,25 +162,24 @@ export default function InitPanel() {
         }
       }
     } catch {}
-    // Animate re-check with same timing as initial check
+    // Animate re-check: reset all to unchecked, then reveal one by one
     setTimeout(async () => {
       const res = await fetch(`${BASE}/init/status`).then(r => r.json());
       setStatus(res);
-      const envOk = component === 'buildtools'
-        ? (res.env?.buildTools)
-        : component === 'node' ? res.env?.node : res.env?.[component];
-      // Animate each item sequentially (0.7s per item, matching handleStartCheck)
-      const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
+      const items = ['node', 'npm', 'git', 'buildtools', 'sqlite3', 'curl', 'os'];
+      // Reset all
       for (const key of items) {
+        setEnvProgress(prev => ({ ...prev, [key]: { checked: false, pct: 0 } }));
+      }
+      // Reveal one by one
+      for (const key of items) {
+        await new Promise(r => setTimeout(r, 700));
         const ok = key === 'buildtools' ? res.env?.buildTools
           : key === 'node' ? res.env?.node
           : key === 'npm' ? res.env?.npm
           : key === 'git' ? res.env?.git
           : key === 'curl' ? res.env?.curl
-          : key === 'gtk3' ? res.env?.gtk3
-          : key === 'webkit' ? res.env?.webkit
           : true;
-        await new Promise(r => setTimeout(r, 700));
         setEnvProgress(prev => ({ ...prev, [key]: { checked: true, ok, pct: 100 } }));
       }
       setInstallingEnv(null);
@@ -216,6 +215,7 @@ export default function InitPanel() {
     { key: 'npm', label: 'npm', ok: env.npm, value: env.npmVersion || '未安装' },
     { key: 'git', label: 'Git', ok: env.git, value: env.gitVersion || '未安装' },
     { key: 'buildtools', label: '编译工具', ok: env.buildTools, value: env.buildTools ? '已安装' : '未安装 (node-pty需要)' },
+    { key: 'sqlite3', label: 'sqlite3', ok: env.sqlite3, value: env.sqlite3 ? '已安装' : '未安装 (CC-Switch需要)' },
     { key: 'curl', label: 'curl', ok: env.curl, value: env.curl ? '已安装' : '未安装' },
   ];
   if (env.os) envItems.push({ key: 'os', label: '操作系统', ok: true, value: `${env.os} (${env.arch})` });

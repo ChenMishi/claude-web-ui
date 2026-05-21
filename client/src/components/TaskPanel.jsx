@@ -16,19 +16,19 @@ export default function TaskPanel() {
   }, [tasks]);
 
   const doneCount = tasks.filter(t => t.status === 'completed').length;
-  const hasContent = mainTask || tasks.length > 0;
+  const hasSubtasks = tasks.length > 0;
 
   return (
     <div className="task-panel">
       <div className="task-panel-header">
         <span className="task-panel-title">
-          任务进度{tasks.length > 0 ? ` (${doneCount}/${tasks.length})` : ''}
+          任务进度{hasSubtasks ? ` (${doneCount}/${tasks.length})` : ''}
         </span>
       </div>
       <div className="task-panel-list" ref={listRef}>
-        {!hasContent ? (
+        {!mainTask && !hasSubtasks ? (
           <div className="panel-empty">暂无任务</div>
-        ) : (
+        ) : hasSubtasks ? (
           <>
             {mainTask && (
               <div className={`task-item main-task ${mainTask.status}`}>
@@ -50,6 +50,13 @@ export default function TaskPanel() {
               </div>
             ))}
           </>
+        ) : (
+          <div className="task-item main-task-summary">
+            <span className="task-item-status">📌</span>
+            <div className="task-item-body">
+              <span className="task-item-subject">{mainTask.subject}</span>
+            </div>
+          </div>
         )}
       </div>
     </div>

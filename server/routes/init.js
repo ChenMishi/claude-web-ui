@@ -62,6 +62,7 @@ function checkEnvironment() {
     git: checkCommand('git'),
     gitVersion: checkVersion('git', '--version'),
     curl: checkCommand('curl'),
+    sqlite3: checkCommand('sqlite3'),
     buildTools: checkCommand('make') || checkCommand('gcc'),
     systemd: checkCommand('systemctl'),
     home: os.homedir(),
@@ -161,6 +162,7 @@ router.post('/init/install-env/:component', (req, res) => {
     git: `apt install -y git 2>&1`,
     buildtools: `apt install -y build-essential python3 2>&1`,
     curl: `apt install -y curl 2>&1`,
+    sqlite3: `apt install -y sqlite3 2>&1`,
   };
 
   const script = installScripts[component];
