@@ -1665,24 +1665,20 @@ html, body, #root {
 
 .task-panel-header {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 14px; cursor: pointer; user-select: none;
-  transition: background 0.15s;
+  padding: 10px 14px;
+  user-select: none;
+  flex-shrink: 0;
 }
-.task-panel-header:hover { background: rgba(108,99,255,0.05); }
 .task-panel-title { font-size: 12px; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
-.task-panel-current {
-  flex: 1;
-  font-size: 11px; color: var(--accent);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  opacity: 0.8;
-}
-.task-panel-toggle { font-size: 10px; color: var(--text-muted); }
 
 .task-panel-list {
   overflow-y: auto;
-  max-height: 260px;
-  padding: 0 0 8px;
+  height: 220px;
+  flex: none;
 }
+
+.task-panel-list::-webkit-scrollbar { width: 4px; }
+.task-panel-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 .task-item {
   display: flex; align-items: flex-start; gap: 8px;
@@ -1708,12 +1704,6 @@ html, body, #root {
   font-size: 11px; color: var(--text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.task-item-label {
-  font-size: 10px; color: var(--text-muted);
-  flex-shrink: 0; margin-top: 1px;
-  white-space: nowrap;
-}
-.task-item.in_progress .task-item-label { color: var(--accent); }
 .task-item.completed .task-item-subject { text-decoration: line-through; }
 
 /* ── Execution Panel (now inside right-panels, no border-left) ── */
@@ -1993,3 +1983,24 @@ html, body, #root {
   transition: all 0.15s;
 }
 .init-env-install-btn:hover { background: var(--accent); color: #fff; }
+
+/* ── Log Panel ── */
+.log-panel { padding: 24px 32px; flex: 1; overflow-y: auto; }
+.log-panel h2 { font-size: 20px; color: var(--accent); margin-bottom: 16px; }
+.log-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.log-tab {
+  padding: 6px 16px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-secondary); color: var(--text-muted); font-size: 13px;
+  cursor: pointer; transition: all 0.15s;
+}
+.log-tab:hover { border-color: var(--accent); color: var(--text-primary); }
+.log-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.log-refresh { margin-left: auto; }
+.log-content {
+  background: #0d0d1f; border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; font-family: var(--font-mono); font-size: 12px; line-height: 1.6;
+  color: #e0e0e0; white-space: pre-wrap; max-height: calc(100vh - 200px); overflow-y: auto;
+}
+.log-empty { text-align: center; color: var(--text-muted); padding: 40px; }
+.log-line { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.log-line.error { color: var(--danger); }

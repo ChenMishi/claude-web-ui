@@ -7,6 +7,7 @@ import TerminalView from './TerminalView';
 import SettingsPanel from './SettingsPanel';
 import VersionPanel from './VersionPanel';
 import InitPanel from './InitPanel';
+import LogPanel from './LogPanel';
 
 const BASE = '/api';
 
@@ -54,6 +55,7 @@ export default function Layout() {
         {activeView === 'settings' && <SettingsPanel />}
         <div style={{ display: activeView === 'version' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><VersionPanel /></div>
         {activeView === 'init' && <InitPanel />}
+        {activeView === 'logs' && <LogPanel />}
       </main>
     </div>
   );

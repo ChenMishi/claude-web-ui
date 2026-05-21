@@ -170,6 +170,9 @@ export default function Sidebar() {
         <button className={activeView === 'init' ? 'active' : ''} onClick={() => setView('init')}>
           🔧 初始化
         </button>
+        <button className={activeView === 'logs' ? 'active' : ''} onClick={() => setView('logs')}>
+          📋 日志
+        </button>
 
         <div className="sidebar-theme-row">
           <div
