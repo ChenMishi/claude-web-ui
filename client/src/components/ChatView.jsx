@@ -6,6 +6,7 @@ import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
 import ExecutionPanel from './ExecutionPanel';
+import TaskPanel from './TaskPanel';
 
 const PHASE_LABELS = {
   thinking: '思考',
@@ -61,6 +62,7 @@ export default function ChatView() {
     model, systemPrompt, setSessionId, projects,
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
+    addTask, updateTask,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -244,6 +246,12 @@ export default function ChatView() {
                         if (toolBlocks.length > 0) {
                           hasAssistantText.current = false;
                           toolBlocks.forEach(t => {
+                            // Track tasks during reconnect
+                            if (t.name === 'TaskCreate') {
+                              addTask(t.input?.subject || '', t.input?.description || '');
+                            } else if (t.name === 'TaskUpdate') {
+                              updateTask(t.input?.taskId || '', t.input?.status || 'pending');
+                            }
                             const desc = t.input?.description || t.input?.command || t.input?.file_path || '';
                             execPhase({ phase: 'running', detail: `${t.name}:${desc}` });
                             appendMessage({ role: 'tool', toolCall: { name: t.name, input: t.input, tool_use_id: t.id }, timestamp: Date.now() });
@@ -371,6 +379,12 @@ export default function ChatView() {
       },
       onToolUse: ({ tool, input, tool_use_id, usage }) => {
         hasAssistantText.current = false;
+        // Track tasks
+        if (tool === 'TaskCreate') {
+          addTask(input?.subject || '', input?.description || '');
+        } else if (tool === 'TaskUpdate') {
+          updateTask(input?.taskId || '', input?.status || 'pending');
+        }
         const desc = input?.description || input?.command || input?.file_path || '';
         execPhase({ phase: 'running', detail: `${tool}:${desc}` });
         if (usage) execTokens(toTokens(usage));
@@ -510,7 +524,10 @@ export default function ChatView() {
       </div>
       <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} />
       </div>
-      <ExecutionPanel />
+      <div className="right-panels">
+        <TaskPanel />
+        <ExecutionPanel />
+      </div>
     </div>
   );
 }

@@ -343,6 +343,7 @@ function CCSwitchConfig() {
   const [editProvider, setEditProvider] = useState(null);
   const [ccRunning, setCcRunning] = useState(null);
   const [restarting, setRestarting] = useState(false);
+  const [initProvider, setInitProvider] = useState(false);
 
   useEffect(() => {
     fetch(`${BASE}/init/ccswitch-config`).then(r => r.json()).then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
@@ -361,6 +362,18 @@ function CCSwitchConfig() {
       setEditProvider(null);
     } catch (err) { alert('保存失败: ' + err.message); }
     setSaving(false);
+  };
+
+  const handleInitProvider = async () => {
+    setInitProvider(true);
+    try {
+      const res = await fetch(`${BASE}/init/ccswitch-init-provider`, { method: 'POST' });
+      const d = await res.json();
+      alert(d.message || (d.ok ? '创建成功' : '创建失败'));
+      // Refresh config
+      fetch(`${BASE}/init/ccswitch-config`).then(r => r.json()).then(setConfig).catch(() => {});
+    } catch (err) { alert('创建失败: ' + err.message); }
+    setInitProvider(false);
   };
 
   const handleRestartCCSwitch = async () => {
@@ -388,9 +401,12 @@ function CCSwitchConfig() {
   if (!defaultProvider) return (
     <div className="init-ccswitch-config">
       <h4>🔧 Provider 配置</h4>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        CC-Switch 数据库中暂无 Provider 配置，请先启动 CC-Switch 或在终端配置
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+        CC-Switch 数据库中暂无 Provider 配置
       </div>
+      <button className="init-btn init-btn-install" onClick={handleInitProvider} disabled={initProvider}>
+        {initProvider ? '创建中...' : '初始化默认 Provider'}
+      </button>
     </div>
   );
 

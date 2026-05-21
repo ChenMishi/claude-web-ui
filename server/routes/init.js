@@ -427,4 +427,38 @@ router.post('/init/upgrade-claude', (req, res) => {
   proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
 });
 
+// Initialize default provider in CC-Switch DB
+router.post('/init/ccswitch-init-provider', (req, res) => {
+  try {
+    const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'CC-Switch 数据库未找到' });
+
+    const defaultConfig = JSON.stringify({
+      env: {
+        ANTHROPIC_AUTH_TOKEN: 'sk-your-api-key',
+        ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
+        ANTHROPIC_MODEL: 'claude-sonnet-4-6-20260217',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku-4-5-20251001',
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-6-20260217',
+        ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-opus-4-7-20250514',
+      },
+    });
+
+    const run = (sql) => execSync(`sqlite3 "${dbPath}" "${sql.replace(/"/g, '\\"')}"`, { encoding: 'utf8', timeout: 5000 });
+
+    // Check if default provider already exists
+    const existing = execSync(`sqlite3 -json "${dbPath}" "SELECT id FROM providers WHERE id='default'"`, { encoding: 'utf8', timeout: 3000 }).trim();
+    if (existing && JSON.parse(existing).length > 0) {
+      return res.json({ ok: false, message: 'Provider 已存在' });
+    }
+
+    run(`INSERT INTO providers (id, app_type, name, settings_config, website_url, provider_type, is_current, sort_index, meta)
+      VALUES ('default', 'claude', 'Default Provider', '${defaultConfig.replace(/'/g, "''")}', '', 'custom', 1, 0, '{}')`);
+
+    res.json({ ok: true, message: '默认 Provider 已创建，请编辑配置后重启 CC-Switch' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

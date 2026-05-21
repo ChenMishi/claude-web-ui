@@ -54,6 +54,7 @@ const initialState = {
     tokens: null,  // { input, output, cacheRead, cacheWrite }
     cost: null,
   },
+  tasks: [],  // { id, subject, description, status: 'pending'|'in_progress'|'completed' }
 };
 
 function reducer(state, action) {
@@ -141,7 +142,7 @@ function reducer(state, action) {
       next = { ...state, [action.payload.key]: action.payload.value }; break;
     // Execution status actions
     case 'EXEC_START':
-      next = { ...state, execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
+      next = { ...state, tasks: [], execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
     case 'EXEC_PHASE':
       next = { ...state, execStatus: { ...state.execStatus, ...action.payload } }; break;
     case 'EXEC_TICK':
@@ -161,6 +162,25 @@ function reducer(state, action) {
       next = { ...state, execStatus: { ...state.execStatus, phase: 'done', tokens: action.payload.tokens, cost: action.payload.cost, elapsed: Math.floor((Date.now() - state.execStatus.startTime) / 1000) } }; break;
     case 'EXEC_RESET':
       next = { ...state, execStatus: initialState.execStatus }; break;
+    case 'TASK_CREATE': {
+      const newTask = {
+        id: state.tasks.length + 1,
+        subject: action.payload.subject || '',
+        description: action.payload.description || '',
+        status: 'pending',
+      };
+      next = { ...state, tasks: [...state.tasks, newTask] }; break;
+    }
+    case 'TASK_UPDATE': {
+      const taskId = parseInt(action.payload.taskId);
+      if (isNaN(taskId)) return state;
+      const updated = state.tasks.map(t =>
+        t.id === taskId ? { ...t, status: action.payload.status } : t
+      );
+      next = { ...state, tasks: updated }; break;
+    }
+    case 'TASKS_CLEAR':
+      next = { ...state, tasks: [] }; break;
     default:
       return state;
   }
@@ -190,6 +210,9 @@ export function AppContextProvider({ children }) {
   const execTokens = useCallback((payload) => dispatch({ type: 'EXEC_TOKENS', payload }), []);
   const execDone = useCallback((payload) => dispatch({ type: 'EXEC_DONE', payload }), []);
   const execReset = useCallback(() => dispatch({ type: 'EXEC_RESET' }), []);
+  const addTask = useCallback((subject, description) => dispatch({ type: 'TASK_CREATE', payload: { subject, description } }), []);
+  const updateTask = useCallback((taskId, status) => dispatch({ type: 'TASK_UPDATE', payload: { taskId, status } }), []);
+  const clearTasks = useCallback(() => dispatch({ type: 'TASKS_CLEAR' }), []);
 
   // Persist key settings to localStorage
   useEffect(() => {
@@ -214,6 +237,7 @@ export function AppContextProvider({ children }) {
     setMessages, appendMessage, updateLastMessage, setStreaming,
     setView, toggleSidebar, setSetting,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
+    addTask, updateTask, clearTasks,
     setUpdateAvailable,
   };
 
