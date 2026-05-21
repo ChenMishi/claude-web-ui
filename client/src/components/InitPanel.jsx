@@ -327,10 +327,24 @@ function CCSwitchConfig() {
   };
 
   if (loading) return <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>加载配置中...</div>;
-  if (!config) return null;
+  if (!config || config.error) return (
+    <div className="init-ccswitch-config">
+      <h4>🔧 Provider 配置</h4>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+        {config?.error || 'CC-Switch 数据库未找到，请确认已启动过 CC-Switch'}
+      </div>
+    </div>
+  );
 
   const defaultProvider = (config.providers || []).find(p => p.id === 'default');
-  if (!defaultProvider) return null;
+  if (!defaultProvider) return (
+    <div className="init-ccswitch-config">
+      <h4>🔧 Provider 配置</h4>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+        CC-Switch 数据库中暂无 Provider 配置，请先启动 CC-Switch 或在终端配置
+      </div>
+    </div>
+  );
 
   const cfg = defaultProvider.config || {};
   const env = cfg.env || {};
