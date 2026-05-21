@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 const BASE = '/api';
 
 export default function LogPanel() {
-  const [logs, setLogs] = useState({ frontend: [], server: [], init: [], ccswitch: [] });
+  const [logs, setLogs] = useState({ frontend: [], server: [], init: [], ccswitch: [], syslog: [] });
   const [tab, setTab] = useState('server');
 
   const load = () => {
@@ -18,6 +18,7 @@ export default function LogPanel() {
     { key: 'frontend', label: '前端' },
     { key: 'init', label: '初始化' },
     { key: 'ccswitch', label: 'CC-Switch' },
+    { key: 'syslog', label: '系统' },
   ];
 
   return (

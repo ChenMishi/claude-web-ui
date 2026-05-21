@@ -497,20 +497,28 @@ router.post('/init/log-error', (req, res) => {
   } catch { res.json({ ok: false }); }
 });
 
-// Get all error logs (frontend + backend + init + ccswitch)
+// Get all error logs (frontend + backend + init + ccswitch + syslog)
 router.get('/init/log-errors', (req, res) => {
   try {
     const readLog = (name) => {
       const p = path.join(PROJECT_DIR, 'logs', name);
       return fs.existsSync(p) ? fs.readFileSync(p, 'utf8').split('\n').filter(Boolean).slice(-30) : [];
     };
+    const syslog = () => {
+      try {
+        const p = '/var/log/syslog';
+        if (!fs.existsSync(p)) return [];
+        return require('child_process').execSync(`tail -30 "${p}"`, { encoding: 'utf8', timeout: 3000 }).split('\n').filter(Boolean);
+      } catch { return []; }
+    };
     res.json({
       server: readLog('server-error.log'),
       frontend: readLog('frontend-error.log'),
       init: readLog('init.log'),
       ccswitch: readLog('ccswitch.log'),
+      syslog: syslog(),
     });
-  } catch { res.json({ frontend: [], server: [], init: [], ccswitch: [] }); }
+  } catch { res.json({ frontend: [], server: [], init: [], ccswitch: [], syslog: [] }); }
 });
 
 module.exports = router;
