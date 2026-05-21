@@ -473,15 +473,22 @@ router.post('/init/log-error', (req, res) => {
   } catch { res.json({ ok: false }); }
 });
 
-// Get frontend error logs
+// Get all error logs (frontend + backend)
 router.get('/init/log-errors', (req, res) => {
   try {
-    const logPath = path.join(PROJECT_DIR, 'logs', 'frontend-error.log');
-    if (!fs.existsSync(logPath)) return res.json({ lines: [] });
-    const content = fs.readFileSync(logPath, 'utf8');
-    const lines = content.split('\n').filter(Boolean).slice(-50);
-    res.json({ lines });
-  } catch { res.json({ lines: [] }); }
+    const logs = {};
+    // Frontend errors
+    const fePath = path.join(PROJECT_DIR, 'logs', 'frontend-error.log');
+    logs.frontend = fs.existsSync(fePath)
+      ? fs.readFileSync(fePath, 'utf8').split('\n').filter(Boolean).slice(-30)
+      : [];
+    // Server errors
+    const sePath = path.join(PROJECT_DIR, 'logs', 'server-error.log');
+    logs.server = fs.existsSync(sePath)
+      ? fs.readFileSync(sePath, 'utf8').split('\n').filter(Boolean).slice(-30)
+      : [];
+    res.json(logs);
+  } catch { res.json({ frontend: [], server: [] }); }
 });
 
 module.exports = router;

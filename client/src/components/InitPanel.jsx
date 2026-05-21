@@ -343,28 +343,42 @@ export default function InitPanel() {
 }
 
 function ErrorLog() {
-  const [lines, setLines] = useState([]);
+  const [logs, setLogs] = useState({ frontend: [], server: [] });
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState('frontend');
 
   const load = () => {
-    fetch(`${BASE}/init/log-errors`).then(r => r.json()).then(d => setLines(d.lines || [])).catch(() => {});
+    fetch(`${BASE}/init/log-errors`).then(r => r.json()).then(d => setLogs(d)).catch(() => {});
   };
 
   useEffect(() => { if (open) load(); }, [open]);
 
+  const lines = logs[tab] || [];
+  const tabLabel = tab === 'frontend' ? '前端' : '服务端';
+
   return (
     <div>
       <button className="init-btn init-btn-test" onClick={() => { setOpen(!open); if (!open) load(); }}>
-        {open ? '隐藏日志' : `查看日志 (${lines.length} 条)`}
+        {open ? '隐藏日志' : `查看日志`}
       </button>
       {open && (
-        <div className="init-install-log" style={{ marginTop: 8, maxHeight: 200 }}>
-          {lines.length === 0 ? (
-            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>暂无错误日志</div>
-          ) : (
-            lines.map((l, i) => <div key={i} style={{ fontSize: 11, marginBottom: 4 }}>{l}</div>)
-          )}
-        </div>
+        <>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button className={`init-btn ${tab === 'frontend' ? 'init-btn-install' : 'init-btn-test'}`} onClick={() => setTab('frontend')} style={{ fontSize: 11, padding: '4px 12px' }}>
+              前端 ({logs.frontend?.length || 0})
+            </button>
+            <button className={`init-btn ${tab === 'server' ? 'init-btn-install' : 'init-btn-test'}`} onClick={() => setTab('server')} style={{ fontSize: 11, padding: '4px 12px' }}>
+              服务端 ({logs.server?.length || 0})
+            </button>
+          </div>
+          <div className="init-install-log" style={{ marginTop: 8, maxHeight: 200 }}>
+            {lines.length === 0 ? (
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>暂无{tabLabel}错误日志</div>
+            ) : (
+              lines.map((l, i) => <div key={i} style={{ fontSize: 11, marginBottom: 4 }}>{l}</div>)
+            )}
+          </div>
+        </>
       )}
     </div>
   );
