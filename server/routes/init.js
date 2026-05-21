@@ -102,17 +102,47 @@ router.post('/init/install-ccswitch', (req, res) => {
     if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  send('log', { text: `正在下载 CC-Switch v${ver}...\n` });
+  send('log', { text: `正在准备安装 CC-Switch v${ver}...\n` });
 
-  const debUrl = `https://github.com/cc-switch/cc-switch/releases/download/v${ver}/CC-Switch-v${ver}-Linux-x86_64.deb`;
-  const debFile = `/tmp/cc-switch-${ver}.deb`;
+  // Find deb file: check common locations first
+  const candidates = [
+    path.join(os.homedir(), `CC-Switch-v${ver}-Linux-x86_64.deb`),
+    path.join(PROJECT_DIR, `CC-Switch-v${ver}-Linux-x86_64.deb`),
+    `/tmp/CC-Switch-v${ver}-Linux-x86_64.deb`,
+  ];
 
-  const proc = spawn('bash', ['-c', `
-    curl -L -o "${debFile}" "${debUrl}" 2>&1 && echo "DOWNLOAD_DONE" &&
-    dpkg -i "${debFile}" 2>&1 && echo "INSTALL_DONE" &&
-    rm -f "${debFile}"
-  `]);
+  let debFile = candidates.find(f => fs.existsSync(f));
 
+  if (!debFile) {
+    // Try download from GitHub (may 404 if release doesn't exist)
+    const debUrl = `https://github.com/cc-switch/cc-switch/releases/download/v${ver}/CC-Switch-v${ver}-Linux-x86_64.deb`;
+    debFile = `/tmp/cc-switch-${ver}.deb`;
+    send('log', { text: `本地未找到 deb 包，尝试下载...\n` });
+
+    const proc = spawn('bash', ['-c',
+      `curl -L -o "${debFile}" "${debUrl}" 2>&1 && echo "DOWNLOAD_DONE"`]);
+    proc.stdout.on('data', (d) => send('log', { text: d.toString() }));
+    proc.stderr.on('data', (d) => send('log', { text: d.toString() }));
+
+    proc.on('close', (code) => {
+      if (code !== 0 || !fs.existsSync(debFile) || fs.statSync(debFile).size < 1000) {
+        send('error', { message: '下载失败：请将 CC-Switch deb 包放到项目根目录或 /root 下' });
+        res.end();
+        return;
+      }
+      installDeb(debFile, send, res);
+    });
+    proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
+    return;
+  }
+
+  send('log', { text: `找到本地安装包: ${debFile}\n` });
+  installDeb(debFile, send, res);
+});
+
+function installDeb(debFile, send, res) {
+  const proc = spawn('bash', ['-c',
+    `dpkg -i "${debFile}" 2>&1 && echo "INSTALL_DONE"`]);
   proc.stdout.on('data', (d) => send('log', { text: d.toString() }));
   proc.stderr.on('data', (d) => send('log', { text: d.toString() }));
   proc.on('close', (code) => {
