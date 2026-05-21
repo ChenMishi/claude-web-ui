@@ -286,15 +286,19 @@ router.get('/init/ccswitch-config', (req, res) => {
       return out ? JSON.parse(out) : [];
     };
 
-    const providers = query("SELECT id, name, provider_type, config_json FROM providers");
-    const pricing = query("SELECT model_id, model_name, input_price, output_price, cache_read_price, cache_write_price FROM model_pricing");
+    const providers = query("SELECT id, name, provider_type, settings_config FROM providers");
+    const pricing = query("SELECT model_id, display_name, input_cost_per_million, output_cost_per_million, cache_read_cost_per_million, cache_creation_cost_per_million FROM model_pricing");
 
     res.json({
       providers: providers.map(p => ({
         id: p.id, name: p.name, type: p.provider_type,
-        config: typeof p.config_json === 'string' ? JSON.parse(p.config_json || '{}') : (p.config_json || {}),
+        config: typeof p.settings_config === 'string' ? JSON.parse(p.settings_config || '{}') : (p.settings_config || {}),
       })),
-      pricing,
+      pricing: pricing.map(p => ({
+        model_id: p.model_id, model_name: p.display_name,
+        input_price: p.input_cost_per_million, output_price: p.output_cost_per_million,
+        cache_read_price: p.cache_read_cost_per_million, cache_write_price: p.cache_creation_cost_per_million,
+      })),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -312,12 +316,12 @@ router.post('/init/ccswitch-config', (req, res) => {
 
     if (providerId && config_json) {
       const json = JSON.stringify(config_json).replace(/'/g, "''");
-      run(`UPDATE providers SET config_json = '${json}' WHERE id = '${providerId}'`);
+      run(`UPDATE providers SET settings_config = '${json}' WHERE id = '${providerId}'`);
     }
 
     if (pricing && Array.isArray(pricing)) {
       for (const p of pricing) {
-        run(`INSERT OR REPLACE INTO model_pricing (model_id, model_name, input_price, output_price, cache_read_price, cache_write_price)
+        run(`INSERT OR REPLACE INTO model_pricing (model_id, display_name, input_cost_per_million, output_cost_per_million, cache_read_cost_per_million, cache_creation_cost_per_million)
           VALUES ('${p.model_id}', '${p.model_name || p.model_id}', ${p.input_price || 0}, ${p.output_price || 0}, ${p.cache_read_price || 0}, ${p.cache_write_price || 0})`);
       }
     }
