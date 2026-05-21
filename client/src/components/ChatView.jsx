@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { runAgent, getProjects, getProjectSessions, abortSession, generateTitle, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages } from '../api';
+import { runAgent, getProjects, getProjectSessions, abortSession, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages } from '../api';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
@@ -77,7 +77,6 @@ export default function ChatView() {
   chatMessagesRef.current = chatMessages;
   const skipScrollRef = useRef(false);
   const scrollRestoreRef = useRef(null);
-  const pendingTitleRef = useRef('');  // stores user prompt for AI title generation
   const [atTop, setAtTop] = useState(false);
   const loadedCountRef = useRef(0);
 
@@ -348,7 +347,6 @@ export default function ChatView() {
     setStreaming(true);
     execStart();
     setMainTask(text.length > 30 ? text.slice(0, 30) + '…' : text);
-    pendingTitleRef.current = text;
     startTimer();
     appendMessage({ role: 'user', content: text, timestamp: Date.now() });
     hasAssistantText.current = false;
@@ -406,25 +404,6 @@ export default function ChatView() {
         execDone({ tokens: doneTokens, cost });
         setTimeout(() => execReset(), 5000);
 
-        const sid = newId || currentSessionId;
-        const prompt = pendingTitleRef.current?.slice(0, 200) || '';
-        pendingTitleRef.current = '';
-
-        if (sid && prompt) {
-          const project = projects.find(p => p.id === currentProjectId);
-          generateTitle(sid, prompt, project?.cwd)
-            .then((result) => {
-              if (result?.title) updateMainTask(result.title);
-              // Refresh session list so sidebar picks up the new title
-              if (currentProjectId) {
-                getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
-              }
-            })
-            .catch((err) => {
-              console.warn('[TaskPanel] Title generation failed:', err?.message);
-            });
-        }
-
         if (newId && !currentSessionId) {
           setSessionId(newId);
           getProjects().then(setProjects).catch(() => {});
@@ -432,6 +411,9 @@ export default function ChatView() {
             getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
           }
         }
+      },
+      onTitle: ({ title }) => {
+        if (title) updateMainTask(title);
       },
       onError: (err) => {
         // Ignore errors from previous (aborted) executions

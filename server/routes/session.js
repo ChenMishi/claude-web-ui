@@ -168,6 +168,44 @@ function buildSDKOptions(runtime, body) {
   return options;
 }
 
+// Shared helper — generate a short AI title using the proxy
+async function generateSessionTitle(sessionId, prompt, cwd) {
+  try {
+    const { PROXY_BASE, CLAUDE_PROJECTS_DIR } = require('../config');
+    const proxyRes = await fetch(`${PROXY_BASE}/v1/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 100,
+        messages: [{ role: 'user', content: `用不超过15个汉字为以下对话生成一个简短的标题，直接返回标题文本，不要带引号、不要解释：${prompt}` }],
+        stream: false,
+      }),
+    });
+
+    if (!proxyRes.ok) {
+      const err = await proxyRes.text().catch(() => '');
+      console.error('Title API error:', err);
+      return null;
+    }
+
+    const data = await proxyRes.json();
+    const textBlock = (data.content || []).find(c => c.type === 'text');
+    const title = (textBlock?.text || '').trim().slice(0, 30);
+
+    if (title) {
+      const dirPath = path.join(CLAUDE_PROJECTS_DIR, require('../store').getProjectDirName(cwd || ''));
+      if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+      fs.writeFileSync(path.join(dirPath, `${sessionId}.meta.json`), JSON.stringify({ title }), 'utf8');
+    }
+
+    return title || null;
+  } catch (err) {
+    console.error('Title generation error:', err?.message);
+    return null;
+  }
+}
+
 // --- Session info ---
 router.get('/session/:id', (req, res) => {
   const { id } = req.params;
@@ -428,6 +466,17 @@ router.post('/session/:id/message', async (req, res) => {
     }
 
     if (wantsStream) {
+      // Generate a short AI title asynchronously before closing the stream
+      let aiTitle = null;
+      if (prompt && runtime.sessionId) {
+        try {
+          aiTitle = await generateSessionTitle(runtime.sessionId, prompt, runtime.cwd);
+        } catch (err) {
+          console.error('Title generation error:', err?.message);
+        }
+      }
+
+      broadcast(runtime, 'title', { title: aiTitle, sessionId: runtime.sessionId });
       broadcast(runtime, 'done', {
         sessionId: runtime.sessionId,
         cost: result?.cost,
@@ -526,40 +575,8 @@ router.post('/session/:id/title', async (req, res) => {
   const prompt = (req.body.prompt || '').trim();
   if (!prompt) return res.status(400).json({ error: 'prompt is required' });
 
-  try {
-    const { PROXY_BASE } = require('../config');
-    const proxyRes = await fetch(`${PROXY_BASE}/v1/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 100,
-        messages: [{ role: 'user', content: `用不超过15个汉字为以下对话生成一个简短的标题，直接返回标题文本，不要带引号、不要解释：${prompt}` }],
-        stream: false,
-      }),
-    });
-
-    if (!proxyRes.ok) {
-      const err = await proxyRes.text().catch(() => '');
-      return res.status(proxyRes.status).json({ error: err });
-    }
-
-    const data = await proxyRes.json();
-    const textBlock = (data.content || []).find(c => c.type === 'text');
-    const title = (textBlock?.text || '').trim().slice(0, 30);
-
-    if (title) {
-      // Save title to sidecar metadata
-      const dirPath = path.join(CLAUDE_PROJECTS_DIR, require('../store').getProjectDirName(req.body.cwd || ''));
-      if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-      fs.writeFileSync(path.join(dirPath, `${id}.meta.json`), JSON.stringify({ title }), 'utf8');
-    }
-
-    res.json({ title: title || null });
-  } catch (err) {
-    console.error('Title generation error:', err);
-    res.status(500).json({ error: `标题生成失败: ${err.message}` });
-  }
+  const title = await generateSessionTitle(id, prompt, req.body.cwd);
+  res.json({ title });
 });
 
 module.exports = router;
