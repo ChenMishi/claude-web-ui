@@ -1698,6 +1698,36 @@ html, body, #root {
 .init-test-result.success { color: #4caf50; }
 .init-test-result.fail { color: var(--danger); }
 
+.init-ccswitch-config {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.init-ccswitch-config h4 {
+  font-size: 13px; color: var(--text-primary); margin-bottom: 10px;
+}
+.init-pricing-grid {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.init-pricing-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; background: var(--bg-primary);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.init-pricing-name {
+  font-size: 11px; color: var(--text-primary); white-space: nowrap; min-width: 110px;
+}
+.init-pricing-inputs {
+  display: flex; align-items: center; gap: 4px; margin-left: auto;
+}
+.init-pricing-inputs label {
+  font-size: 10px; color: var(--text-muted); margin: 0;
+}
+.init-pricing-inputs input {
+  width: 60px; padding: 3px 6px; background: var(--bg-secondary);
+  border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-primary); font-size: 11px; text-align: right;
+}
+
 .init-env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .init-env-card {
   position: relative; overflow: hidden;

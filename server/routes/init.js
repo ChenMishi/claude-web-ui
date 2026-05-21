@@ -275,4 +275,57 @@ router.post('/init/install-sdk', (req, res) => {
   proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
 });
 
+// Get CC-Switch provider config from SQLite
+router.get('/init/ccswitch-config', (req, res) => {
+  try {
+    const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
+    if (!fs.existsSync(dbPath)) return res.json({ providers: [], pricing: [] });
+
+    const query = (sql) => {
+      const out = execSync(`sqlite3 -json "${dbPath}" "${sql}"`, { encoding: 'utf8', timeout: 5000 }).trim();
+      return out ? JSON.parse(out) : [];
+    };
+
+    const providers = query("SELECT id, name, provider_type, config_json FROM providers");
+    const pricing = query("SELECT model_id, model_name, input_price, output_price, cache_read_price, cache_write_price FROM model_pricing");
+
+    res.json({
+      providers: providers.map(p => ({
+        id: p.id, name: p.name, type: p.provider_type,
+        config: typeof p.config_json === 'string' ? JSON.parse(p.config_json || '{}') : (p.config_json || {}),
+      })),
+      pricing,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update CC-Switch provider config
+router.post('/init/ccswitch-config', (req, res) => {
+  const { providerId, config_json, pricing } = req.body || {};
+  try {
+    const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'CC-Switch 数据库未找到' });
+
+    const run = (sql) => execSync(`sqlite3 "${dbPath}" "${sql.replace(/"/g, '\\"')}"`, { encoding: 'utf8', timeout: 5000 });
+
+    if (providerId && config_json) {
+      const json = JSON.stringify(config_json).replace(/'/g, "''");
+      run(`UPDATE providers SET config_json = '${json}' WHERE id = '${providerId}'`);
+    }
+
+    if (pricing && Array.isArray(pricing)) {
+      for (const p of pricing) {
+        run(`INSERT OR REPLACE INTO model_pricing (model_id, model_name, input_price, output_price, cache_read_price, cache_write_price)
+          VALUES ('${p.model_id}', '${p.model_name || p.model_id}', ${p.input_price || 0}, ${p.output_price || 0}, ${p.cache_read_price || 0}, ${p.cache_write_price || 0})`);
+      }
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

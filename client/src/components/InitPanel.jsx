@@ -263,6 +263,9 @@ export default function InitPanel() {
               {installLog && <div className="init-install-log"><pre>{installLog}</pre></div>}
             </div>
           )}
+          {status.ccSwitchInstalled && (
+            <CCSwitchConfig />
+          )}
         </div>
       )}
 
@@ -296,6 +299,115 @@ export default function InitPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CCSwitchConfig() {
+  const [config, setConfig] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editProvider, setEditProvider] = useState(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/init/ccswitch-config`).then(r => r.json()).then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await fetch(`${BASE}/init/ccswitch-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editProvider),
+      });
+      alert('保存成功，重启 CC-Switch 后生效');
+    } catch (err) { alert('保存失败: ' + err.message); }
+    setSaving(false);
+  };
+
+  if (loading) return <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>加载配置中...</div>;
+  if (!config) return null;
+
+  const defaultProvider = (config.providers || []).find(p => p.id === 'default');
+  if (!defaultProvider) return null;
+
+  const cfg = defaultProvider.config || {};
+  const env = cfg.env || {};
+  const currentPricing = config.pricing || [];
+
+  if (editProvider) {
+    const edEnv = editProvider.config_json?.env || {};
+    const edPricing = editProvider.pricing || currentPricing;
+    return (
+      <div className="init-ccswitch-config">
+        <h4>🔧 编辑 Provider: {editProvider.name}</h4>
+        <div className="init-config-row">
+          <label>API Key</label>
+          <input type="text" value={edEnv.ANTHROPIC_AUTH_TOKEN || ''} onChange={e => {
+            const newEnv = { ...edEnv, ANTHROPIC_AUTH_TOKEN: e.target.value };
+            setEditProvider({ ...editProvider, config_json: { ...editProvider.config_json, env: newEnv } });
+          }} style={{ flex: 1 }} />
+        </div>
+        <div className="init-config-row">
+          <label>Base URL</label>
+          <input type="text" value={edEnv.ANTHROPIC_BASE_URL || ''} onChange={e => {
+            const newEnv = { ...edEnv, ANTHROPIC_BASE_URL: e.target.value };
+            setEditProvider({ ...editProvider, config_json: { ...editProvider.config_json, env: newEnv } });
+          }} style={{ flex: 1 }} />
+        </div>
+        <div className="init-config-row">
+          <label>默认模型</label>
+          <input type="text" value={edEnv.ANTHROPIC_MODEL || ''} onChange={e => {
+            const newEnv = { ...edEnv, ANTHROPIC_MODEL: e.target.value };
+            setEditProvider({ ...editProvider, config_json: { ...editProvider.config_json, env: newEnv } });
+          }} style={{ flex: 1 }} />
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>Haiku / Sonnet / Opus 均映射到此模型</div>
+
+        <h4 style={{ marginTop: 16 }}>📊 模型定价 (美元/百万token)</h4>
+        <div className="init-pricing-grid">
+          {edPricing.slice(0, 5).map(p => (
+            <div key={p.model_id} className="init-pricing-item">
+              <span className="init-pricing-name">{p.model_name || p.model_id}</span>
+              <div className="init-pricing-inputs">
+                <label>输入</label><input type="number" step="0.01" value={p.input_price || 0} onChange={e => {
+                  const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, input_price: parseFloat(e.target.value) || 0 } : x);
+                  setEditProvider({ ...editProvider, pricing: newPricing });
+                }} />
+                <label>输出</label><input type="number" step="0.01" value={p.output_price || 0} onChange={e => {
+                  const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, output_price: parseFloat(e.target.value) || 0 } : x);
+                  setEditProvider({ ...editProvider, pricing: newPricing });
+                }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="init-config-actions" style={{ marginTop: 12 }}>
+          <button className="init-btn init-btn-save" onClick={handleSave} disabled={saving}>{saving ? '保存中...' : '保存配置'}</button>
+          <button className="init-btn init-btn-test" onClick={() => setEditProvider(null)}>取消</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="init-ccswitch-config">
+      <h4>🔧 Provider 配置</h4>
+      <div className="init-info-grid">
+        <div className="init-info-item">
+          <span className="init-info-label">Provider</span>
+          <span className="init-info-value">{defaultProvider.name} ({defaultProvider.id})</span>
+        </div>
+        <div className="init-info-item">
+          <span className="init-info-label">模型</span>
+          <span className="init-info-value mono">{env.ANTHROPIC_MODEL || '未配置'}</span>
+        </div>
+      </div>
+      <button className="init-btn init-btn-test" style={{ marginTop: 8 }} onClick={() => setEditProvider({ ...defaultProvider, config_json: cfg, pricing: currentPricing })}>
+        编辑配置
+      </button>
     </div>
   );
 }
