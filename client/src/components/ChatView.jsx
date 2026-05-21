@@ -62,7 +62,7 @@ export default function ChatView() {
     model, systemPrompt, setSessionId, projects,
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
-    addTask, updateTask, setMainTask, updateMainTask,
+    addTask, updateTask, setMainTask, updateMainTask, execStatus,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -77,6 +77,7 @@ export default function ChatView() {
   chatMessagesRef.current = chatMessages;
   const skipScrollRef = useRef(false);
   const scrollRestoreRef = useRef(null);
+  const pendingTitleRef = useRef('');  // stores user prompt for AI title generation
   const [atTop, setAtTop] = useState(false);
   const loadedCountRef = useRef(0);
 
@@ -347,6 +348,7 @@ export default function ChatView() {
     setStreaming(true);
     execStart();
     setMainTask(text.length > 30 ? text.slice(0, 30) + '…' : text);
+    pendingTitleRef.current = text;
     startTimer();
     appendMessage({ role: 'user', content: text, timestamp: Date.now() });
     hasAssistantText.current = false;
@@ -403,26 +405,32 @@ export default function ChatView() {
         stopTimer();
         execDone({ tokens: doneTokens, cost });
         setTimeout(() => execReset(), 5000);
+
+        const sid = newId || currentSessionId;
+        const prompt = pendingTitleRef.current?.slice(0, 200) || '';
+        pendingTitleRef.current = '';
+
+        if (sid && prompt) {
+          const project = projects.find(p => p.id === currentProjectId);
+          generateTitle(sid, prompt, project?.cwd)
+            .then((result) => {
+              if (result?.title) updateMainTask(result.title);
+              // Refresh session list so sidebar picks up the new title
+              if (currentProjectId) {
+                getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
+              }
+            })
+            .catch((err) => {
+              console.warn('[TaskPanel] Title generation failed:', err?.message);
+            });
+        }
+
         if (newId && !currentSessionId) {
           setSessionId(newId);
           getProjects().then(setProjects).catch(() => {});
           if (currentProjectId) {
             getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
           }
-        }
-        // Generate AI title for main task (and session list for new sessions)
-        const sid = newId || currentSessionId;
-        if (sid) {
-          const firstMsg = text.slice(0, 200);
-          const project = projects.find(p => p.id === currentProjectId);
-          generateTitle(sid, firstMsg, project?.cwd)
-            .then((result) => {
-              if (result?.title) updateMainTask(result.title);
-              if (newId && !currentSessionId && currentProjectId) {
-                getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
-              }
-            })
-            .catch(() => {});
         }
       },
       onError: (err) => {

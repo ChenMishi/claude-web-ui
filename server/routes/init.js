@@ -319,11 +319,21 @@ router.post('/init/ccswitch-restart', (req, res) => {
   try {
     // Kill existing
     try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
-    // Start in background
-    spawn('nohup', ['cc-switch'], { detached: true, stdio: 'ignore' }).unref();
+    // Start in background and capture output
+    const logFile = path.join(PROJECT_DIR, 'logs', 'ccswitch.log');
+    const outFd = fs.openSync(logFile, 'a');
+    const child = spawn('nohup', ['cc-switch'], { detached: true, stdio: ['ignore', outFd, outFd] });
+    child.unref();
     setTimeout(() => {
-      try { execSync('pgrep -x cc-switch', { timeout: 2000 }); res.json({ ok: true }); }
-      catch { res.json({ ok: false, error: '启动失败，请检查' }); }
+      try {
+        execSync('pgrep -x cc-switch', { timeout: 2000 });
+        fs.appendFileSync(path.join(PROJECT_DIR, 'logs', 'init.log'), `${new Date().toISOString()} CC-Switch 启动成功\n`);
+        res.json({ ok: true });
+      } catch {
+        const errLog = fs.readFileSync(logFile, 'utf8').slice(-500);
+        fs.appendFileSync(path.join(PROJECT_DIR, 'logs', 'init.log'), `${new Date().toISOString()} CC-Switch 启动失败\n${errLog}\n`);
+        res.json({ ok: false, error: `启动失败，查看日志: ${logFile}` });
+      }
     }, 2000);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -476,22 +486,20 @@ router.post('/init/log-error', (req, res) => {
   } catch { res.json({ ok: false }); }
 });
 
-// Get all error logs (frontend + backend)
+// Get all error logs (frontend + backend + init + ccswitch)
 router.get('/init/log-errors', (req, res) => {
   try {
-    const logs = {};
-    // Frontend errors
-    const fePath = path.join(PROJECT_DIR, 'logs', 'frontend-error.log');
-    logs.frontend = fs.existsSync(fePath)
-      ? fs.readFileSync(fePath, 'utf8').split('\n').filter(Boolean).slice(-30)
-      : [];
-    // Server errors
-    const sePath = path.join(PROJECT_DIR, 'logs', 'server-error.log');
-    logs.server = fs.existsSync(sePath)
-      ? fs.readFileSync(sePath, 'utf8').split('\n').filter(Boolean).slice(-30)
-      : [];
-    res.json(logs);
-  } catch { res.json({ frontend: [], server: [] }); }
+    const readLog = (name) => {
+      const p = path.join(PROJECT_DIR, 'logs', name);
+      return fs.existsSync(p) ? fs.readFileSync(p, 'utf8').split('\n').filter(Boolean).slice(-30) : [];
+    };
+    res.json({
+      server: readLog('server-error.log'),
+      frontend: readLog('frontend-error.log'),
+      init: readLog('init.log'),
+      ccswitch: readLog('ccswitch.log'),
+    });
+  } catch { res.json({ frontend: [], server: [], init: [], ccswitch: [] }); }
 });
 
 module.exports = router;

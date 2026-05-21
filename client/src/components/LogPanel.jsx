@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 const BASE = '/api';
 
 export default function LogPanel() {
-  const [logs, setLogs] = useState({ frontend: [], server: [] });
+  const [logs, setLogs] = useState({ frontend: [], server: [], init: [], ccswitch: [] });
   const [tab, setTab] = useState('server');
 
   const load = () => {
@@ -13,23 +13,27 @@ export default function LogPanel() {
   useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, []);
 
   const lines = logs[tab] || [];
-  const tabLabel = tab === 'frontend' ? '前端' : '服务端';
+  const tabs = [
+    { key: 'server', label: '服务端' },
+    { key: 'frontend', label: '前端' },
+    { key: 'init', label: '初始化' },
+    { key: 'ccswitch', label: 'CC-Switch' },
+  ];
 
   return (
     <div className="log-panel">
       <h2>📋 系统日志</h2>
       <div className="log-tabs">
-        <button className={`log-tab ${tab === 'server' ? 'active' : ''}`} onClick={() => setTab('server')}>
-          服务端 ({logs.server?.length || 0})
-        </button>
-        <button className={`log-tab ${tab === 'frontend' ? 'active' : ''}`} onClick={() => setTab('frontend')}>
-          前端 ({logs.frontend?.length || 0})
-        </button>
+        {tabs.map(t => (
+          <button key={t.key} className={`log-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            {t.label} ({logs[t.key]?.length || 0})
+          </button>
+        ))}
         <button className="log-tab log-refresh" onClick={load}>刷新</button>
       </div>
       <div className="log-content">
         {lines.length === 0 ? (
-          <div className="log-empty">暂无{tabLabel}日志</div>
+          <div className="log-empty">暂无日志</div>
         ) : (
           lines.map((l, i) => (
             <div key={i} className={`log-line ${l.includes('ERROR') || l.includes('FATAL') ? 'error' : ''}`}>
