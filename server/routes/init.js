@@ -150,7 +150,7 @@ function installDeb(debFile, send, res) {
     res.end();
   });
   proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
-});
+}
 
 // Install system environment component
 router.post('/init/install-env/:component', (req, res) => {
