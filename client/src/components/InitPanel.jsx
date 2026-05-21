@@ -162,17 +162,16 @@ export default function InitPanel() {
         }
       }
     } catch {}
-    setInstallingEnv(null);
-    // Refresh status and update card
+    // Keep installing state until status refresh completes
     setTimeout(async () => {
       const res = await fetch(`${BASE}/init/status`).then(r => r.json());
       setStatus(res);
-      // Update this component's card directly
       const envOk = component === 'buildtools'
         ? (res.env?.buildTools)
         : component === 'node' ? res.env?.node : res.env?.[component];
       setEnvProgress(prev => ({ ...prev, [component]: { pct: 100, checked: true, ok: envOk } }));
-    }, 1000);
+      setInstallingEnv(null);
+    }, 1500);
   }, []);
 
   const handleSaveConfig = useCallback(async () => {
