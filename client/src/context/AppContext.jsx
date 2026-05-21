@@ -55,6 +55,7 @@ const initialState = {
     cost: null,
   },
   tasks: [],  // { id, subject, description, status: 'pending'|'in_progress'|'completed' }
+  mainTask: null,  // { subject: string, status: 'in_progress'|'completed' }
 };
 
 function reducer(state, action) {
@@ -142,7 +143,7 @@ function reducer(state, action) {
       next = { ...state, [action.payload.key]: action.payload.value }; break;
     // Execution status actions
     case 'EXEC_START':
-      next = { ...state, tasks: [], execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
+      next = { ...state, tasks: [], mainTask: null, execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
     case 'EXEC_PHASE':
       next = { ...state, execStatus: { ...state.execStatus, ...action.payload } }; break;
     case 'EXEC_TICK':
@@ -159,7 +160,7 @@ function reducer(state, action) {
       break;
     }
     case 'EXEC_DONE':
-      next = { ...state, execStatus: { ...state.execStatus, phase: 'done', tokens: action.payload.tokens, cost: action.payload.cost, elapsed: Math.floor((Date.now() - state.execStatus.startTime) / 1000) } }; break;
+      next = { ...state, mainTask: state.mainTask ? { ...state.mainTask, status: 'completed' } : null, execStatus: { ...state.execStatus, phase: 'done', tokens: action.payload.tokens, cost: action.payload.cost, elapsed: Math.floor((Date.now() - state.execStatus.startTime) / 1000) } }; break;
     case 'EXEC_RESET':
       next = { ...state, execStatus: initialState.execStatus }; break;
     case 'TASK_CREATE': {
@@ -181,6 +182,8 @@ function reducer(state, action) {
     }
     case 'TASKS_CLEAR':
       next = { ...state, tasks: [] }; break;
+    case 'SET_MAIN_TASK':
+      next = { ...state, mainTask: { subject: action.payload.subject, status: 'in_progress' } }; break;
     default:
       return state;
   }
@@ -213,6 +216,7 @@ export function AppContextProvider({ children }) {
   const addTask = useCallback((subject, description) => dispatch({ type: 'TASK_CREATE', payload: { subject, description } }), []);
   const updateTask = useCallback((taskId, status) => dispatch({ type: 'TASK_UPDATE', payload: { taskId, status } }), []);
   const clearTasks = useCallback(() => dispatch({ type: 'TASKS_CLEAR' }), []);
+  const setMainTask = useCallback((subject) => dispatch({ type: 'SET_MAIN_TASK', payload: { subject } }), []);
 
   // Persist key settings to localStorage
   useEffect(() => {
@@ -237,7 +241,7 @@ export function AppContextProvider({ children }) {
     setMessages, appendMessage, updateLastMessage, setStreaming,
     setView, toggleSidebar, setSetting,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
-    addTask, updateTask, clearTasks,
+    addTask, updateTask, clearTasks, setMainTask,
     setUpdateAvailable,
   };
 

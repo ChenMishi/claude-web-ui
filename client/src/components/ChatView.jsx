@@ -62,7 +62,7 @@ export default function ChatView() {
     model, systemPrompt, setSessionId, projects,
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
-    addTask, updateTask,
+    addTask, updateTask, setMainTask,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -346,6 +346,7 @@ export default function ChatView() {
     const myExecId = ++execIdRef.current;
     setStreaming(true);
     execStart();
+    setMainTask(text);
     startTimer();
     appendMessage({ role: 'user', content: text, timestamp: Date.now() });
     hasAssistantText.current = false;

@@ -32,8 +32,6 @@ export default function ExecutionPanel() {
     setSteps(newSteps);
   }, [chatMessages]);
 
-  if (steps.length === 0 && !isStreaming) return null;
-
   const runningCount = steps.filter(s => s.status === 'running').length;
   const doneCount = steps.filter(s => s.status === 'done').length;
 
@@ -41,15 +39,19 @@ export default function ExecutionPanel() {
     <div className="exec-panel">
       <div className="exec-panel-header" onClick={() => setExpanded(!expanded)}>
         <span className="exec-panel-title">
-          {runningCount > 0 ? '⏳' : '✅'} 执行步骤 ({doneCount}/{steps.length})
+          {runningCount > 0 ? '⏳' : '✅'} 执行步骤{steps.length > 0 ? ` (${doneCount}/${steps.length})` : ''}
         </span>
         <span className="exec-panel-toggle">{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && (
         <div className="exec-panel-steps" ref={panelRef}>
-          {steps.map((s, i) => (
-            <StepItem key={s.id || i} step={s} index={i} />
-          ))}
+          {steps.length === 0 ? (
+            <div className="panel-empty">暂无执行步骤</div>
+          ) : (
+            steps.map((s, i) => (
+              <StepItem key={s.id || i} step={s} index={i} />
+            ))
+          )}
         </div>
       )}
     </div>

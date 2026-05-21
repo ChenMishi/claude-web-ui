@@ -444,16 +444,19 @@ router.post('/init/ccswitch-init-provider', (req, res) => {
       },
     });
 
-    const run = (sql) => execSync(`sqlite3 "${dbPath}" "${sql.replace(/"/g, '\\"')}"`, { encoding: 'utf8', timeout: 5000 });
-
     // Check if default provider already exists
     const existing = execSync(`sqlite3 -json "${dbPath}" "SELECT id FROM providers WHERE id='default'"`, { encoding: 'utf8', timeout: 3000 }).trim();
     if (existing && JSON.parse(existing).length > 0) {
       return res.json({ ok: false, message: 'Provider 已存在' });
     }
 
-    run(`INSERT INTO providers (id, app_type, name, settings_config, website_url, provider_type, is_current, sort_index, meta)
-      VALUES ('default', 'claude', 'Default Provider', '${defaultConfig.replace(/'/g, "''")}', '', 'custom', 1, 0, '{}')`);
+    // Use temp file to avoid shell escaping issues with JSON
+    const tmpFile = '/tmp/cc-switch-init.sql';
+    const escapedConfig = defaultConfig.replace(/'/g, "''");
+    const sql = `INSERT INTO providers (id, app_type, name, settings_config, website_url, provider_type, is_current, sort_index, meta, cost_multiplier)
+      VALUES ('default', 'claude', 'Default Provider', '${escapedConfig}', '', 'custom', 1, 0, '{}', '1.0');`;
+    fs.writeFileSync(tmpFile, sql);
+    execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
 
     res.json({ ok: true, message: '默认 Provider 已创建，请编辑配置后重启 CC-Switch' });
   } catch (err) {
