@@ -162,16 +162,29 @@ export default function InitPanel() {
         }
       }
     } catch {}
-    // Keep installing state until status refresh completes
+    // Animate re-check with same timing as initial check
     setTimeout(async () => {
       const res = await fetch(`${BASE}/init/status`).then(r => r.json());
       setStatus(res);
       const envOk = component === 'buildtools'
         ? (res.env?.buildTools)
         : component === 'node' ? res.env?.node : res.env?.[component];
-      setEnvProgress(prev => ({ ...prev, [component]: { pct: 100, checked: true, ok: envOk } }));
+      // Animate each item sequentially (0.7s per item, matching handleStartCheck)
+      const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'gtk3', 'webkit', 'os'];
+      for (const key of items) {
+        const ok = key === 'buildtools' ? res.env?.buildTools
+          : key === 'node' ? res.env?.node
+          : key === 'npm' ? res.env?.npm
+          : key === 'git' ? res.env?.git
+          : key === 'curl' ? res.env?.curl
+          : key === 'gtk3' ? res.env?.gtk3
+          : key === 'webkit' ? res.env?.webkit
+          : true;
+        await new Promise(r => setTimeout(r, 700));
+        setEnvProgress(prev => ({ ...prev, [key]: { checked: true, ok, pct: 100 } }));
+      }
       setInstallingEnv(null);
-    }, 1500);
+    }, 500);
   }, []);
 
   const handleSaveConfig = useCallback(async () => {
