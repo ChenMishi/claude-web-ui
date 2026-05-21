@@ -24,6 +24,9 @@ router.get('/init/status', (_req, res) => {
   const claudeCodePath = checkClaudeCode();
   const claudeCodeVersion = claudeCodePath ? getClaudeCodeVersion() : null;
   res.json({
+    sdkInstalled: fs.existsSync(SDK_BIN) && fs.statSync(SDK_BIN).size > 10000,
+    sdkPath: SDK_BIN,
+    sdkVersion: getSDKVersion(),
     claudeInstalled: !!claudeCodePath,
     claudePath: claudeCodePath || '未安装',
     claudeVersion: claudeCodeVersion,
@@ -236,6 +239,37 @@ router.post('/init/install-claude', (req, res) => {
   proc.on('close', (code) => {
     const installed = checkClaudeCode() ? true : false;
     send('done', { success: installed, pct: 100, text: installed ? 'Claude Code 安装完成' : '安装失败' });
+    res.end();
+  });
+  proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
+});
+
+// Install Agent SDK binary (rebuild native module)
+router.post('/init/install-sdk', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  const send = (event, data) => {
+    if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  send('progress', { pct: 5, text: '正在安装 SDK 原生模块...' });
+
+  const proc = spawn('npm', ['rebuild', '@anthropic-ai/claude-agent-sdk'], { cwd: PROJECT_DIR, env: process.env });
+  let lastPct = 5;
+
+  const onData = (d) => {
+    const text = d.toString();
+    if (text.includes('rebuilt') || text.includes('success')) lastPct = 90;
+    else lastPct = Math.min(lastPct + 8, 85);
+    send('progress', { pct: lastPct, text: text.trim().slice(0, 80) });
+  };
+
+  proc.stdout.on('data', onData);
+  proc.stderr.on('data', onData);
+  proc.on('close', (code) => {
+    const ok = fs.existsSync(SDK_BIN) && fs.statSync(SDK_BIN).size > 10000;
+    send('done', { success: ok, pct: 100, text: ok ? 'SDK 安装完成' : '安装失败，请检查日志' });
     res.end();
   });
   proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });

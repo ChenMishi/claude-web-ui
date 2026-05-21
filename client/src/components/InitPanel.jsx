@@ -7,6 +7,8 @@ export default function InitPanel() {
   const [envChecked, setEnvChecked] = useState(false);
   const [installingCcswitch, setInstallingCcswitch] = useState(false);
   const [installingClaude, setInstallingClaude] = useState(false);
+  const [installingSDK, setInstallingSDK] = useState(false);
+  const [sdkInstallLog, setSdkInstallLog] = useState('');
   const [claudeInstallLog, setClaudeInstallLog] = useState('');
   const [installLog, setInstallLog] = useState('');
   const [proxyUrl, setProxyUrl] = useState('');
@@ -41,6 +43,29 @@ export default function InitPanel() {
 
   // Auto-load status on mount
   useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  const handleInstallSDK = useCallback(async () => {
+    setInstallingSDK(true); setSdkInstallLog('');
+    try {
+      const res = await fetch(`${BASE}/init/install-sdk`, {
+        method: 'POST', headers: { Accept: 'text/event-stream' },
+      });
+      const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try { const data = JSON.parse(line.slice(6)); if (data.text) setSdkInstallLog(prev => prev + data.text); } catch {}
+            }
+          }
+        }
+      }
+    } catch {}
+    setInstallingSDK(false);
+    setTimeout(() => loadStatus(), 1000);
+  }, [loadStatus]);
 
   const handleInstallClaude = useCallback(async () => {
     setInstallingClaude(true); setClaudeInstallLog('');
@@ -177,6 +202,28 @@ export default function InitPanel() {
           ))}
         </div>
       </div>
+
+      {/* ── Agent SDK ── */}
+      {status && (
+        <div className="init-section">
+          <div className="init-section-header">
+            <h3>📦 Agent SDK (工具调用引擎)</h3>
+            <span className={`init-status-badge ${status.sdkInstalled ? 'ok' : 'warn'}`}>{status.sdkInstalled ? '已安装' : '未安装'}</span>
+          </div>
+          <div className="init-info-grid">
+            <div className="init-info-item"><span className="init-info-label">状态</span><span className="init-info-value">{status.sdkInstalled ? `已安装 (v${status.sdkVersion})` : '未安装 — 发消息会报错'}</span></div>
+            <div className="init-info-item"><span className="init-info-label">路径</span><span className="init-info-value mono">{status.sdkPath || '—'}</span></div>
+          </div>
+          {!status.sdkInstalled && (
+            <div className="init-deploy-area">
+              <button className="init-btn init-btn-install" onClick={handleInstallSDK} disabled={installingSDK}>
+                {installingSDK ? '安装中...' : '安装 SDK'}
+              </button>
+              {sdkInstallLog && <div className="init-install-log"><pre>{sdkInstallLog}</pre></div>}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Claude Code ── */}
       {status && (
