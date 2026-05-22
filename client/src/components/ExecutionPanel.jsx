@@ -8,10 +8,18 @@ export default function ExecutionPanel() {
   const { chatMessages, isStreaming } = useApp();
   const [steps, setSteps] = useState([]);
 
-  // Parse tool calls and results from chatMessages
+  // Parse tool calls and results — only from the latest turn (after last user message)
   useEffect(() => {
+    // Find last user message index; if none, no steps
+    let lastUserIdx = -1;
+    for (let i = chatMessages.length - 1; i >= 0; i--) {
+      if (chatMessages[i].role === 'user') { lastUserIdx = i; break; }
+    }
+    if (lastUserIdx < 0) { setSteps([]); return; }
+
     const newSteps = [];
-    for (const msg of chatMessages) {
+    for (let i = lastUserIdx + 1; i < chatMessages.length; i++) {
+      const msg = chatMessages[i];
       if (msg.toolCall) {
         const { name, input, tool_use_id } = msg.toolCall;
         const desc = input?.description || input?.command || input?.file_path || '';
