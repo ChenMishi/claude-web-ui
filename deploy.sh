@@ -157,6 +157,21 @@ install_node() {
 
     if [ "$need_install" = true ]; then
         warn "安装 Node.js 22.x..."
+        # Fix broken dpkg state first (stuck packages like nginx can block everything)
+        if command -v apt &>/dev/null; then
+            dpkg --configure -a 2>/dev/null || true
+            # If still broken, force-remove stuck packages and fix
+            if dpkg --audit 2>/dev/null | grep -q .; then
+                warn "检测到损坏的软件包，尝试修复..."
+                apt --fix-broken install -y 2>/dev/null || true
+                # Last resort: force-remove half-configured packages
+                dpkg -l 2>/dev/null | grep -E '^.[ci]F|^.[ci]U' | awk '{print $2}' | while read pkg; do
+                    warn "强制移除损坏的包: $pkg"
+                    dpkg --remove --force-remove-reinstreq "$pkg" 2>/dev/null || true
+                done
+                apt --fix-broken install -y 2>/dev/null || true
+            fi
+        fi
         if command -v apt &>/dev/null; then
             curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
             apt install -y nodejs

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo } from '../api';
 import ProjectSelector from './ProjectSelector';
@@ -23,6 +23,19 @@ export default function Sidebar() {
   const isAdmin = user?.role === 'admin';
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
+  // Close user menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
 
   // Load projects on mount, restore saved project
   useEffect(() => {
@@ -198,7 +211,7 @@ export default function Sidebar() {
       </nav>
 
       {user && (
-        <div className="sidebar-user-wrap">
+        <div className="sidebar-user-wrap" ref={userMenuRef}>
           <div className="sidebar-user-bar" onClick={() => setMenuOpen(!menuOpen)}>
             {user.avatar ? (
               <img src={user.avatar} alt="" className="sidebar-user-avatar" />
