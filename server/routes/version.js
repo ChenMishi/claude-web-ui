@@ -149,4 +149,19 @@ router.get('/version/upgrade/status', (_req, res) => {
   res.json(state);
 });
 
+// Get upgrade log
+router.get('/version/upgrade/log', (_req, res) => {
+  const logFile = '/tmp/claude-web-ui-upgrade.log';
+  try {
+    if (fs.existsSync(logFile)) {
+      const content = fs.readFileSync(logFile, 'utf8');
+      res.json({ log: content });
+    } else {
+      res.json({ log: '' });
+    }
+  } catch {
+    res.json({ log: '' });
+  }
+});
+
 module.exports = router;

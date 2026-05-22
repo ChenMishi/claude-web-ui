@@ -2037,6 +2037,20 @@ html, body, #root {
 
 /* Upgrade progress bar */
 .version-upgrade-progress { margin-top: 12px; }
+.version-upgrade-log {
+  margin-top: 10px;
+  background: #0d0d1f;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 260px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: #a0e0a0;
+  white-space: pre-wrap;
+}
 .progress-bar-track {
   height: 6px;
   background: var(--bg-primary);

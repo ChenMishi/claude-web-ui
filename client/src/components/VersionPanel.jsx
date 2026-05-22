@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { checkVersion, getVersionInfo, upgradeVersion } from '../api';
+import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeLog } from '../api';
 
 export default function VersionPanel() {
   const { setSetting, setUpdateAvailable } = useApp();
@@ -13,6 +13,7 @@ export default function VersionPanel() {
   const [upgradeMsg, setUpgradeMsg] = useState('');
   const [upgradeDone, setUpgradeDone] = useState(false);
   const [upgradeError, setUpgradeError] = useState(null);
+  const [upgradeLog, setUpgradeLog] = useState('');
   const [checkInterval, setCheckInterval] = useState(() => {
     return parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0;
   });
@@ -43,6 +44,15 @@ export default function VersionPanel() {
     }, checkInterval * 60000);
     return () => clearInterval(timer);
   }, [checkInterval, remote]);
+
+  // Poll upgrade log during upgrade
+  useEffect(() => {
+    if (!upgrading && !upgradeDone) return;
+    const timer = setInterval(() => {
+      getUpgradeLog().then(d => setUpgradeLog(d.log || '')).catch(() => {});
+    }, 500);
+    return () => clearInterval(timer);
+  }, [upgrading, upgradeDone]);
 
   const handleCheck = useCallback(async () => {
     setChecking(true);
@@ -196,6 +206,9 @@ export default function VersionPanel() {
                 <>{upgradeProgress}% — {upgradeMsg}</>
               )}
             </div>
+            {upgrading && upgradeLog && (
+              <pre className="version-upgrade-log">{upgradeLog}</pre>
+            )}
           </div>
         ) : (
           <>

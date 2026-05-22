@@ -108,6 +108,7 @@ export const updateAvatar = (avatar) => fetchJSON('/auth/me/avatar', { method: '
 export const checkVersion = (opts = {}) => fetchJSON('/version/check', { method: 'POST', body: JSON.stringify(opts) });
 export const getVersionInfo = () => fetchJSON('/version/info');
 export const upgradeVersion = (opts = {}) => fetchJSON('/version/upgrade', { method: 'POST', body: JSON.stringify(opts) });
+export const getUpgradeLog = () => fetchJSON('/version/upgrade/log');
 
 // Sessions
 export const getSessionInfo = (id) => fetchJSON(`/session/${id}`);
