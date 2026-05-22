@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo } from '../api';
 import ProjectSelector from './ProjectSelector';
 import SessionList from './SessionList';
+import ProfileModal from './ProfileModal';
 
 const THEMES = [
   { key: 'dark', icon: '🌙', label: '深色' },
@@ -18,8 +19,11 @@ export default function Sidebar() {
     currentProjectId, selectProject, setSessions,
     currentSessionId, setMessages, chatMessages,
     setView, activeView, theme, setSetting,
-    updateAvailable,
+    updateAvailable, user, logout,
   } = useApp();
+  const isAdmin = user?.role === 'admin';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Load projects on mount, restore saved project
   useEffect(() => {
@@ -156,21 +160,27 @@ export default function Sidebar() {
         <button className={activeView === 'terminal' ? 'active' : ''} onClick={() => setView('terminal')}>
           🖥 终端
         </button>
-        <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
-          ⚙ 设置
-        </button>
-        <button className={activeView === 'version' ? 'active' : ''} onClick={() => setView('version')}>
-          🏷 版本
-          {updateAvailable && (
-            <>
-              <span className="nav-badge" />
-              <span className="nav-update-tag">新版本可升级!</span>
-            </>
-          )}
-        </button>
-        <button className={activeView === 'init' ? 'active' : ''} onClick={() => setView('init')}>
-          🔧 初始化
-        </button>
+        {isAdmin && (
+          <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
+            ⚙ 设置
+          </button>
+        )}
+        {isAdmin && (
+          <button className={activeView === 'version' ? 'active' : ''} onClick={() => setView('version')}>
+            🏷 版本
+            {updateAvailable && (
+              <>
+                <span className="nav-badge" />
+                <span className="nav-update-tag">新版本可升级!</span>
+              </>
+            )}
+          </button>
+        )}
+        {isAdmin && (
+          <button className={activeView === 'init' ? 'active' : ''} onClick={() => setView('init')}>
+            🔧 初始化
+          </button>
+        )}
         <button className={activeView === 'logs' ? 'active' : ''} onClick={() => setView('logs')}>
           📋 日志
         </button>
@@ -192,10 +202,42 @@ export default function Sidebar() {
         </div>
         </div>
 
-        <button onClick={toggleSidebar} style={{ marginTop: 8, color: 'var(--text-muted)' }}>
+        <button onClick={toggleSidebar} style={{ marginTop: 4, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '6px 0', width: '100%', textAlign: 'center' }}>
           ◀ 收起
         </button>
       </nav>
+
+      {user && (
+        <>
+          <div className="sidebar-user-bar" onClick={() => setMenuOpen(!menuOpen)}>
+            {user.avatar ? (
+              <img src={user.avatar} alt="" className="sidebar-user-avatar" />
+            ) : (
+              <div className="sidebar-user-avatar-placeholder">
+                {user.username.slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div className="sidebar-user-text">
+              <span className="sidebar-user-name">{user.username}</span>
+              <span className="sidebar-user-role">{user.role === 'admin' ? '管理员' : '用户'}</span>
+            </div>
+            <span className="sidebar-user-arrow">{menuOpen ? '▲' : '▼'}</span>
+          </div>
+
+          {menuOpen && (
+            <div className="sidebar-user-menu">
+              <button onClick={() => { setProfileOpen(true); setMenuOpen(false); }}>
+                ⚙ 个人设置
+              </button>
+              <button onClick={logout}>
+                🚪 退出登录
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
     </aside>
   );
 }

@@ -111,6 +111,26 @@ async function verifyPassword(user, plaintext) {
   return bcrypt.compare(plaintext, user.passwordHash);
 }
 
+async function changePassword(userId, newPassword) {
+  const data = loadUsers();
+  const user = data.users.find(u => u.id === userId);
+  if (!user) throw new Error('用户不存在');
+
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+  saveUsers(data);
+  return true;
+}
+
+function updateUserAvatar(userId, avatar) {
+  const data = loadUsers();
+  const user = data.users.find(u => u.id === userId);
+  if (!user) throw new Error('用户不存在');
+
+  user.avatar = avatar;
+  saveUsers(data);
+  return true;
+}
+
 async function ensureDefaultAdmin() {
   const data = loadUsers();
   const hasAdmin = data.users.some(u => u.role === 'admin');
@@ -142,6 +162,6 @@ module.exports = {
   loadUsers, saveUsers,
   findUserByUsername, findUserById,
   createUser, deleteUser,
-  verifyPassword,
+  verifyPassword, changePassword, updateUserAvatar,
   ensureDefaultAdmin,
 };

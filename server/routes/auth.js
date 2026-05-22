@@ -70,6 +70,7 @@ router.post('/auth/login', async (req, res) => {
       id: user.id,
       username: user.username,
       role: user.role,
+      avatar: user.avatar || null,
     },
   });
 });
@@ -92,11 +93,14 @@ router.post('/auth/refresh', (req, res) => {
 
 // GET /api/auth/me
 router.get('/auth/me', requireAuth, (req, res) => {
+  const { findUserById } = require('../auth/users');
+  const user = findUserById(req.user.userId);
   res.json({
     user: {
       id: req.user.userId,
       username: req.user.username,
       role: req.user.role,
+      avatar: user?.avatar || null,
     },
   });
 });
@@ -170,6 +174,52 @@ router.delete('/auth/users/:id', requireAuth, requireRole('admin'), async (req, 
 
   try {
     await deleteUser(id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/auth/me/password — change own password
+router.put('/auth/me/password', requireAuth, async (req, res) => {
+  const { oldPassword, newPassword } = req.body || {};
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ error: '旧密码和新密码不能为空' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: '新密码至少6位' });
+  }
+
+  const { findUserById, verifyPassword, changePassword } = require('../auth/users');
+  const user = findUserById(req.user.userId);
+  if (!user) return res.status(404).json({ error: '用户不存在' });
+
+  const valid = await verifyPassword(user, oldPassword);
+  if (!valid) return res.status(401).json({ error: '旧密码错误' });
+
+  try {
+    await changePassword(req.user.userId, newPassword);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/auth/me/avatar — update own avatar (base64 data URL, max 200KB)
+router.put('/auth/me/avatar', requireAuth, (req, res) => {
+  const { avatar } = req.body || {};
+  if (!avatar) return res.status(400).json({ error: 'avatar 不能为空' });
+  if (typeof avatar !== 'string' || !avatar.startsWith('data:image/')) {
+    return res.status(400).json({ error: 'avatar 必须是 data:image/ 格式的 base64' });
+  }
+  // Rough size check: ~200KB base64
+  if (avatar.length > 280000) {
+    return res.status(400).json({ error: '头像图片过大，请使用小于200KB的图片' });
+  }
+
+  const { updateUserAvatar } = require('../auth/users');
+  try {
+    updateUserAvatar(req.user.userId, avatar);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

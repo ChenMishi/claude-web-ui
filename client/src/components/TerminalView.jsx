@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { getAccessToken } from '../api';
 
 export default function TerminalView() {
   const { currentProjectId, projects } = useApp();
@@ -46,7 +47,9 @@ export default function TerminalView() {
       const project = projects.find(p => p.id === currentProjectId);
       const cwd = project?.cwd || '';
       const cwdParam = cwd ? `cwd=${encodeURIComponent(cwd)}` : '';
-      const wsUrl = `${protocol}//${host}/api/terminal?${cwdParam}`;
+      const token = getAccessToken();
+      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+      const wsUrl = `${protocol}//${host}/api/terminal?${cwdParam}${tokenParam}`;
 
       ws = new WebSocket(wsUrl);
       wsRef.current = ws;

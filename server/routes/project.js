@@ -9,6 +9,18 @@ const router = Router();
 
 const IGNORE = new Set(['.git', 'node_modules', '.next', 'dist', '.cache', '.DS_Store']);
 
+// Restrict path access for regular users to their home directory
+function restrictPath(req, targetPath) {
+  if (!req.user || req.user.role !== 'user') return null; // admin: no restriction
+  const { findUserById } = require('../auth/users');
+  const user = findUserById(req.user.userId);
+  if (!user) return '用户不存在';
+  if (!isPathInside(targetPath, user.homeDir)) {
+    return `权限不足 — 只能访问 ${user.homeDir} 下的目录`;
+  }
+  return null; // allowed
+}
+
 // List all projects
 router.get('/project', async (_req, res) => {
   if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) return res.json([]);
@@ -59,6 +71,9 @@ router.get('/fs/dirs', (req, res) => {
   if (!path.isAbsolute(dirPath) || dirPath.includes('..')) {
     return res.status(403).json({ error: 'Forbidden — invalid path' });
   }
+  // Apply user path restriction
+  const err = restrictPath(req, dirPath);
+  if (err) return res.status(403).json({ error: err });
   if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Path not found' });
   if (!fs.statSync(dirPath).isDirectory()) return res.status(400).json({ error: 'Not a directory' });
   let entries = [];
@@ -82,6 +97,9 @@ router.post('/fs/mkdir', (req, res) => {
   if (!path.isAbsolute(parentPath) || parentPath.includes('..')) {
     return res.status(403).json({ error: 'Forbidden — invalid path' });
   }
+  // Apply user path restriction
+  const err = restrictPath(req, parentPath);
+  if (err) return res.status(403).json({ error: err });
   const newPath = path.join(parentPath, name);
   if (fs.existsSync(newPath)) return res.status(409).json({ error: 'Directory already exists' });
   try {
@@ -98,6 +116,9 @@ router.post('/project/link', (req, res) => {
   if (!cwd) return res.status(400).json({ error: 'cwd is required' });
   if (!fs.existsSync(cwd)) return res.status(400).json({ error: 'Directory does not exist' });
   if (!fs.statSync(cwd).isDirectory()) return res.status(400).json({ error: 'Path is not a directory' });
+  // Apply user path restriction
+  const err = restrictPath(req, cwd);
+  if (err) return res.status(403).json({ error: err });
   const dirName = cwd.replace(/[/\\]+/g, '-').replace(/-$/, '') || '-';
   const dirPath = path.join(CLAUDE_PROJECTS_DIR, dirName);
   if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) fs.mkdirSync(CLAUDE_PROJECTS_DIR, { recursive: true });
@@ -159,6 +180,9 @@ router.get('/project/:id/tree', (req, res) => {
   }
   if (!cwd) cwd = dirNameToCwd(id);
   if (!fs.existsSync(cwd)) return res.status(404).json({ error: `项目目录不存在: ${cwd}` });
+  // Apply user path restriction
+  const pathErr = restrictPath(req, cwd);
+  if (pathErr) return res.status(403).json({ error: pathErr });
   const relPath = req.query.path ?? '/';
   const absPath = path.resolve(cwd, relPath.replace(/^[/\\]/, ''));
   if (!isPathInside(absPath, cwd)) return res.status(403).json({ error: 'Forbidden' });
@@ -193,6 +217,9 @@ router.get('/project/:id/file', (req, res) => {
   const { id } = req.params;
   const cwd = dirNameToCwd(id);
   if (!fs.existsSync(cwd)) return res.status(404).json({ error: 'Project not found' });
+  // Apply user path restriction
+  const pathErr = restrictPath(req, cwd);
+  if (pathErr) return res.status(403).json({ error: pathErr });
   if (!req.query.path) return res.status(400).json({ error: 'path is required' });
   const absPath = path.resolve(cwd, req.query.path.replace(/^[/\\]/, ''));
   if (!isPathInside(absPath, cwd)) return res.status(403).json({ error: 'Forbidden' });
@@ -209,6 +236,9 @@ router.get('/project/:id/file/raw', (req, res) => {
   const { id } = req.params;
   const cwd = dirNameToCwd(id);
   if (!fs.existsSync(cwd)) return res.status(404).json({ error: 'Project not found' });
+  // Apply user path restriction
+  const pathErr = restrictPath(req, cwd);
+  if (pathErr) return res.status(403).json({ error: pathErr });
   if (!req.query.path) return res.status(400).json({ error: 'path is required' });
   const absPath = path.resolve(cwd, req.query.path.replace(/^[/\\]/, ''));
   if (!isPathInside(absPath, cwd)) return res.status(403).json({ error: 'Forbidden' });

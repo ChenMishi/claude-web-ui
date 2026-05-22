@@ -8,11 +8,13 @@ import SettingsPanel from './SettingsPanel';
 import VersionPanel from './VersionPanel';
 import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
+import LoginPage from './LoginPage';
 
 const BASE = '/api';
 
 export default function Layout() {
-  const { sidebarOpen, activeView, toggleSidebar, setUpdateAvailable } = useApp();
+  const { sidebarOpen, activeView, toggleSidebar, setUpdateAvailable, user, authLoading } = useApp();
+  const isAdmin = user?.role === 'admin';
 
   // Global periodic version check (runs regardless of active page)
   useEffect(() => {
@@ -40,6 +42,19 @@ export default function Layout() {
     return () => clearInterval(timer);
   }, []);
 
+  if (authLoading) {
+    return (
+      <div className="auth-loading">
+        <div className="auth-loading-spinner" />
+        <p>加载中...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="app-layout">
       {!sidebarOpen && (
@@ -52,9 +67,9 @@ export default function Layout() {
         {activeView === 'chat' && <ChatView />}
         {activeView === 'files' && <FileBrowser />}
         {activeView === 'terminal' && <TerminalView />}
-        {activeView === 'settings' && <SettingsPanel />}
-        <div style={{ display: activeView === 'version' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><VersionPanel /></div>
-        {activeView === 'init' && <InitPanel />}
+        {isAdmin && activeView === 'settings' && <SettingsPanel />}
+        {isAdmin && <div style={{ display: activeView === 'version' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><VersionPanel /></div>}
+        {isAdmin && activeView === 'init' && <InitPanel />}
         {activeView === 'logs' && <LogPanel />}
       </main>
     </div>

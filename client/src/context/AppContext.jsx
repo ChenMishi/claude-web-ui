@@ -1,4 +1,5 @@
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import { getMe, getAuthStatus, setTokens, clearTokens, setOnTokenExpired } from '../api';
 
 const AppContext = createContext(null);
 
@@ -32,6 +33,8 @@ const initMessageCache = loadState('messageCache', {});
 const initSessionId = loadState('currentSessionId', null);
 
 const initialState = {
+  user: null,          // { id, username, role } or null
+  authLoading: true,   // true while checking auth status on startup
   projects: [],
   currentProjectId: loadState('currentProjectId', null),
   sessions: [],
@@ -61,6 +64,12 @@ const initialState = {
 function reducer(state, action) {
   let next = state;
   switch (action.type) {
+    case 'SET_USER':
+      next = { ...state, user: action.payload, authLoading: false }; break;
+    case 'LOGOUT':
+      next = { ...state, user: null, authLoading: false, activeView: 'chat' }; break;
+    case 'AUTH_LOADED':
+      next = { ...state, authLoading: false }; break;
     case 'SET_PROJECTS':
       next = { ...state, projects: action.payload }; break;
     case 'SELECT_PROJECT': {
@@ -196,6 +205,11 @@ function reducer(state, action) {
 export function AppContextProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  const setUser = useCallback((user) => dispatch({ type: 'SET_USER', payload: user }), []);
+  const logout = useCallback(() => {
+    clearTokens();
+    dispatch({ type: 'LOGOUT' });
+  }, []);
   const setProjects = useCallback((projects) => dispatch({ type: 'SET_PROJECTS', payload: projects }), []);
   const selectProject = useCallback((id) => dispatch({ type: 'SELECT_PROJECT', payload: id }), []);
   const setSessions = useCallback((sessions) => dispatch({ type: 'SET_SESSIONS', payload: sessions }), []);
@@ -239,8 +253,46 @@ export function AppContextProvider({ children }) {
     document.documentElement.dataset.theme = state.theme;
   }, [state.theme]);
 
+  // Startup auth check
+  useEffect(() => {
+    setOnTokenExpired(() => dispatch({ type: 'LOGOUT' }));
+    const accessToken = localStorage.getItem('claude-ui:accessToken');
+    const refreshTokenVal = localStorage.getItem('claude-ui:refreshToken');
+    if (accessToken || refreshTokenVal) {
+      // Try to validate token
+      getMe().then(data => {
+        dispatch({ type: 'SET_USER', payload: data.user });
+      }).catch(() => {
+        // Token invalid, check if auth is required
+        getAuthStatus().then(status => {
+          if (!status.authRequired) {
+            dispatch({ type: 'AUTH_LOADED' });
+          } else {
+            clearTokens();
+            dispatch({ type: 'AUTH_LOADED' });
+          }
+        }).catch(() => {
+          clearTokens();
+          dispatch({ type: 'AUTH_LOADED' });
+        });
+      });
+    } else {
+      // No tokens, check auth status
+      getAuthStatus().then(status => {
+        if (!status.authRequired) {
+          dispatch({ type: 'AUTH_LOADED' });
+        } else {
+          dispatch({ type: 'AUTH_LOADED' });
+        }
+      }).catch(() => {
+        dispatch({ type: 'AUTH_LOADED' });
+      });
+    }
+  }, []);
+
   const value = {
     ...state,
+    setUser, logout,
     setProjects, selectProject, setSessions, selectSession, setSessionId,
     setMessages, appendMessage, updateLastMessage, setStreaming,
     setView, toggleSidebar, setSetting,

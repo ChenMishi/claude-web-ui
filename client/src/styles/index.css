@@ -2226,3 +2226,307 @@ html, body, #root {
 .log-empty { text-align: center; color: var(--text-muted); padding: 40px; }
 .log-line { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
 .log-line.error { color: var(--danger); }
+
+/* ── Login Page ── */
+.login-overlay {
+  display: flex; align-items: center; justify-content: center;
+  height: 100vh; background: var(--bg-primary);
+}
+.login-card {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 16px; padding: 40px; width: 400px; max-width: 90vw;
+}
+.login-header { text-align: center; margin-bottom: 32px; }
+.login-header h1 {
+  font-size: 24px; margin-bottom: 8px;
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.login-header p { font-size: 14px; color: var(--text-muted); }
+.login-field { margin-bottom: 20px; }
+.login-field label {
+  display: block; font-size: 12px; color: var(--text-muted);
+  margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.login-field input {
+  width: 100%; padding: 12px 16px; background: var(--bg-primary);
+  border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-primary); font-size: 14px; outline: none; font-family: var(--font);
+}
+.login-field input:focus { border-color: var(--accent); }
+.login-field input::placeholder { color: var(--text-muted); }
+.login-error {
+  color: var(--danger); font-size: 13px; margin-bottom: 16px;
+  padding: 8px 12px; background: var(--danger-bg); border-radius: 6px;
+}
+.login-btn {
+  width: 100%; padding: 12px; background: var(--accent); color: #fff;
+  border: none; border-radius: 8px; font-size: 15px; font-weight: 500;
+  cursor: pointer; transition: background 0.2s; margin-top: 8px;
+}
+.login-btn:hover { background: var(--accent-hover); }
+.login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Auth Loading ── */
+.auth-loading {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 100vh; gap: 16px;
+  background: var(--bg-primary);
+}
+.auth-loading p { color: var(--text-muted); font-size: 14px; }
+.auth-loading-spinner {
+  width: 32px; height: 32px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Sidebar User Info ── */
+/* ── Sidebar User Bar (bottom-left, outside nav card) ── */
+.sidebar-user-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 10px 10px;
+  padding: 10px 12px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.sidebar-user-bar:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+}
+
+.sidebar-user-avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.sidebar-user-avatar-placeholder {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600;
+  flex-shrink: 0;
+}
+
+.sidebar-user-text {
+  flex: 1;
+  min-width: 0;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.sidebar-user-name {
+  font-size: 13px; color: var(--text-primary); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sidebar-user-role {
+  font-size: 10px; color: var(--text-muted);
+}
+
+.sidebar-user-arrow {
+  font-size: 10px; color: var(--text-muted); flex-shrink: 0;
+}
+
+/* ── User Dropdown Menu ── */
+.sidebar-user-menu {
+  margin: 0 10px 6px;
+  padding: 6px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.sidebar-user-menu button {
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.sidebar-user-menu button:hover { background: rgba(108, 99, 255, 0.08); }
+.sidebar-user-menu button:last-child:hover { background: var(--danger-bg); color: var(--danger); }
+
+/* ── Profile Modal ── */
+.profile-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.profile-modal {
+  background: var(--glass-bg);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  padding: 24px;
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: var(--glass-shadow);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.profile-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.profile-modal-header h3 {
+  font-size: 17px; color: var(--text-primary);
+}
+.profile-close-btn {
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.profile-close-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+.profile-tabs {
+  display: flex; gap: 8px; margin-bottom: 20px;
+}
+.profile-tab {
+  flex: 1;
+  padding: 8px 0;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.profile-tab:hover { border-color: var(--accent); color: var(--text-primary); }
+.profile-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.profile-section {
+  display: flex; flex-direction: column;
+}
+.profile-avatar-area {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.profile-avatar-img {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--glass-border);
+}
+.profile-avatar-placeholder {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 600;
+  border: 2px solid var(--glass-border);
+}
+.profile-avatar-upload-btn {
+  padding: 6px 18px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.profile-avatar-upload-btn:hover { background: var(--accent-hover); }
+.profile-avatar-upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.profile-hint {
+  font-size: 11px; color: var(--text-muted);
+}
+
+.profile-field {
+  margin-bottom: 14px;
+}
+.profile-field label {
+  display: block;
+  font-size: 12px; color: var(--text-muted); margin-bottom: 5px;
+}
+.profile-field input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  font-family: var(--font);
+}
+.profile-field input:focus { border-color: var(--accent); }
+.profile-field input::placeholder { color: var(--text-muted); }
+
+.profile-msg {
+  margin-top: 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px;
+}
+.profile-msg.success { background: rgba(76,175,80,0.1); color: var(--success); border: 1px solid rgba(76,175,80,0.2); }
+.profile-msg.error { background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(255,107,107,0.2); }
+
+.profile-save-btn {
+  margin-top: 6px; padding: 10px 0;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: background 0.15s;
+}
+.profile-save-btn:hover { background: var(--accent-hover); }
+.profile-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── User Management (in Settings) ── */
+.user-mgmt { margin-top: 24px; }
+.user-mgmt h3 { font-size: 15px; color: var(--text-primary); margin-bottom: 12px; }
+.user-mgmt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.user-mgmt-table th, .user-mgmt-table td {
+  padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left;
+}
+.user-mgmt-table th { color: var(--text-muted); font-weight: 500; font-size: 11px; text-transform: uppercase; }
+.user-mgmt-table td { color: var(--text-primary); }
+.user-mgmt-add { display: flex; gap: 8px; margin-top: 16px; align-items: flex-end; }
+.user-mgmt-add input, .user-mgmt-add select {
+  padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none; font-family: var(--font);
+}
+.user-mgmt-add input:focus, .user-mgmt-add select:focus { border-color: var(--accent); }
+.user-mgmt-add input { flex: 1; }
+.user-mgmt-add-btn {
+  padding: 8px 16px; background: var(--accent); color: #fff; border: none;
+  border-radius: 6px; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.user-mgmt-add-btn:hover { background: var(--accent-hover); }
+.user-mgmt-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.user-mgmt-del-btn {
+  padding: 3px 10px; background: transparent; border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-muted); font-size: 11px; cursor: pointer;
+}
+.user-mgmt-del-btn:hover { border-color: var(--danger); color: var(--danger); }
+.user-mgmt-error {
+  color: var(--danger); font-size: 12px; margin-top: 8px;
+  padding: 6px 10px; background: var(--danger-bg); border-radius: 4px;
+}

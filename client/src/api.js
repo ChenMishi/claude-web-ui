@@ -1,13 +1,82 @@
 const BASE = '/api';
 
+let accessToken = localStorage.getItem('claude-ui:accessToken') || null;
+let refreshToken = localStorage.getItem('claude-ui:refreshToken') || null;
+let onTokenExpired = null;
+let isRefreshing = false;
+let refreshPromise = null;
+
+export function setTokens(access, refresh) {
+  accessToken = access;
+  refreshToken = refresh;
+  localStorage.setItem('claude-ui:accessToken', access);
+  if (refresh) localStorage.setItem('claude-ui:refreshToken', refresh);
+}
+
+export function clearTokens() {
+  accessToken = null;
+  refreshToken = null;
+  localStorage.removeItem('claude-ui:accessToken');
+  localStorage.removeItem('claude-ui:refreshToken');
+}
+
+export function getAccessToken() { return accessToken; }
+export function getRefreshToken() { return refreshToken; }
+export function setOnTokenExpired(cb) { onTokenExpired = cb; }
+
+function authHeaders(headers = {}) {
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+  return headers;
+}
+
+async function tryRefresh() {
+  if (!refreshToken) return false;
+  if (isRefreshing && refreshPromise) {
+    try { await refreshPromise; return true; } catch { return false; }
+  }
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) throw new Error('refresh failed');
+      const data = await res.json();
+      setTokens(data.accessToken, data.refreshToken);
+      return true;
+    } catch {
+      clearTokens();
+      if (onTokenExpired) onTokenExpired();
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+  try { return await refreshPromise; } catch { return false; }
+}
+
 export async function fetchJSON(url, opts = {}) {
-  const headers = { ...opts.headers };
+  const headers = authHeaders({ ...opts.headers });
   if (opts.method && opts.method !== 'GET' && opts.body) {
     headers['Content-Type'] = 'application/json';
   }
   const fullUrl = `${BASE}${url}`;
-  console.log('[fetchJSON]', opts.method || 'GET', fullUrl);
-  const res = await fetch(fullUrl, { ...opts, headers });
+  let res = await fetch(fullUrl, { ...opts, headers });
+  if (res.status === 401 && refreshToken) {
+    const ok = await tryRefresh();
+    if (ok) {
+      const newHeaders = authHeaders({ ...opts.headers });
+      if (opts.method && opts.method !== 'GET' && opts.body) {
+        newHeaders['Content-Type'] = 'application/json';
+      }
+      res = await fetch(fullUrl, { ...opts, headers: newHeaders });
+    }
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || `HTTP ${res.status}`);
@@ -24,6 +93,17 @@ export const getProjectSessions = (id) => fetchJSON(`/project/${id}/session`);
 export const getProjectTree = (id, path = '/') => fetchJSON(`/project/${id}/tree?path=${encodeURIComponent(path)}`);
 export const readFile = (id, path) => fetchJSON(`/project/${id}/file?path=${encodeURIComponent(path)}`);
 
+// Auth
+export const login = (username, password) => fetchJSON('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+export const refreshAuth = (rt) => fetchJSON('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken: rt }) });
+export const getMe = () => fetchJSON('/auth/me');
+export const getAuthStatus = () => fetchJSON('/auth/status');
+export const getUsers = () => fetchJSON('/auth/users');
+export const createUser = (username, password, role) => fetchJSON('/auth/users', { method: 'POST', body: JSON.stringify({ username, password, role }) });
+export const deleteUser = (id) => fetchJSON(`/auth/users/${id}`, { method: 'DELETE' });
+export const changePassword = (oldPassword, newPassword) => fetchJSON('/auth/me/password', { method: 'PUT', body: JSON.stringify({ oldPassword, newPassword }) });
+export const updateAvatar = (avatar) => fetchJSON('/auth/me/avatar', { method: 'PUT', body: JSON.stringify({ avatar }) });
+
 // Sessions
 export const getSessionInfo = (id) => fetchJSON(`/session/${id}`);
 export const deleteSession = (id) => fetchJSON(`/session/${id}`, { method: 'DELETE' });
@@ -31,7 +111,7 @@ export const renameSession = (id, title) => fetchJSON(`/session/${id}`, { method
 export const abortSession = (id) => fetchJSON(`/session/${id}/abort`, { method: 'POST' });
 export const generateTitle = (id, prompt, cwd) => fetchJSON(`/session/${id}/title`, { method: 'POST', body: JSON.stringify({ prompt, cwd }) });
 export const reconnectSession = (id) => fetch(`${BASE}/session/${id}/stream`, {
-  headers: { Accept: 'text/event-stream' },
+  headers: authHeaders({ Accept: 'text/event-stream' }),
 });
 export const getSessionMessages = (id, offset) => fetchJSON(`/session/${id}/message${offset != null ? `?offset=${offset}` : ''}`);
 export const resolveQuestion = (id, answers) => fetchJSON(`/session/${id}/message/resolve`, { method: 'POST', body: JSON.stringify(answers) });
@@ -44,7 +124,7 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
   try {
     response = await fetch(`${BASE}/session/${sessionId}/message?stream=1`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      headers: authHeaders({ 'Content-Type': 'application/json', Accept: 'text/event-stream' }),
       body: JSON.stringify(body),
     });
   } catch (err) {
@@ -53,13 +133,37 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
   }
 
   if (!response.ok) {
-    try {
-      const err = await response.json();
-      onError?.(new Error(err.error || `HTTP ${response.status}`));
-    } catch {
-      onError?.(new Error(`HTTP ${response.status}`));
+    if (response.status === 401 && refreshToken) {
+      const ok = await tryRefresh();
+      if (ok) {
+        // Retry once after refresh
+        try {
+          response = await fetch(`${BASE}/session/${sessionId}/message?stream=1`, {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json', Accept: 'text/event-stream' }),
+            body: JSON.stringify(body),
+          });
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            onError?.(new Error(err.error || `HTTP ${response.status}`));
+            return;
+          }
+        } catch (err2) {
+          onError?.(new Error(`无法连接服务器: ${err2.message}`));
+          return;
+        }
+      } else {
+        return; // token refresh failed, onTokenExpired already called
+      }
+    } else {
+      try {
+        const err = await response.json();
+        onError?.(new Error(err.error || `HTTP ${response.status}`));
+      } catch {
+        onError?.(new Error(`HTTP ${response.status}`));
+      }
+      return;
     }
-    return;
   }
 
   const reader = response.body.getReader();
@@ -74,7 +178,6 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
       try {
         chunk = await reader.read();
       } catch (err) {
-        // Reader error — stream interrupted
         if (!currentEvent) onError?.(new Error(`连接中断: ${err.message}`));
         break;
       }
@@ -116,7 +219,6 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
                     const toolResults = content.filter(c => c.type === 'tool_result');
                     if (toolResults.length > 0) {
                       toolResults.forEach(t => {
-                        // Extract text from content blocks, fall back to raw content
                         let text;
                         if (typeof t.content === 'string') {
                           text = t.content;
@@ -155,7 +257,6 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
       }
 
       if (done) {
-        // Stream ended — if no SSE 'done' event was received, report error
         if (!receivedDone) {
           onError?.(new Error('连接中断: 服务器提前关闭了连接'));
         }
