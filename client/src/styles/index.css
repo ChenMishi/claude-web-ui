@@ -91,44 +91,44 @@
 
 /* ===== Teal theme (青绿) ===== */
 [data-theme="warm"] {
-  --bg-primary: #7CDBD5;
-  --bg-secondary: #b0ede5;
-  --bg-tertiary: #d5f3ee;
-  --border: #8cc9c3;
+  --bg-primary: #f2fbf8;
+  --bg-secondary: #e6f5f1;
+  --bg-tertiary: #d8f0e8;
+  --border: #c0d8cf;
   --text-primary: #1a3b32;
-  --text-muted: #4d8072;
-  --accent: #0f766e;
-  --accent-hover: #115e59;
+  --text-muted: #5f8b7c;
+  --accent: #0d9488;
+  --accent-hover: #0f766e;
   --danger: #e53935;
   --danger-bg: rgba(229, 57, 53, 0.07);
   --success: #2e7d32;
-  --code-bg: #b0ede5;
-  --code-block-bg: #c8f0ea;
+  --code-bg: #e6f5f1;
+  --code-block-bg: #eef9f5;
   --code-block-text: #1a3b32;
   --heading-color: #0f766e;
-  --link-color: #0f766e;
-  --gradient-start: #0f766e;
+  --link-color: #0d9488;
+  --gradient-start: #0d9488;
   --gradient-end: #14b8a6;
   --user-label: #14b8a6;
   --abort-color: #b45309;
   --abort-bg: rgba(180, 83, 9, 0.07);
   --abort-border: rgba(180, 83, 9, 0.25);
   /* Glass card */
-  --glass-bg: rgba(124, 219, 213, 0.5);
-  --glass-bg-hover: rgba(124, 219, 213, 0.68);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --glass-border-hover: rgba(0, 0, 0, 0.14);
+  --glass-bg: rgba(242, 251, 248, 0.55);
+  --glass-bg-hover: rgba(242, 251, 248, 0.72);
+  --glass-border: rgba(0, 0, 0, 0.07);
+  --glass-border-hover: rgba(0, 0, 0, 0.13);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
   --glass-radius: 16px;
   --glass-blur: 14px;
-  --glass-dropdown-bg: #7CDBD5;
+  --glass-dropdown-bg: #f2fbf8;
   /* Input field inside glass */
-  --input-bg: rgba(0, 0, 0, 0.06);
-  --input-bg-focus: rgba(0, 0, 0, 0.10);
+  --input-bg: rgba(0, 0, 0, 0.04);
+  --input-bg-focus: rgba(0, 0, 0, 0.07);
   /* Decorative orb colors */
-  --orb-1: rgba(15, 118, 110, 0.12);
-  --orb-2: rgba(20, 184, 166, 0.08);
-  --orb-3: rgba(15, 118, 110, 0.05);
+  --orb-1: rgba(13, 148, 136, 0.15);
+  --orb-2: rgba(20, 184, 166, 0.10);
+  --orb-3: rgba(13, 148, 136, 0.06);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
