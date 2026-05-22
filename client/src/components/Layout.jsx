@@ -1,5 +1,6 @@
 import { useApp } from '../context/AppContext';
 import { useEffect, useState } from 'react';
+import { checkVersion } from '../api';
 import Sidebar from './Sidebar';
 import ChatView from './ChatView';
 import FileBrowser from './FileBrowser';
@@ -26,11 +27,7 @@ export default function Layout() {
     if (interval <= 0) return;
 
     const check = () => {
-      fetch(`${BASE}/version/check`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      }).then(r => r.json()).then(d => {
+      checkVersion({}).then(d => {
         if (d.hasUpdate) {
           setUpdateAvailable(true);
           localStorage.setItem('claude-ui:lastCheck', JSON.stringify(d));

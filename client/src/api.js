@@ -104,6 +104,9 @@ export const deleteUser = (id) => fetchJSON(`/auth/users/${id}`, { method: 'DELE
 export const changePassword = (oldPassword, newPassword) => fetchJSON('/auth/me/password', { method: 'PUT', body: JSON.stringify({ oldPassword, newPassword }) });
 export const updateAvatar = (avatar) => fetchJSON('/auth/me/avatar', { method: 'PUT', body: JSON.stringify({ avatar }) });
 
+// Version
+export const checkVersion = (opts = {}) => fetchJSON('/version/check', { method: 'POST', body: JSON.stringify(opts) });
+
 // Sessions
 export const getSessionInfo = (id) => fetchJSON(`/session/${id}`);
 export const deleteSession = (id) => fetchJSON(`/session/${id}`, { method: 'DELETE' });

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-
-const BASE = '/api';
+import { checkVersion } from '../api';
 
 export default function VersionPanel() {
   const { setSetting, setUpdateAvailable } = useApp();
@@ -36,11 +35,7 @@ export default function VersionPanel() {
   useEffect(() => {
     if (checkInterval <= 0) return;
     const timer = setInterval(() => {
-      fetch(`${BASE}/version/check`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ remote }),
-      }).then(r => r.json()).then(d => {
+      checkVersion({ remote }).then(d => {
         setCheckResult(d);
         if (d.hasUpdate) setUpdateAvailable(true);
         localStorage.setItem('claude-ui:lastCheck', JSON.stringify(d));
@@ -53,12 +48,7 @@ export default function VersionPanel() {
     setChecking(true);
     setCheckResult(null);
     try {
-      const res = await fetch(`${BASE}/version/check`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ remote }),
-      });
-      const data = await res.json();
+      const data = await checkVersion({ remote });
       setCheckResult(data);
       if (data.hasUpdate) setUpdateAvailable(true);
       localStorage.setItem('claude-ui:lastCheck', JSON.stringify(data));
