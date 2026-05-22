@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 
 const TOOL_ICONS = { Bash: '▶', Read: '📄', Write: '✏', Edit: '🔧', Glob: '🔍', Grep: '🔎', AskUserQuestion: '❓' };
@@ -7,6 +7,14 @@ const TOOL_VERBS = { Bash: '执行', Read: '读取', Write: '写入', Edit: '编
 export default function ExecutionPanel() {
   const { chatMessages, isStreaming } = useApp();
   const [steps, setSteps] = useState([]);
+  const stepsRef = useRef(null);
+
+  // Auto-scroll to bottom when steps change
+  useEffect(() => {
+    if (stepsRef.current) {
+      stepsRef.current.scrollTop = stepsRef.current.scrollHeight;
+    }
+  }, [steps]);
 
   // Parse tool calls and results — only from the latest turn (after last user message)
   useEffect(() => {
@@ -48,7 +56,7 @@ export default function ExecutionPanel() {
           {runningCount > 0 ? '⏳' : '✅'} 执行步骤{steps.length > 0 ? ` (${doneCount}/${steps.length})` : ''}
         </span>
       </div>
-      <div className="exec-panel-steps">
+      <div className="exec-panel-steps" ref={stepsRef}>
           {steps.length === 0 ? (
             <div className="panel-empty">暂无执行步骤</div>
           ) : (
