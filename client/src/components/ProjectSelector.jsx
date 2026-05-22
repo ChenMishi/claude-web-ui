@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { getDirs, linkProject, unlinkProject } from '../api';
-
-const BASE = '/api';
+import { getDirs, linkProject, unlinkProject, mkdir } from '../api';
 
 export default function ProjectSelector({ projects, currentProjectId, onSelect, onLink }) {
   const { user, setView } = useApp();
@@ -61,15 +59,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
     const name = newDirName.trim();
     if (!name) return;
     try {
-      const res = await fetch(`${BASE}/fs/mkdir`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: currentPath, name }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || '创建失败');
-      }
+      await mkdir(currentPath, name);
       setNewDirName('');
       getDirs(currentPath).then(d => setDirs(d.dirs)).catch(() => {});
     } catch (err) {

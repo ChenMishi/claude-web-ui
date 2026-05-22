@@ -123,6 +123,9 @@ export const getCcswitchStatus = () => fetchJSON('/init/ccswitch-status');
 export const restartCcswitch = () => fetchJSON('/init/ccswitch-restart', { method: 'POST' });
 export const initCcswitchProvider = () => fetchJSON('/init/ccswitch-init-provider', { method: 'POST' });
 
+// File system
+export const mkdir = (path, name) => fetchJSON('/fs/mkdir', { method: 'POST', body: JSON.stringify({ path, name }) });
+
 // Sessions
 export const getSessionInfo = (id) => fetchJSON(`/session/${id}`);
 export const deleteSession = (id) => fetchJSON(`/session/${id}`, { method: 'DELETE' });
