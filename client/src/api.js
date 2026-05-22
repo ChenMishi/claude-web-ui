@@ -30,6 +30,7 @@ function authHeaders(headers = {}) {
   }
   return headers;
 }
+export { authHeaders };
 
 async function tryRefresh() {
   if (!refreshToken) return false;
@@ -109,6 +110,17 @@ export const checkVersion = (opts = {}) => fetchJSON('/version/check', { method:
 export const getVersionInfo = () => fetchJSON('/version/info');
 export const upgradeVersion = (opts = {}) => fetchJSON('/version/upgrade', { method: 'POST', body: JSON.stringify(opts) });
 export const getUpgradeLog = () => fetchJSON('/version/upgrade/log');
+
+// Init
+export const getInitStatus = () => fetchJSON('/init/status');
+export const saveInitConfig = (data) => fetchJSON('/init/config', { method: 'POST', body: JSON.stringify(data) });
+export const testProxy = (data) => fetchJSON('/init/test-proxy', { method: 'POST', body: JSON.stringify(data) });
+export const checkClaudeUpdate = () => fetchJSON('/init/check-claude-update', { method: 'POST' });
+export const getCcswitchConfig = () => fetchJSON('/init/ccswitch-config');
+export const saveCcswitchConfig = (data) => fetchJSON('/init/ccswitch-config', { method: 'POST', body: JSON.stringify(data) });
+export const getCcswitchStatus = () => fetchJSON('/init/ccswitch-status');
+export const restartCcswitch = () => fetchJSON('/init/ccswitch-restart', { method: 'POST' });
+export const initCcswitchProvider = () => fetchJSON('/init/ccswitch-init-provider', { method: 'POST' });
 
 // Sessions
 export const getSessionInfo = (id) => fetchJSON(`/session/${id}`);

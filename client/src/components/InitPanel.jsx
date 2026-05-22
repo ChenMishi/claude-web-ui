@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { authHeaders, getInitStatus, saveInitConfig, testProxy, checkClaudeUpdate,
+         getCcswitchConfig, saveCcswitchConfig, getCcswitchStatus, restartCcswitch, initCcswitchProvider } from '../api';
 
 const BASE = '/api';
 
@@ -22,7 +24,7 @@ export default function InitPanel() {
   const [envProgress, setEnvProgress] = useState({});
 
   const loadStatus = useCallback(() => {
-    fetch(`${BASE}/init/status`).then(r => r.json()).then(d => {
+    getInitStatus().then(d => {
       setStatus(d);
       setProxyUrl(d.claudeProxyUrl || d.proxyUrl || 'http://127.0.0.1:15721');
       setProxyPort(String(d.proxyPort || 15721));
@@ -32,7 +34,7 @@ export default function InitPanel() {
   const handleStartCheck = useCallback(async () => {
     setEnvChecked(false);
     setEnvProgress({}); // clear previous results
-    const res = await fetch(`${BASE}/init/status`).then(r => r.json());
+    const res = await getInitStatus();
     setStatus(res);
     setProxyUrl(res.claudeProxyUrl || res.proxyUrl || 'http://127.0.0.1:15721');
     setProxyPort(String(res.proxyPort || 15721));
@@ -50,14 +52,14 @@ export default function InitPanel() {
 
   const handleCheckClaudeUpdate = useCallback(async () => {
     setCheckingClaudeUpdate(true); setClaudeUpdateInfo(null);
-    try { const res = await fetch(`${BASE}/init/check-claude-update`, { method: 'POST' }); setClaudeUpdateInfo(await res.json()); } catch {}
+    try { const res = await checkClaudeUpdate(); setClaudeUpdateInfo(res); } catch {}
     setCheckingClaudeUpdate(false);
   }, []);
 
   const handleUpgradeClaude = useCallback(async () => {
     setUpgradingClaude(true); setUpgradeClaudeLog('');
     try {
-      const res = await fetch(`${BASE}/init/upgrade-claude`, { method: 'POST', headers: { Accept: 'text/event-stream' } });
+      const res = await fetch(`${BASE}/init/upgrade-claude`, { method: 'POST', headers: authHeaders({ Accept: 'text/event-stream' }) });
       const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
@@ -73,7 +75,7 @@ export default function InitPanel() {
     setInstallingSDK(true); setSdkInstallLog('');
     try {
       const res = await fetch(`${BASE}/init/install-sdk`, {
-        method: 'POST', headers: { Accept: 'text/event-stream' },
+        method: 'POST', headers: authHeaders({ Accept: 'text/event-stream' }),
       });
       const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
       while (true) {
@@ -96,7 +98,7 @@ export default function InitPanel() {
     setInstallingClaude(true); setClaudeInstallLog('');
     try {
       const res = await fetch(`${BASE}/init/install-claude`, {
-        method: 'POST', headers: { Accept: 'text/event-stream' },
+        method: 'POST', headers: authHeaders({ Accept: 'text/event-stream' }),
       });
       const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
       while (true) {
@@ -119,7 +121,7 @@ export default function InitPanel() {
     setInstallingCcswitch(true); setInstallLog('');
     try {
       const res = await fetch(`${BASE}/init/install-ccswitch`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json', Accept: 'text/event-stream' }),
         body: JSON.stringify({ version: '3.14.1' }),
       });
       const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
@@ -144,7 +146,7 @@ export default function InitPanel() {
     setEnvProgress(prev => ({ ...prev, [component]: { pct: 5, text: '准备中...', checked: true } }));
     try {
       const res = await fetch(`${BASE}/init/install-env/${component}`, {
-        method: 'POST', headers: { Accept: 'text/event-stream' },
+        method: 'POST', headers: authHeaders({ Accept: 'text/event-stream' }),
       });
       const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
       while (true) {
@@ -166,7 +168,7 @@ export default function InitPanel() {
     setTimeout(async () => {
       setEnvProgress(prev => ({ ...prev, [component]: { checked: false, pct: 0 } }));
       await new Promise(r => setTimeout(r, 700));
-      const res = await fetch(`${BASE}/init/status`).then(r => r.json());
+      const res = await getInitStatus();
       setStatus(res);
       const envOk = component === 'buildtools' ? (res.env?.buildTools)
         : component === 'node' ? res.env?.node
@@ -182,11 +184,7 @@ export default function InitPanel() {
 
   const handleSaveConfig = useCallback(async () => {
     try {
-      const res = await fetch(`${BASE}/init/config`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proxyUrl: `${proxyUrl}:${proxyPort}`, proxyPort }),
-      });
-      const d = await res.json();
+      const d = await saveInitConfig({ proxyUrl: `${proxyUrl}:${proxyPort}`, proxyPort });
       if (d.ok) setStatus(prev => ({ ...prev, saved: true }));
     } catch {}
   }, [proxyUrl, proxyPort]);
@@ -194,11 +192,7 @@ export default function InitPanel() {
   const handleTestProxy = useCallback(async () => {
     setTestResult(null);
     try {
-      const res = await fetch(`${BASE}/init/test-proxy`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: `${proxyUrl}:${proxyPort}` }),
-      });
-      const d = await res.json();
+      const d = await testProxy({ url: `${proxyUrl}:${proxyPort}` });
       setTestResult(d.ok ? 'success' : 'fail');
     } catch { setTestResult('fail'); }
   }, [proxyUrl, proxyPort]);
@@ -351,7 +345,7 @@ function CCSwitchConfig() {
   const [restarting, setRestarting] = useState(false);
 
   const loadConfig = () => {
-    fetch(`${BASE}/init/ccswitch-config`).then(r => r.json()).then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
+    getCcswitchConfig().then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
   };
 
   // Auto-init provider if CC-Switch is running but DB is empty
@@ -360,7 +354,7 @@ function CCSwitchConfig() {
     if (config.error || !(config.providers || []).length) return;
     const hasDefault = config.providers.some(p => p.id === 'default');
     if (!hasDefault) {
-      fetch(`${BASE}/init/ccswitch-init-provider`, { method: 'POST' })
+      initCcswitchProvider()
         .then(() => setTimeout(loadConfig, 1500))
         .catch(() => {});
     }
@@ -368,13 +362,13 @@ function CCSwitchConfig() {
 
   useEffect(() => {
     loadConfig();
-    fetch(`${BASE}/init/ccswitch-status`).then(r => r.json()).then(d => setCcRunning(d.running)).catch(() => {});
+    getCcswitchStatus().then(d => setCcRunning(d.running)).catch(() => {});
   }, []);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`${BASE}/init/ccswitch-config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editProvider) });
+      await saveCcswitchConfig(editProvider);
       alert('保存成功，重启 CC-Switch 后生效');
       setEditProvider(null);
     } catch (err) { alert('保存失败: ' + err.message); }
@@ -384,8 +378,7 @@ function CCSwitchConfig() {
   const handleRestartCCSwitch = async () => {
     setRestarting(true);
     try {
-      const res = await fetch(`${BASE}/init/ccswitch-restart`, { method: 'POST' });
-      const d = await res.json();
+      const d = await restartCcswitch();
       if (d.ok) {
         setCcRunning(true);
         alert('CC-Switch 已启动，等待几秒后刷新配置');
