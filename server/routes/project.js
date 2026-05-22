@@ -72,12 +72,19 @@ router.get('/project', async (req, res) => {
   }
   projects.sort((a, b) => b.updatedAt - a.updatedAt);
 
-  // Auto-inject user's homeDir as a project for non-admin users
+  // For non-admin users, only show their homeDir project (filter out everything else)
   if (req.user && req.user.role !== 'admin') {
     const { findUserById } = require('../auth/users');
     const user = findUserById(req.user.userId);
-    if (user && !seenCwds.has(user.homeDir)) {
-      projects.unshift({ id: `user-${user.username}`, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() });
+    if (user) {
+      const myProject = projects.find(p => p.cwd === user.homeDir);
+      if (myProject) {
+        projects = [myProject];
+      } else {
+        projects = [{ id: `user-${user.username}`, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() }];
+      }
+    } else {
+      projects = [];
     }
   }
 
@@ -155,6 +162,18 @@ router.delete('/project/:id', (req, res) => {
   }
   const dirPath = path.join(CLAUDE_PROJECTS_DIR, id);
   if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Project not found' });
+
+  // Non-admin users can only unlink projects within their homeDir
+  let cwd = null;
+  const cwdFile = path.join(dirPath, '.cwd');
+  if (fs.existsSync(cwdFile)) {
+    try { cwd = fs.readFileSync(cwdFile, 'utf8').trim(); } catch {}
+  }
+  if (cwd) {
+    const err = restrictPath(req, cwd);
+    if (err) return res.status(403).json({ error: err });
+  }
+
   try {
     fs.rmSync(dirPath, { recursive: true, force: true });
     res.json({ ok: true });

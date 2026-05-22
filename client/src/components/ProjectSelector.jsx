@@ -6,7 +6,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
   const { user, setView } = useApp();
   const isAdmin = user?.role === 'admin';
   const [showDialog, setShowDialog] = useState(false);
-  const [currentPath, setCurrentPath] = useState('/root');
+  const [currentPath, setCurrentPath] = useState(user?.role !== 'admin' ? (user?.homeDir || '/root') : '/root');
   const [dirs, setDirs] = useState([]);
   const [newDirName, setNewDirName] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
