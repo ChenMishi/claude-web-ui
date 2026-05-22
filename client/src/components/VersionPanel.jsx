@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeLog, getUpgradeStatus } from '../api';
 
@@ -53,13 +54,14 @@ export default function VersionPanel() {
 
   // Poll upgrade log + status during upgrade
   useEffect(() => {
-    if (!upgrading && !upgradeDone) return;
+    if (!upgrading) return;
     const timer = setInterval(() => {
       getUpgradeLog().then(d => setUpgradeLog(d.log || '')).catch(() => {});
       getUpgradeStatus().then(s => {
         if (s.progress !== undefined) setUpgradeProgress(s.progress);
         if (s.message) setUpgradeMsg(s.message);
         if (s.status === 'done') {
+          setUpgradeProgress(100);
           setUpgradeDone(true);
           setUpgrading(false);
         }
@@ -70,7 +72,7 @@ export default function VersionPanel() {
       }).catch(() => {});
     }, 800);
     return () => clearInterval(timer);
-  }, [upgrading, upgradeDone]);
+  }, [upgrading]);
 
   const handleCheck = useCallback(async () => {
     setChecking(true);
@@ -87,25 +89,25 @@ export default function VersionPanel() {
   }, [remote]);
 
   const handleUpgrade = useCallback(async () => {
-    setUpgrading(true);
-    setUpgradeProgress(0);
-    setUpgradeMsg('停服中...');
-    setUpgradeDone(false);
-    setUpgradeError(null);
+    flushSync(() => {
+      setUpgrading(true);
+      setUpgradeProgress(0);
+      setUpgradeMsg('启动升级...');
+      setUpgradeDone(false);
+      setUpgradeError(null);
+      setUpgradeLog('');
+    });
 
     try {
       const data = await upgradeVersion({ remote });
       if (!data.ok) {
         setUpgradeError(data.error || '启动失败');
         setUpgrading(false);
-        return;
       }
-
-      // Progress driven by polling /version/upgrade/status
     } catch (err) {
       setUpgradeError(`启动失败: ${err.message}`);
+      setUpgrading(false);
     }
-    setUpgrading(false);
   }, [remote]);
 
   const handleIntervalChange = (v) => {
