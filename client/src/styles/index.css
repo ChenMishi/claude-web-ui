@@ -299,8 +299,8 @@ html, body, #root {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  margin-top: 4px;
+  border-radius: 0 0 12px 12px;
+  margin-top: 0;
   max-height: 240px;
   overflow-y: auto;
   box-shadow: var(--glass-shadow);
@@ -2354,20 +2354,19 @@ html, body, #root {
 .sidebar-user-menu button:last-child:hover { background: var(--danger-bg); color: var(--danger); }
 
 /* ── Profile Modal ── */
+.profile-backdrop {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.45);
+}
 .profile-modal {
-  position: fixed; top: 12vh; left: 50%;
-  z-index: 300;
   width: 420px; max-width: 90vw;
-  margin-left: -210px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(28px) saturate(1.4);
-  -webkit-backdrop-filter: blur(28px) saturate(1.4);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--glass-radius);
-  padding: 24px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2);
   max-height: 75vh;
   overflow-y: auto;
 }

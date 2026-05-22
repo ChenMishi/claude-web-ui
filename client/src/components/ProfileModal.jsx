@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { changePassword, updateAvatar } from '../api';
@@ -11,22 +11,6 @@ export default function ProfileModal({ onClose }) {
   const [pwError, setPwError] = useState('');
   const [loading, setLoading] = useState(false);
   const fileRef = useRef(null);
-  const modalRef = useRef(null);
-
-  // Close on click outside
-  useEffect(() => {
-    const handler = (e) => {
-      if (modalRef.current && !modalRef.current.contains(e.target)) {
-        onClose();
-      }
-    };
-    // Delay to avoid the click that opened it from closing it
-    const timer = setTimeout(() => document.addEventListener('click', handler), 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('click', handler);
-    };
-  }, [onClose]);
 
   // Password form
   const [oldPw, setOldPw] = useState('');
@@ -36,8 +20,8 @@ export default function ProfileModal({ onClose }) {
   const handleAvatarUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 200 * 1024) {
-      setAvatarMsg('图片不能超过200KB');
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarMsg('图片不能超过5MB');
       return;
     }
     const reader = new FileReader();
@@ -81,11 +65,12 @@ export default function ProfileModal({ onClose }) {
   const initials = (user?.username || 'U').slice(0, 2).toUpperCase();
 
   return createPortal(
-    <div className="profile-modal" ref={modalRef}>
-      <div className="profile-modal-header">
-        <h3>个人设置</h3>
-        <button className="profile-close-btn" onClick={onClose}>✕</button>
-      </div>
+    <div className="profile-backdrop" onClick={onClose}>
+      <div className="profile-modal" onClick={e => e.stopPropagation()}>
+        <div className="profile-modal-header">
+          <h3>个人设置</h3>
+          <button className="profile-close-btn" onClick={onClose}>✕</button>
+        </div>
 
       <div className="profile-tabs">
         <button className={`profile-tab ${tab === 'avatar' ? 'active' : ''}`} onClick={() => setTab('avatar')}>
@@ -118,7 +103,7 @@ export default function ProfileModal({ onClose }) {
             >
               {loading ? '上传中...' : '选择图片上传'}
             </button>
-            <p className="profile-hint">支持 JPG/PNG/GIF，不超过 200KB</p>
+            <p className="profile-hint">支持 JPG/PNG/GIF，不超过 5MB</p>
           </div>
           {avatarMsg && <div className={`profile-msg ${avatarMsg.includes('成功') ? 'success' : 'error'}`}>{avatarMsg}</div>}
         </div>
@@ -163,6 +148,7 @@ export default function ProfileModal({ onClose }) {
           </button>
         </form>
       )}
+    </div>
     </div>,
     document.body
   );

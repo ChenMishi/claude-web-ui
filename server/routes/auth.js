@@ -205,7 +205,7 @@ router.put('/auth/me/password', requireAuth, async (req, res) => {
   }
 });
 
-// PUT /api/auth/me/avatar — update own avatar (base64 data URL, max 200KB)
+// PUT /api/auth/me/avatar — update own avatar (base64 data URL, max 5MB)
 router.put('/auth/me/avatar', requireAuth, (req, res) => {
   const { avatar } = req.body || {};
   if (!avatar) return res.status(400).json({ error: 'avatar 不能为空' });
@@ -213,8 +213,8 @@ router.put('/auth/me/avatar', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'avatar 必须是 data:image/ 格式的 base64' });
   }
   // Rough size check: ~200KB base64
-  if (avatar.length > 280000) {
-    return res.status(400).json({ error: '头像图片过大，请使用小于200KB的图片' });
+  if (avatar.length > 7000000) {
+    return res.status(400).json({ error: '头像图片过大，请使用小于5MB的图片' });
   }
 
   const { updateUserAvatar } = require('../auth/users');
