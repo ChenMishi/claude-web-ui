@@ -13,7 +13,7 @@ import LoginPage from './LoginPage';
 const BASE = '/api';
 
 export default function Layout() {
-  const { sidebarOpen, activeView, toggleSidebar, setUpdateAvailable, user, authLoading, theme } = useApp();
+  const { sidebarOpen, activeView, toggleSidebar, setUpdateAvailable, user, authLoading } = useApp();
   const isAdmin = user?.role === 'admin';
 
   // Global periodic version check (runs regardless of active page)
@@ -56,13 +56,7 @@ export default function Layout() {
   }
 
   return (
-    <>
-      {theme === 'tech' && (
-        <video className="bg-video" autoPlay loop muted playsInline>
-          <source src="/background.mp4" type="video/mp4" />
-        </video>
-      )}
-      <div className="app-layout">
+    <div className="app-layout">
       {!sidebarOpen && (
         <button className="toggle-sidebar" onClick={toggleSidebar} title="展开侧边栏">
           ☰
@@ -79,6 +73,5 @@ export default function Layout() {
         {activeView === 'logs' && <LogPanel />}
       </main>
     </div>
-    </>
   );
 }

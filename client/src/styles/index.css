@@ -89,7 +89,7 @@
   --orb-3: rgba(37, 99, 235, 0.08);
 }
 
-/* ===== Teal theme (青绿) ===== */
+/* ===== Teal theme (浅色青绿) ===== */
 [data-theme="warm"] {
   --bg-primary: #f2fbf8;
   --bg-secondary: #e6f5f1;
@@ -131,64 +131,6 @@
   --orb-3: rgba(13, 148, 136, 0.08);
 }
 
-/* ===== Tech theme (科技) ===== */
-[data-theme="tech"] {
-  --bg-primary: #0a0e1a;
-  --bg-secondary: #0f1527;
-  --bg-tertiary: #141d33;
-  --border: #1a2540;
-  --text-primary: #dce6f0;
-  --text-muted: #4a7090;
-  --accent: #00e5ff;
-  --accent-hover: #00b8d4;
-  --danger: #ff4466;
-  --danger-bg: rgba(255, 68, 102, 0.10);
-  --success: #00e676;
-  --code-bg: #0a0f1e;
-  --code-block-bg: #0d1328;
-  --code-block-text: #c0d0f0;
-  --heading-color: #00e5ff;
-  --link-color: #00e5ff;
-  --gradient-start: #00e5ff;
-  --gradient-end: #7c4dff;
-  --user-label: #7c4dff;
-  --abort-color: #ffd54f;
-  --abort-bg: rgba(255, 213, 79, 0.08);
-  --abort-border: rgba(255, 213, 79, 0.25);
-  /* Glass card */
-  --glass-bg: rgba(15, 21, 39, 0.45);
-  --glass-bg-hover: rgba(15, 21, 39, 0.65);
-  --glass-border: rgba(0, 229, 255, 0.10);
-  --glass-border-hover: rgba(0, 229, 255, 0.20);
-  --glass-shadow: 0 8px 32px rgba(0, 229, 255, 0.08);
-  --glass-radius: 16px;
-  --glass-blur: 18px;
-  --glass-dropdown-bg: #0f1527;
-  /* Input field inside glass */
-  --input-bg: rgba(0, 229, 255, 0.04);
-  --input-bg-focus: rgba(0, 229, 255, 0.08);
-  /* Decorative orb colors */
-  --orb-1: rgba(0, 229, 255, 0.15);
-  --orb-2: rgba(124, 77, 255, 0.12);
-  --orb-3: rgba(0, 229, 255, 0.07);
-}
-
-/* Video background — tech theme only */
-.bg-video {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  object-fit: cover;
-  width: 100%;
-  height: 100%;
-  opacity: 0.85;
-}
-
-/* Tech theme: make root background transparent so video shows through */
-[data-theme="tech"] #root {
-  background: transparent;
-}
-
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body, #root {
@@ -204,7 +146,6 @@ html, body, #root {
   display: flex;
   height: 100vh;
   position: relative;
-  z-index: 1;
 }
 
 /* Decorative background — orbs + subtle noise texture so glass has something to blur */
@@ -622,7 +563,7 @@ html, body, #root {
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 25%;
+  width: 33.333%;
   height: 3px;
   background: var(--accent);
   border-radius: 0 0 6px 6px;
@@ -636,7 +577,7 @@ html, body, #root {
   padding: 5px 2px 6px;
   background: transparent;
   border: none;
-  font-size: 7px;
+  font-size: 11px;
   color: var(--text-muted);
   cursor: pointer;
   transition: color 0.2s;

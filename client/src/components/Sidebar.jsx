@@ -8,8 +8,7 @@ import ProfileModal from './ProfileModal';
 const THEMES = [
   { key: 'dark', icon: '🌙', label: '深色' },
   { key: 'light', icon: '☀️', label: '白色' },
-  { key: 'warm', icon: '🌿', label: '青绿' },
-  { key: 'tech', icon: '🚀', label: '科技' },
+  { key: 'warm', icon: '🌿', label: '浅色' },
 ];
 
 export default function Sidebar() {

@@ -89,18 +89,24 @@ ensure_node() {
         warn "安装 Node.js..."
     fi
     if command -v apt &>/dev/null; then
-        curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-        apt install -y nodejs 2>&1 | tail -1
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+        apt install -y nodejs
     elif command -v dnf &>/dev/null; then
-        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-        dnf install -y nodejs 2>&1 | tail -1
+        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+        dnf install -y nodejs
     elif command -v yum &>/dev/null; then
-        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-        yum install -y nodejs 2>&1 | tail -1
+        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+        yum install -y nodejs
     elif command -v apk &>/dev/null; then
-        apk add --no-cache nodejs npm 2>&1 | tail -1
+        apk add --no-cache nodejs npm
     else
         err "请先手动安装 Node.js >= 20"
+        exit 1
+    fi
+    # Verify upgrade
+    local new_major=$(node -v | sed 's/v\([0-9]*\).*/\1/')
+    if [ "$new_major" -lt 20 ]; then
+        err "Node.js 升级失败，当前版本 $(node -v) 仍低于 20"
         exit 1
     fi
     log "Node.js $(node -v) 就绪"

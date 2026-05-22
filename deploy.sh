@@ -158,18 +158,18 @@ install_node() {
     if [ "$need_install" = true ]; then
         warn "安装 Node.js 22.x..."
         if command -v apt &>/dev/null; then
-            curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-            apt install -y nodejs 2>&1 | tail -1
+            curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+            apt install -y nodejs
         elif command -v dnf &>/dev/null; then
-            curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-            dnf install -y nodejs 2>&1 | tail -1
+            curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+            dnf install -y nodejs
         elif command -v yum &>/dev/null; then
-            curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-            yum install -y nodejs 2>&1 | tail -1
+            curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+            yum install -y nodejs
         elif command -v apk &>/dev/null; then
-            apk add --no-cache nodejs npm 2>&1 | tail -1
+            apk add --no-cache nodejs npm
         elif command -v pacman &>/dev/null; then
-            pacman -S --noconfirm nodejs npm 2>&1 | tail -1
+            pacman -S --noconfirm nodejs npm
         else
             err "无法识别包管理器，请手动安装 Node.js >= 20"
             echo "  下载: https://nodejs.org/"
@@ -177,7 +177,15 @@ install_node() {
         fi
     fi
 
-    if ! command -v node &>/dev/null; then
+    # Verify the installed version
+    if command -v node &>/dev/null; then
+        local new_major=$(node -v | sed 's/v\([0-9]*\).*/\1/')
+        if [ "$new_major" -lt 20 ]; then
+            err "Node.js 升级失败，当前版本 $(node -v) 仍低于 20"
+            echo "  请手动安装: curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y nodejs"
+            exit 1
+        fi
+    else
         err "Node.js 安装失败"
         exit 1
     fi
