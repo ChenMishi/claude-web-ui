@@ -1,8 +1,10 @@
 const { Router } = require('express');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR } = require('../config');
 const { dirNameToCwd, parseTitleFromJsonl } = require('../utils');
+const { findUserById } = require('../auth/users');
 const {
   getRuntimeSession, deleteRuntimeSession, getOrCreateRuntime,
   createPendingRuntime, assignSessionId, resolvePendingApproval, setPendingApproval,
@@ -113,12 +115,55 @@ function handleSDKMessage(message, runtime, isStreaming) {
   }
 }
 
-function buildSDKOptions(runtime, body) {
+// ── Security: user sandbox helpers ──
+const DANGEROUS_COMMANDS = ['sudo', 'su ', 'passwd', 'chown', 'chmod 777', 'mkfs', 'dd if=', 'rm -rf /', ':(){'];
+
+function getUserSandbox(authUser) {
+  if (!authUser || authUser.role === 'admin') return null; // admin = no sandbox
+  const user = findUserById(authUser.userId);
+  if (!user) return null;
+  return {
+    username: user.username,
+    homeDir: user.homeDir || `/home/${user.username}`,
+    osUid: user.osUid,
+    osGid: user.osGid,
+  };
+}
+
+function isPathAllowed(filePath, homeDir) {
+  if (!filePath || !homeDir) return false;
+  const resolved = path.resolve(filePath);
+  const home = path.resolve(homeDir);
+  // Allow home dir and /tmp
+  if (resolved === home || resolved.startsWith(home + path.sep)) return true;
+  if (resolved.startsWith('/tmp/')) return true;
+  return false;
+}
+
+function sandboxBashCommand(command, sandbox) {
+  if (!sandbox) return command; // admin, no sandboxing
+
+  // Block dangerous commands
+  const lower = (command || '').toLowerCase();
+  for (const dc of DANGEROUS_COMMANDS) {
+    if (lower.includes(dc.toLowerCase())) {
+      throw new Error(`安全限制：普通用户不能执行包含 "${dc}" 的命令`);
+    }
+  }
+
+  // Wrap with sudo -u to run as the user
+  return `sudo -u ${sandbox.username} -i bash -c ${JSON.stringify(command)}`;
+}
+
+// ── End security helpers ──
+
+function buildSDKOptions(runtime, body, authUser) {
   const agentOptions = body.options || {};
   const level = agentOptions.permissionLevel || 'auto';
+  const sandbox = getUserSandbox(authUser);
 
   const options = {
-    cwd: runtime.cwd,
+    cwd: sandbox ? sandbox.homeDir : runtime.cwd,
     permissionMode: 'acceptEdits',
     pathToClaudeCodeExecutable: SDK_BINARY,
     ...runtime.sessionId ? { resume: runtime.sessionId } : {},
@@ -140,6 +185,33 @@ function buildSDKOptions(runtime, body) {
         setPendingApproval(runtime.sessionId || 'pending', resolve);
         broadcast(runtime, 'ask_user', { questions: input.questions || [] });
       });
+    }
+
+    // ── Sandbox checks for non-admin users ──
+    if (sandbox) {
+      try {
+        // Bash: wrap command with sudo -u to run as the user
+        if (toolName === 'Bash' && input.command) {
+          input.command = sandboxBashCommand(input.command, sandbox);
+        }
+        // Write / Edit: check target path is within homeDir
+        if ((toolName === 'Write' || toolName === 'Edit') && input.file_path) {
+          if (!isPathAllowed(input.file_path, sandbox.homeDir)) {
+            throw new Error(`安全限制：不能写入 ${input.file_path}，只能在 ${sandbox.homeDir} 目录下操作`);
+          }
+        }
+        // Read: check file is within homeDir, /etc, /usr, /tmp
+        if (toolName === 'Read' && input.file_path) {
+          const resolved = path.resolve(input.file_path);
+          if (!isPathAllowed(resolved, sandbox.homeDir) &&
+              !resolved.startsWith('/etc/') && !resolved.startsWith('/usr/') &&
+              resolved !== '/etc' && resolved !== '/usr') {
+            throw new Error(`安全限制：不能读取 ${input.file_path}`);
+          }
+        }
+      } catch (err) {
+        return { behavior: 'deny', message: err.message };
+      }
     }
 
     // Auto mode: allow all tools
@@ -365,6 +437,12 @@ router.post('/session/:id/message', async (req, res) => {
     return res.status(500).json({ error: 'Agent SDK not available. Tool calling is disabled.' });
   }
 
+  // ── Sandbox: non-admin users get their homeDir as cwd ──
+  const sandbox = getUserSandbox(req.user);
+  if (sandbox) {
+    body.cwd = sandbox.homeDir;
+  }
+
   let runtime;
   if (isNew) {
     if (!body.cwd) return res.status(400).json({ error: 'cwd is required for new sessions' });
@@ -431,7 +509,7 @@ router.post('/session/:id/message', async (req, res) => {
   runtime.buffer = []; // clear buffer from any previous run
 
   try {
-    const options = buildSDKOptions(runtime, body);
+    const options = buildSDKOptions(runtime, body, req.user);
 
     if (wantsStream) {
       // SSE streaming mode — disable all timeouts for long-running agent sessions
