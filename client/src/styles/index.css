@@ -172,6 +172,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
   transition: margin-left 0.3s,
               min-width 0.3s;
   overflow: hidden;
@@ -188,6 +189,7 @@ html, body, #root {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
 }
 
 .sidebar-header h2 {
@@ -455,6 +457,7 @@ html, body, #root {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
   display: flex;
   flex-direction: column;
   gap: 2px;
