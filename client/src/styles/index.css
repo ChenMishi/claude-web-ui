@@ -2379,22 +2379,20 @@ html, body, #root {
 /* ── Profile Modal ── */
 .profile-overlay {
   position: fixed; inset: 0; z-index: 300;
-  background: rgba(0,0,0,0.5);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 12vh;
 }
 .profile-modal {
   background: var(--glass-bg);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
   padding: 24px;
   width: 420px;
   max-width: 90vw;
   box-shadow: var(--glass-shadow);
-  max-height: 80vh;
+  max-height: 75vh;
   overflow-y: auto;
 }
 .profile-modal-header {
