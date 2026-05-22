@@ -32,7 +32,6 @@ function createApp() {
           }
         }
       } catch {}
-      // Also check the auto-detected LAN IPs
       cb(null, false);
     },
     credentials: true,
@@ -40,15 +39,38 @@ function createApp() {
 
   app.use(express.json({ limit: '10mb' }));
 
-  // Authentication middleware on /api (except health)
-  const auth = require('./middleware/auth');
+  // Auth middleware
+  const { authModeCheck, requireAuth, requireRole } = require('./middleware/auth');
+
+  // Public routes (no auth required)
+  app.use('/api', require('./routes/health'));
+  app.use('/api', require('./routes/auth'));
+
+  // Auth gate — applied to all remaining /api routes
   app.use('/api', (req, res, next) => {
-    if (req.path === '/health') return next(); // health is public
-    auth(req, res, next);
+    if (req.path === '/health' || req.path.startsWith('/auth')) return next();
+    // authModeCheck handles disabled/optional/required decision
+    const enabled = require('./middleware/auth').isAuthEnabled();
+    if (!enabled) return next();
+
+    // In enabled mode, try authModeCheck first (handles legacy token)
+    authModeCheck(req, res, () => {
+      // Then require JWT
+      requireAuth(req, res, next);
+    });
+  });
+
+  // Admin-only routes (must come before general routes)
+  app.use('/api', (req, res, next) => {
+    const adminPaths = ['/version', '/init'];
+    const isAdminPath = adminPaths.some(p => req.path === p || req.path.startsWith(p + '/'));
+    if (isAdminPath) {
+      return requireRole('admin')(req, res, next);
+    }
+    next();
   });
 
   // Mount API routes
-  app.use('/api', require('./routes/health'));
   app.use('/api', require('./routes/chat'));
   app.use('/api', require('./routes/project'));
   app.use('/api', require('./routes/session'));
@@ -130,7 +152,6 @@ function startServer(opts = {}) {
       const cmd = cmdParts.join(' ');
       if (!cmd.includes('claude') || cmd.includes('claude.js') || cmd.includes('claude-code')) continue;
       if (pid === String(process.pid)) continue;
-      // Kill stopped (T) processes, or processes older than 1 hour
       if (stat.includes('T')) {
         try { process.kill(parseInt(pid), 'SIGKILL'); console.log(`Cleaned up stopped claude process PID ${pid}`); } catch {}
       }
@@ -139,33 +160,82 @@ function startServer(opts = {}) {
 
   // WebSocket terminal
   if (WebSocket && pty) {
+    const { verifyToken } = require('./auth/jwt');
+    const { findUserById } = require('./auth/users');
+    const { isAuthEnabled } = require('./middleware/auth');
+
     const wss = new WebSocket.Server({ noServer: true });
     server.on('upgrade', (req, socket, head) => {
       if (!req.url.startsWith('/api/terminal')) {
         socket.destroy();
         return;
       }
+
+      let wsUser = null;
+
+      // Authenticate WebSocket via token query param
+      if (isAuthEnabled()) {
+        try {
+          const url = new URL(req.url, `http://localhost`);
+          const token = url.searchParams.get('token');
+          if (!token) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+          const decoded = verifyToken(token);
+          const userRecord = findUserById(decoded.userId);
+          if (!userRecord) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+          wsUser = { ...decoded, ...userRecord };
+        } catch {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+      }
+
       wss.handleUpgrade(req, socket, head, (ws) => {
         const url = new URL(req.url, `http://localhost`);
         let cwd = url.searchParams.get('cwd') || os.homedir();
 
-        // Validate cwd: must exist on disk, no traversal
-        const resolved = path.resolve(cwd);
-        if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-          console.warn(`Terminal: cwd=${cwd} 不存在，回退到主目录`);
-          cwd = os.homedir();
+        // For regular users, force cwd to their home directory
+        if (wsUser && wsUser.role === 'user') {
+          cwd = wsUser.homeDir || `/home/${wsUser.username}`;
         } else {
-          cwd = resolved;
+          // Validate cwd: must exist on disk, no traversal
+          const resolved = path.resolve(cwd);
+          if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+            console.warn(`Terminal: cwd=${cwd} 不存在，回退到主目录`);
+            cwd = os.homedir();
+          } else {
+            cwd = resolved;
+          }
         }
 
         const shell = process.env.SHELL || 'bash';
-        console.log(`Terminal: cwd=${cwd}, shell=${shell}`);
+        console.log(`Terminal: cwd=${cwd}, user=${wsUser?.username || 'unauthenticated'}, shell=${shell}`);
 
         let proc;
         try {
-          proc = pty.spawn(shell, [], {
-            name: 'xterm-256color', cols: 120, rows: 30, cwd, env: process.env,
-          });
+          const spawnOpts = {
+            name: 'xterm-256color', cols: 120, rows: 30, cwd,
+            env: { ...process.env },
+          };
+
+          // Spawn as regular user's OS identity
+          if (wsUser && wsUser.role === 'user' && wsUser.osUid > 0) {
+            spawnOpts.uid = wsUser.osUid;
+            spawnOpts.gid = wsUser.osGid;
+            spawnOpts.env.HOME = wsUser.homeDir || cwd;
+            spawnOpts.env.USER = wsUser.username;
+            spawnOpts.env.LOGNAME = wsUser.username;
+          }
+
+          proc = pty.spawn(shell, [], spawnOpts);
           proc.onData((data) => {
             if (ws.readyState === WebSocket.OPEN) ws.send(data);
           });
@@ -194,6 +264,14 @@ function startServer(opts = {}) {
       });
     });
   }
+
+  // Initialize default admin user on startup
+  try {
+    const { ensureDefaultAdmin } = require('./auth/users');
+    ensureDefaultAdmin().then(admin => {
+      if (admin) console.log(`[AUTH] Default admin user created: ${admin.username}`);
+    }).catch(() => {});
+  } catch {}
 
   server.listen(port, '0.0.0.0', () => {
     console.log(`Claude Web UI v2 running at http://0.0.0.0:${port}`);

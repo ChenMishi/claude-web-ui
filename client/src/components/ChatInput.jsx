@@ -26,6 +26,7 @@ const COMMANDS = [
   { cmd: '/theme dark', desc: '切换为深色主题', action: 'theme-dark' },
   { cmd: '/theme light', desc: '切换为浅色主题', action: 'theme-light' },
   { cmd: '/theme warm', desc: '切换为青绿主题', action: 'theme-warm' },
+  { cmd: '/theme tech', desc: '切换为科技主题', action: 'theme-tech' },
   { cmd: '/model opus', desc: '切换为 Claude Opus 4.7', action: 'model-opus' },
   { cmd: '/model sonnet', desc: '切换为 Claude Sonnet 4.6', action: 'model-sonnet' },
   { cmd: '/model haiku', desc: '切换为 Claude Haiku 4.5', action: 'model-haiku' },
@@ -112,6 +113,7 @@ export default function ChatInput({ onSend, onStop, disabled }) {
       case 'theme-dark': setSetting('theme', 'dark'); inputRef.current.value = ''; break;
       case 'theme-light': setSetting('theme', 'light'); inputRef.current.value = ''; break;
       case 'theme-warm': setSetting('theme', 'warm'); inputRef.current.value = ''; break;
+      case 'theme-tech': setSetting('theme', 'tech'); inputRef.current.value = ''; break;
       case 'model-opus': setSetting('model', 'claude-opus-4-7'); inputRef.current.value = ''; break;
       case 'model-sonnet': setSetting('model', 'claude-sonnet-4-6'); inputRef.current.value = ''; break;
       case 'model-haiku': setSetting('model', 'claude-haiku-4-5-20251001'); inputRef.current.value = ''; break;
