@@ -119,11 +119,6 @@ export default function Sidebar() {
     });
   }, [currentSessionId, currentProjectId]);
 
-  const handleNewChat = () => {
-    selectProject(currentProjectId);
-    setView('chat');
-  };
-
   return (
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
@@ -141,10 +136,6 @@ export default function Sidebar() {
               getProjects().then(setProjects).catch(() => {});
             }}
           />
-
-          <button className="new-chat-btn" onClick={handleNewChat}>
-            + 新建对话
-          </button>
 
           <SessionList />
         </div>

@@ -5,7 +5,7 @@ import { getDirs, linkProject, unlinkProject } from '../api';
 const BASE = '/api';
 
 export default function ProjectSelector({ projects, currentProjectId, onSelect, onLink }) {
-  const { user } = useApp();
+  const { user, setView } = useApp();
   const isAdmin = user?.role === 'admin';
   const [showDialog, setShowDialog] = useState(false);
   const [currentPath, setCurrentPath] = useState('/root');
@@ -116,14 +116,17 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
         </div>
       )}
 
-      {isAdmin && (
-        <div className="project-actions">
+      <div className="project-actions">
+        {isAdmin && (
           <button onClick={() => setShowDialog(true)}>+ 链接项目</button>
-          {currentProjectId && (
-            <button className="danger" onClick={(e) => handleDelClick(e, currentProjectId)}>取消链接</button>
-          )}
-        </div>
-      )}
+        )}
+        {isAdmin && currentProjectId && (
+          <button className="danger" onClick={(e) => handleDelClick(e, currentProjectId)}>取消链接</button>
+        )}
+        <button className="new-chat-btn-inline" onClick={() => { onSelect(currentProjectId); setView('chat'); }}>
+          + 新建对话
+        </button>
+      </div>
 
       {/* Inline confirmation popup */}
       {confirmDel && (

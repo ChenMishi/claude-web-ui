@@ -188,7 +188,6 @@ html, body, #root {
   display: flex;
   height: 100vh;
   position: relative;
-  isolation: isolate;
 }
 
 /* Decorative background — orbs + subtle noise texture so glass has something to blur */
@@ -426,6 +425,24 @@ html, body, #root {
 .project-actions button.danger:hover {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+.new-chat-btn-inline {
+  flex: 1.2;
+  padding: 6px 10px;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.new-chat-btn-inline:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 /* Session List */
@@ -2377,21 +2394,20 @@ html, body, #root {
 .sidebar-user-menu button:last-child:hover { background: var(--danger-bg); color: var(--danger); }
 
 /* ── Profile Modal ── */
-.profile-overlay {
-  position: fixed; inset: 0; z-index: 300;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  display: flex; align-items: flex-start; justify-content: center;
-  padding-top: 12vh;
-}
 .profile-modal {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+  position: fixed; top: 12vh; left: 50%;
+  z-index: 300;
+  width: 420px; max-width: 90vw;
+  margin-left: -210px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: var(--glass-radius);
   padding: 24px;
-  width: 420px;
-  max-width: 90vw;
-  box-shadow: var(--glass-shadow);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
   max-height: 75vh;
   overflow-y: auto;
 }
