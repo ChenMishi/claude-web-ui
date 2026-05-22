@@ -1323,7 +1323,7 @@ html, body, #root {
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1331,15 +1331,13 @@ html, body, #root {
 }
 
 .dialog {
-  background: var(--glass-bg);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--glass-radius);
-  padding: 24px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
   width: 500px;
   max-width: 90vw;
-  box-shadow: var(--glass-shadow);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .dialog h3 {
