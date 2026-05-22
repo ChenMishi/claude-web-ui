@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { changePassword, updateAvatar } from '../api';
 
@@ -63,7 +64,7 @@ export default function ProfileModal({ onClose }) {
 
   const initials = (user?.username || 'U').slice(0, 2).toUpperCase();
 
-  return (
+  return createPortal(
     <div className="profile-overlay" onClick={onClose}>
       <div className="profile-modal" onClick={e => e.stopPropagation()}>
         <div className="profile-modal-header">
@@ -148,6 +149,7 @@ export default function ProfileModal({ onClose }) {
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
