@@ -255,6 +255,9 @@ html, body, #root {
 /* Project Selector */
 .project-selector {
   margin-bottom: 16px;
+}
+
+.project-dropdown-wrap {
   position: relative;
 }
 

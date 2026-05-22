@@ -81,40 +81,42 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
 
   return (
     <div className="project-selector" ref={dropdownRef}>
-      {/* Custom dropdown trigger */}
-      <div className="project-dropdown-trigger" onClick={() => setDropdownOpen(!dropdownOpen)}>
-        <span className="project-dropdown-label">
-          {project ? project.cwd : '选择项目...'}
-        </span>
-        <span className="project-dropdown-arrow">{dropdownOpen ? '▲' : '▼'}</span>
-      </div>
-
-      {dropdownOpen && (
-        <div className="project-dropdown-list">
-          {projects.length === 0 && (
-            <div className="project-dropdown-empty">无项目</div>
-          )}
-          {projects.map(p => (
-            <div
-              key={p.id}
-              className={`project-dropdown-item ${p.id === currentProjectId ? 'active' : ''}`}
-              onClick={() => { onSelect(p.id); setDropdownOpen(false); }}
-            >
-              <span className="project-dropdown-path">{p.cwd}</span>
-              <span className="project-dropdown-count">({p.sessionCount})</span>
-              {isAdmin && (
-                <button
-                  className="project-dropdown-del"
-                  onClick={(e) => handleDelClick(e, p.id)}
-                  title="取消链接"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
+      {/* Wrap trigger + dropdown so dropdown is positioned right below trigger */}
+      <div className="project-dropdown-wrap">
+        <div className="project-dropdown-trigger" onClick={() => setDropdownOpen(!dropdownOpen)}>
+          <span className="project-dropdown-label">
+            {project ? project.cwd : '选择项目...'}
+          </span>
+          <span className="project-dropdown-arrow">{dropdownOpen ? '▲' : '▼'}</span>
         </div>
-      )}
+
+        {dropdownOpen && (
+          <div className="project-dropdown-list">
+            {projects.length === 0 && (
+              <div className="project-dropdown-empty">无项目</div>
+            )}
+            {projects.map(p => (
+              <div
+                key={p.id}
+                className={`project-dropdown-item ${p.id === currentProjectId ? 'active' : ''}`}
+                onClick={() => { onSelect(p.id); setDropdownOpen(false); }}
+              >
+                <span className="project-dropdown-path">{p.cwd}</span>
+                <span className="project-dropdown-count">({p.sessionCount})</span>
+                {isAdmin && (
+                  <button
+                    className="project-dropdown-del"
+                    onClick={(e) => handleDelClick(e, p.id)}
+                    title="取消链接"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="project-actions">
         {isAdmin && (
