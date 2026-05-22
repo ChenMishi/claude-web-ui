@@ -5,6 +5,8 @@ import { getDirs, linkProject, unlinkProject } from '../api';
 const BASE = '/api';
 
 export default function ProjectSelector({ projects, currentProjectId, onSelect, onLink }) {
+  const { user } = useApp();
+  const isAdmin = user?.role === 'admin';
   const [showDialog, setShowDialog] = useState(false);
   const [currentPath, setCurrentPath] = useState('/root');
   const [dirs, setDirs] = useState([]);
@@ -100,24 +102,28 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
             >
               <span className="project-dropdown-path">{p.cwd}</span>
               <span className="project-dropdown-count">({p.sessionCount})</span>
-              <button
-                className="project-dropdown-del"
-                onClick={(e) => handleDelClick(e, p.id)}
-                title="取消链接"
-              >
-                ×
-              </button>
+              {isAdmin && (
+                <button
+                  className="project-dropdown-del"
+                  onClick={(e) => handleDelClick(e, p.id)}
+                  title="取消链接"
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      <div className="project-actions">
-        <button onClick={() => setShowDialog(true)}>+ 链接项目</button>
-        {currentProjectId && (
-          <button className="danger" onClick={(e) => handleDelClick(e, currentProjectId)}>取消链接</button>
-        )}
-      </div>
+      {isAdmin && (
+        <div className="project-actions">
+          <button onClick={() => setShowDialog(true)}>+ 链接项目</button>
+          {currentProjectId && (
+            <button className="danger" onClick={(e) => handleDelClick(e, currentProjectId)}>取消链接</button>
+          )}
+        </div>
+      )}
 
       {/* Inline confirmation popup */}
       {confirmDel && (
