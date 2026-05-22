@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { checkVersion } from '../api';
+import { checkVersion, getVersionInfo, upgradeVersion } from '../api';
 
 export default function VersionPanel() {
   const { setSetting, setUpdateAvailable } = useApp();
@@ -25,7 +25,7 @@ export default function VersionPanel() {
 
   // Load info
   useEffect(() => {
-    fetch(`${BASE}/version/info`).then(r => r.json()).then(d => {
+    getVersionInfo().then(d => {
       setInfo(d);
       setRemote(d.remote || '');
     }).catch(() => {});
@@ -66,12 +66,7 @@ export default function VersionPanel() {
     setUpgradeError(null);
 
     try {
-      const res = await fetch(`${BASE}/version/upgrade`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ remote }),
-      });
-      const data = await res.json();
+      const data = await upgradeVersion({ remote });
       if (!data.ok) {
         setUpgradeError(data.error || '启动失败');
         setUpgrading(false);
