@@ -110,6 +110,7 @@ export const checkVersion = (opts = {}) => fetchJSON('/version/check', { method:
 export const getVersionInfo = () => fetchJSON('/version/info');
 export const upgradeVersion = (opts = {}) => fetchJSON('/version/upgrade', { method: 'POST', body: JSON.stringify(opts) });
 export const getUpgradeLog = () => fetchJSON('/version/upgrade/log');
+export const getUpgradeStatus = () => fetchJSON('/version/upgrade/status');
 
 // Init
 export const getInitStatus = () => fetchJSON('/init/status');

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeLog } from '../api';
+import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeLog, getUpgradeStatus } from '../api';
 
 export default function VersionPanel() {
   const { setSetting, setUpdateAvailable } = useApp();
@@ -51,12 +51,24 @@ export default function VersionPanel() {
     return () => clearInterval(timer);
   }, [checkInterval, remote]);
 
-  // Poll upgrade log during upgrade
+  // Poll upgrade log + status during upgrade
   useEffect(() => {
     if (!upgrading && !upgradeDone) return;
     const timer = setInterval(() => {
       getUpgradeLog().then(d => setUpgradeLog(d.log || '')).catch(() => {});
-    }, 500);
+      getUpgradeStatus().then(s => {
+        if (s.progress !== undefined) setUpgradeProgress(s.progress);
+        if (s.message) setUpgradeMsg(s.message);
+        if (s.status === 'done') {
+          setUpgradeDone(true);
+          setUpgrading(false);
+        }
+        if (s.status === 'error') {
+          setUpgradeError(s.message || '升级失败');
+          setUpgrading(false);
+        }
+      }).catch(() => {});
+    }, 800);
     return () => clearInterval(timer);
   }, [upgrading, upgradeDone]);
 
@@ -89,31 +101,7 @@ export default function VersionPanel() {
         return;
       }
 
-      // Pure simulated progress — upgrade runs in background
-      let cur = 0;
-      const tick = () => new Promise(r => setTimeout(r, 100));
-
-      // 0→5%: 1%/sec
-      while (cur < 5) { await tick(); cur = Math.min(cur + 0.1, 5); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('停服中...'); }
-      // 5→90%: 2%/sec
-      while (cur < 90) { await tick(); cur = Math.min(cur + 0.3, 90); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('升级中...'); }
-      // 90→100%: 1%/sec
-      while (cur < 100) { await tick(); cur = Math.min(cur + 0.1, 100); setUpgradeProgress(Math.round(cur)); setUpgradeMsg('启动服务...'); }
-
-      // Real health check
-      let healthy = false;
-      for (let i = 0; i < 10; i++) {
-        await new Promise(r => setTimeout(r, 1000));
-        try { const r = await fetch(`/api/health`); if (r.ok) { healthy = true; break; } } catch {}
-      }
-
-      setUpgradeProgress(100);
-      setUpgradeDone(true);
-      if (healthy) {
-        setUpgradeMsg('升级完成，请刷新页面！');
-      } else {
-        setUpgradeMsg('升级失败，请重试！');
-      }
+      // Progress driven by polling /version/upgrade/status
     } catch (err) {
       setUpgradeError(`启动失败: ${err.message}`);
     }
