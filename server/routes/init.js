@@ -402,7 +402,8 @@ router.post('/init/ccswitch-config', (req, res) => {
 // Check Claude Code update
 router.post('/init/check-claude-update', (req, res) => {
   try {
-    const current = getClaudeCodeVersion() || '';
+    const raw = getClaudeCodeVersion() || '';
+    const current = raw.replace(/^.*?(\d+\.\d+\.\d+).*$/, '$1'); // extract x.y.z from "Claude Code v1.2.3" etc
     const latest = execSync('npm view @anthropic-ai/claude-code version', { encoding: 'utf8', timeout: 10000 }).trim();
     res.json({ current, latest, hasUpdate: current && latest && current !== latest });
   } catch (err) {
