@@ -22,8 +22,18 @@ function restrictPath(req, targetPath) {
 }
 
 // List all projects
-router.get('/project', async (_req, res) => {
-  if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) return res.json([]);
+router.get('/project', async (req, res) => {
+  if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) {
+    // No projects dir — still inject user's project if non-admin
+    if (req.user && req.user.role !== 'admin') {
+      const { findUserById } = require('../auth/users');
+      const user = findUserById(req.user.userId);
+      if (user) {
+        return res.json([{ id: `user-${user.username}`, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() }]);
+      }
+    }
+    return res.json([]);
+  }
   const entries = fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true });
   const projects = [];
   const seenCwds = new Set();
@@ -61,6 +71,16 @@ router.get('/project', async (_req, res) => {
     projects.push({ id: dirName, cwd, sessionCount: files.length, updatedAt });
   }
   projects.sort((a, b) => b.updatedAt - a.updatedAt);
+
+  // Auto-inject user's homeDir as a project for non-admin users
+  if (req.user && req.user.role !== 'admin') {
+    const { findUserById } = require('../auth/users');
+    const user = findUserById(req.user.userId);
+    if (user && !seenCwds.has(user.homeDir)) {
+      projects.unshift({ id: `user-${user.username}`, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() });
+    }
+  }
+
   res.json(projects);
 });
 

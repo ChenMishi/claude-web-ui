@@ -42,8 +42,15 @@ export default function Sidebar() {
     getProjects().then(projects => {
       setProjects(projects);
       if (projects.length > 0) {
-        const saved = projects.find(p => p.id === currentProjectId);
-        const targetId = saved ? saved.id : projects[0].id;
+        // Non-admin users: auto-select their homeDir project
+        let targetId;
+        if (user && user.role !== 'admin' && user.homeDir) {
+          const homeProject = projects.find(p => p.cwd === user.homeDir);
+          targetId = homeProject ? homeProject.id : projects[0].id;
+        } else {
+          const saved = projects.find(p => p.id === currentProjectId);
+          targetId = saved ? saved.id : projects[0].id;
+        }
         if (targetId !== currentProjectId) {
           selectProject(targetId);
         } else {

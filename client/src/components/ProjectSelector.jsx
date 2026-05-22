@@ -93,15 +93,13 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
               >
                 <span className="project-dropdown-path">{p.cwd}</span>
                 <span className="project-dropdown-count">({p.sessionCount})</span>
-                {isAdmin && (
-                  <button
-                    className="project-dropdown-del"
-                    onClick={(e) => handleDelClick(e, p.id)}
-                    title="取消链接"
-                  >
-                    ×
-                  </button>
-                )}
+                <button
+                  className="project-dropdown-del"
+                  onClick={(e) => handleDelClick(e, p.id)}
+                  title="取消链接"
+                >
+                  ×
+                </button>
               </div>
             ))}
           </div>
@@ -109,10 +107,8 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
       </div>
 
       <div className="project-actions">
-        {isAdmin && (
-          <button onClick={() => setShowDialog(true)}>+ 链接项目</button>
-        )}
-        {isAdmin && currentProjectId && (
+        <button onClick={() => setShowDialog(true)}>+ 链接项目</button>
+        {currentProjectId && (
           <button className="danger" onClick={(e) => handleDelClick(e, currentProjectId)}>取消链接</button>
         )}
         <button className="new-chat-btn-inline" onClick={() => { onSelect(currentProjectId); setView('chat'); }}>

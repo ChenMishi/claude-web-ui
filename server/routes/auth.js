@@ -101,6 +101,7 @@ router.get('/auth/me', requireAuth, (req, res) => {
       username: req.user.username,
       role: req.user.role,
       avatar: user?.avatar || null,
+      homeDir: user?.homeDir || `/home/${req.user.username}`,
     },
   });
 });
