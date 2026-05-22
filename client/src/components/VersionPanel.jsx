@@ -196,7 +196,7 @@ export default function VersionPanel() {
                 upgradeMsg.includes('失败') ? (
                   <>100% — {upgradeMsg}</>
                 ) : (
-                  <>100% — 升级完成，请<a onClick={() => location.reload()} className="version-refresh-link">刷新</a>页面！</>
+                  <>100% — 升级完成，请<a href="#" onClick={e => { e.preventDefault(); location.reload(); }} className="version-refresh-link">刷新</a>页面！</>
                 )
               ) : (
                 <>{upgradeProgress}% — {upgradeMsg}</>
