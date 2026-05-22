@@ -208,7 +208,7 @@ export default function Sidebar() {
       </nav>
 
       {user && (
-        <>
+        <div className="sidebar-user-wrap">
           <div className="sidebar-user-bar" onClick={() => setMenuOpen(!menuOpen)}>
             {user.avatar ? (
               <img src={user.avatar} alt="" className="sidebar-user-avatar" />
@@ -221,7 +221,7 @@ export default function Sidebar() {
               <span className="sidebar-user-name">{user.username}</span>
               <span className="sidebar-user-role">{user.role === 'admin' ? '管理员' : '用户'}</span>
             </div>
-            <span className="sidebar-user-arrow">{menuOpen ? '▲' : '▼'}</span>
+            <span className="sidebar-user-arrow">{menuOpen ? '▼' : '▲'}</span>
           </div>
 
           {menuOpen && (
@@ -234,7 +234,7 @@ export default function Sidebar() {
               </button>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}

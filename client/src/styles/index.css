@@ -566,15 +566,18 @@ html, body, #root {
 
 /* Sidebar theme slider with animated bottom bar */
 .sidebar-theme-row {
-  padding: 6px 12px 8px;
+  padding: 6px 0 4px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  margin: 0 8px;
 }
 
 .theme-slider {
   position: relative;
   display: flex;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  gap: 0;
+  border-radius: 8px;
 }
 
 /* Sliding bottom bar indicator */
@@ -593,15 +596,19 @@ html, body, #root {
 
 .theme-slider-btn {
   flex: 1;
-  padding: 7px 1px 9px;
+  min-width: 0;
+  padding: 5px 2px 6px;
   background: transparent;
   border: none;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-muted);
   cursor: pointer;
   transition: color 0.2s;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-align: center;
+  line-height: 1.2;
 }
 
 .theme-slider-btn:hover {
@@ -2283,6 +2290,10 @@ html, body, #root {
 
 /* ── Sidebar User Info ── */
 /* ── Sidebar User Bar (bottom-left, outside nav card) ── */
+.sidebar-user-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
 .sidebar-user-bar {
   display: flex;
   align-items: center;
@@ -2296,7 +2307,6 @@ html, body, #root {
   border-radius: var(--glass-radius);
   cursor: pointer;
   transition: all 0.15s;
-  flex-shrink: 0;
 }
 .sidebar-user-bar:hover {
   background: var(--glass-bg-hover);
@@ -2336,9 +2346,12 @@ html, body, #root {
   font-size: 10px; color: var(--text-muted); flex-shrink: 0;
 }
 
-/* ── User Dropdown Menu ── */
+/* ── User Dropdown Menu (pops up above user bar) ── */
 .sidebar-user-menu {
-  margin: 0 10px 6px;
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 10px;
+  right: 10px;
   padding: 6px;
   background: var(--glass-bg);
   backdrop-filter: blur(20px);
@@ -2349,7 +2362,6 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex-shrink: 0;
 }
 .sidebar-user-menu button {
   width: 100%;
