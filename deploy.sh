@@ -141,30 +141,40 @@ setup_code() {
 
 # ---------- 安装 Node.js ----------
 install_node() {
+    local need_install=false
+
     if command -v node &>/dev/null && command -v npm &>/dev/null; then
-        log "Node.js $(node -v) / npm $(npm -v) 已就绪"
-        return
+        local major=$(node -v | sed 's/v\([0-9]*\).*/\1/')
+        if [ "$major" -ge 20 ]; then
+            log "Node.js $(node -v) / npm $(npm -v) 已就绪"
+            return
+        fi
+        warn "Node.js $(node -v) 版本过低 (需要 >= 20)，升级中..."
+        need_install=true
+    else
+        need_install=true
     fi
 
-    warn "安装 Node.js 环境..."
-
-    if command -v apt &>/dev/null; then
-        curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-        apt install -y nodejs 2>&1 | tail -1
-    elif command -v dnf &>/dev/null; then
-        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-        dnf install -y nodejs 2>&1 | tail -1
-    elif command -v yum &>/dev/null; then
-        curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
-        yum install -y nodejs 2>&1 | tail -1
-    elif command -v apk &>/dev/null; then
-        apk add --no-cache nodejs npm 2>&1 | tail -1
-    elif command -v pacman &>/dev/null; then
-        pacman -S --noconfirm nodejs npm 2>&1 | tail -1
-    else
-        err "无法识别包管理器，请手动安装 Node.js >= 18"
-        echo "  下载: https://nodejs.org/"
-        exit 1
+    if [ "$need_install" = true ]; then
+        warn "安装 Node.js 22.x..."
+        if command -v apt &>/dev/null; then
+            curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+            apt install -y nodejs 2>&1 | tail -1
+        elif command -v dnf &>/dev/null; then
+            curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+            dnf install -y nodejs 2>&1 | tail -1
+        elif command -v yum &>/dev/null; then
+            curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
+            yum install -y nodejs 2>&1 | tail -1
+        elif command -v apk &>/dev/null; then
+            apk add --no-cache nodejs npm 2>&1 | tail -1
+        elif command -v pacman &>/dev/null; then
+            pacman -S --noconfirm nodejs npm 2>&1 | tail -1
+        else
+            err "无法识别包管理器，请手动安装 Node.js >= 20"
+            echo "  下载: https://nodejs.org/"
+            exit 1
+        fi
     fi
 
     if ! command -v node &>/dev/null; then

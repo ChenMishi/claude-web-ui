@@ -78,7 +78,16 @@ ensure_node() {
         log "Node.js $(node -v) 就绪"
         return
     fi
-    warn "安装 Node.js..."
+    if command -v node &>/dev/null && command -v npm &>/dev/null; then
+        local major=$(node -v | sed 's/v\([0-9]*\).*/\1/')
+        if [ "$major" -ge 20 ]; then
+            log "Node.js $(node -v) 就绪"
+            return
+        fi
+        warn "Node.js $(node -v) 版本过低 (需要 >= 20)，升级中..."
+    else
+        warn "安装 Node.js..."
+    fi
     if command -v apt &>/dev/null; then
         curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -1
         apt install -y nodejs 2>&1 | tail -1
@@ -91,7 +100,7 @@ ensure_node() {
     elif command -v apk &>/dev/null; then
         apk add --no-cache nodejs npm 2>&1 | tail -1
     else
-        err "请先手动安装 Node.js >= 18"
+        err "请先手动安装 Node.js >= 20"
         exit 1
     fi
     log "Node.js $(node -v) 就绪"
