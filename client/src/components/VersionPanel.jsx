@@ -14,6 +14,12 @@ export default function VersionPanel() {
   const [upgradeDone, setUpgradeDone] = useState(false);
   const [upgradeError, setUpgradeError] = useState(null);
   const [upgradeLog, setUpgradeLog] = useState('');
+  const logRef = useRef(null);
+
+  // Auto-scroll log to bottom
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [upgradeLog]);
   const [checkInterval, setCheckInterval] = useState(() => {
     return parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0;
   });
@@ -207,7 +213,7 @@ export default function VersionPanel() {
               )}
             </div>
             {upgrading && upgradeLog && (
-              <pre className="version-upgrade-log">{upgradeLog}</pre>
+              <pre className="version-upgrade-log" ref={logRef}>{upgradeLog}</pre>
             )}
           </div>
         ) : (
