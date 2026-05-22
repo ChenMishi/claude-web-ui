@@ -2,7 +2,7 @@
 :root {
   --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-  --sidebar-width: 280px;
+  --sidebar-width: 300px;
 }
 
 /* ===== Dark theme (default) ===== */
@@ -183,7 +183,7 @@ html, body, #root {
 }
 
 .sidebar-header {
-  margin: 10px 12px 4px;
+  margin: 10px 10px 6px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--glass-border);
@@ -210,7 +210,7 @@ html, body, #root {
   flex: 1 1 0px;
   min-height: 0;
   overflow: hidden;
-  padding: 0 12px 4px;
+  padding: 0 10px 6px;
   transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1),
               opacity 0.35s ease;
 }
@@ -225,7 +225,7 @@ html, body, #root {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: 10px;
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -450,7 +450,7 @@ html, body, #root {
 
 /* Sidebar Nav */
 .sidebar-nav {
-  margin: 10px 12px 12px;
+  margin: 6px 10px 12px;
   padding: 8px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--glass-border);
@@ -1759,8 +1759,8 @@ html, body, #root {
   flex-direction: column;
   flex: 1;
   overflow: hidden;
-  padding: 14px;
-  gap: 14px;
+  padding: 12px;
+  gap: 12px;
 }
 
 .chat-content {
@@ -1768,7 +1768,7 @@ html, body, #root {
   flex: 1;
   overflow: hidden;
   min-height: 0;
-  gap: 14px;
+  gap: 12px;
 }
 
 .chat-main {
@@ -1787,7 +1787,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  gap: 14px;
+  gap: 12px;
 }
 
 /* ── Task Panel (glass card) ── */
