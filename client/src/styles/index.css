@@ -2379,14 +2379,14 @@ html, body, #root {
 /* ── Profile Modal ── */
 .profile-overlay {
   position: fixed; inset: 0; z-index: 300;
-  background: rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.10);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   display: flex; align-items: flex-start; justify-content: center;
   padding-top: 12vh;
 }
 .profile-modal {
-  background: var(--glass-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
   padding: 24px;
