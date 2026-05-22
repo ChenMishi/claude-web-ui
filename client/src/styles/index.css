@@ -2385,7 +2385,9 @@ html, body, #root {
   display: flex; align-items: center; justify-content: center;
 }
 .profile-modal {
-  background: var(--bg-secondary);
+  background: var(--glass-bg);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
   padding: 24px;
