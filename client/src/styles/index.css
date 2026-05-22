@@ -181,8 +181,11 @@ body::before {
 }
 
 .sidebar-header {
+  margin: 10px 12px 4px;
   padding: 16px;
-  border-bottom: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
 }
 
 .sidebar-header h2 {
