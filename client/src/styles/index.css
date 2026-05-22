@@ -29,6 +29,21 @@
   --abort-color: #ffd54f;
   --abort-bg: rgba(255, 213, 79, 0.08);
   --abort-border: rgba(255, 213, 79, 0.3);
+  /* Glass card */
+  --glass-bg: rgba(22, 33, 62, 0.55);
+  --glass-bg-hover: rgba(22, 33, 62, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.14);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --glass-radius: 16px;
+  --glass-blur: 14px;
+  /* Input field inside glass */
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-bg-focus: rgba(255, 255, 255, 0.08);
+  /* Decorative orb colors */
+  --orb-1: rgba(108, 99, 255, 0.12);
+  --orb-2: rgba(224, 64, 251, 0.08);
+  --orb-3: rgba(108, 99, 255, 0.05);
 }
 
 /* ===== Light theme ===== */
@@ -55,6 +70,21 @@
   --abort-color: #b45309;
   --abort-bg: rgba(180, 83, 9, 0.07);
   --abort-border: rgba(180, 83, 9, 0.25);
+  /* Glass card */
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-hover: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(0, 0, 0, 0.07);
+  --glass-border-hover: rgba(0, 0, 0, 0.13);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  --glass-radius: 16px;
+  --glass-blur: 14px;
+  /* Input field inside glass */
+  --input-bg: rgba(0, 0, 0, 0.04);
+  --input-bg-focus: rgba(0, 0, 0, 0.07);
+  /* Decorative orb colors */
+  --orb-1: rgba(37, 99, 235, 0.07);
+  --orb-2: rgba(8, 145, 178, 0.05);
+  --orb-3: rgba(37, 99, 235, 0.03);
 }
 
 /* ===== Warm theme ===== */
@@ -81,6 +111,21 @@
   --abort-color: #b45309;
   --abort-bg: rgba(180, 83, 9, 0.07);
   --abort-border: rgba(180, 83, 9, 0.25);
+  /* Glass card */
+  --glass-bg: rgba(250, 248, 245, 0.55);
+  --glass-bg-hover: rgba(250, 248, 245, 0.72);
+  --glass-border: rgba(0, 0, 0, 0.07);
+  --glass-border-hover: rgba(0, 0, 0, 0.13);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  --glass-radius: 16px;
+  --glass-blur: 14px;
+  /* Input field inside glass */
+  --input-bg: rgba(0, 0, 0, 0.04);
+  --input-bg-focus: rgba(0, 0, 0, 0.07);
+  /* Decorative orb colors */
+  --orb-1: rgba(124, 111, 92, 0.07);
+  --orb-2: rgba(184, 149, 106, 0.05);
+  --orb-3: rgba(124, 111, 92, 0.03);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -93,10 +138,25 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Decorative background orbs — gives the glass something to blur */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 15% 80%, var(--orb-1) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 15%, var(--orb-2) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 50%, var(--orb-3) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* Layout */
 .app-layout {
   display: flex;
   height: 100vh;
+  position: relative;
+  z-index: 1;
 }
 
 /* Sidebar */
@@ -106,8 +166,10 @@ html, body, #root {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   height: 100%;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-right: 1px solid var(--glass-border);
   transition: margin-left 0.3s,
               min-width 0.3s;
   overflow: hidden;
@@ -120,7 +182,7 @@ html, body, #root {
 
 .sidebar-header {
   padding: 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .sidebar-header h2 {
@@ -374,8 +436,11 @@ html, body, #root {
 
 /* Sidebar Nav */
 .sidebar-nav {
-  padding: 12px;
-  border-top: 1px solid var(--border);
+  margin: 10px 12px 12px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -481,6 +546,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  background: transparent;
 }
 
 /* Toggle Sidebar Button */
@@ -489,11 +555,13 @@ html, body, #root {
   top: 12px;
   left: 12px;
   z-index: 100;
-  width: 32px;
-  height: 32px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   color: var(--text-muted);
   font-size: 16px;
   cursor: pointer;
@@ -501,9 +569,10 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  box-shadow: var(--glass-shadow);
 }
 
-.toggle-sidebar:hover { border-color: var(--accent); color: var(--text-primary); }
+.toggle-sidebar:hover { border-color: var(--accent); color: var(--text-primary); background: var(--glass-bg-hover); }
 
 /* Chat */
 .chat-container {
@@ -511,11 +580,17 @@ html, body, #root {
   overflow-y: auto;
   overflow-x: hidden;
   overflow-anchor: none;
-  padding: 24px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   scroll-behavior: smooth;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
 }
 
 .chat-container::-webkit-scrollbar { width: 6px; }
@@ -563,16 +638,16 @@ html, body, #root {
 .welcome-config input {
   width: 100%;
   padding: 10px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   color: var(--text-primary);
   font-size: 14px;
   outline: none;
 }
 
 .welcome-config select:focus,
-.welcome-config input:focus { border-color: var(--accent); }
+.welcome-config input:focus { border-color: var(--accent); background: var(--input-bg-focus); }
 
 /* Chat Messages */
 .message {
@@ -588,15 +663,15 @@ html, body, #root {
 
 .message.user {
   align-self: flex-end;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
+  background: rgba(108, 99, 255, 0.1);
+  border: 1px solid rgba(108, 99, 255, 0.18);
   border-bottom-right-radius: 4px;
 }
 
 .message.assistant {
   align-self: flex-start;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  background: rgba(128, 128, 128, 0.06);
+  border: 1px solid rgba(128, 128, 128, 0.08);
   border-bottom-left-radius: 4px;
 }
 
@@ -629,8 +704,8 @@ html, body, #root {
 .message-content p:last-child { margin-bottom: 0; }
 
 .message-content pre {
-  background: var(--code-bg);
-  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   padding: 14px;
   overflow-x: auto;
@@ -643,7 +718,7 @@ html, body, #root {
 }
 
 .message-content code {
-  background: var(--code-bg);
+  background: rgba(0, 0, 0, 0.1);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: var(--font-mono);
@@ -709,8 +784,8 @@ html, body, #root {
   display: flex;
   gap: 4px;
   padding: 14px 18px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 12px;
   border-bottom-left-radius: 4px;
 }
@@ -732,8 +807,14 @@ html, body, #root {
 
 /* Input Area */
 .input-area {
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
+  padding: 16px 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  flex-shrink: 0;
 }
 
 .input-wrapper {
@@ -745,9 +826,9 @@ html, body, #root {
 .input-wrapper textarea {
   flex: 1;
   padding: 12px 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
   color: var(--text-primary);
   font-family: var(--font);
   font-size: 14px;
@@ -756,9 +837,13 @@ html, body, #root {
   outline: none;
   min-height: 48px;
   max-height: 160px;
+  transition: border-color 0.2s, background 0.2s;
 }
 
-.input-wrapper textarea:focus { border-color: var(--accent); }
+.input-wrapper textarea:focus {
+  border-color: var(--accent);
+  background: var(--input-bg-focus);
+}
 .input-wrapper textarea::placeholder { color: var(--text-muted); }
 
 .send-btn, .stop-btn {
@@ -784,13 +869,13 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   padding: 0 6px;
   height: 36px;
   align-self: center;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .input-select-icon {
@@ -817,14 +902,17 @@ html, body, #root {
 
 /* Slash command dropdown */
 .slash-commands {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
   margin-bottom: 8px;
   padding: 6px;
   max-height: 260px;
   overflow-y: auto;
   scrollbar-width: thin;
+  box-shadow: var(--glass-shadow);
 }
 .slash-cmd-item {
   display: flex;
@@ -867,13 +955,15 @@ html, body, #root {
   min-width: 200px;
   max-width: 100%;
   margin: 4px 0;
-  border: 1px solid rgba(156, 163, 175, 0.3);
-  border-left: 3px solid rgba(156, 163, 175, 0.5);
-  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid rgba(156, 163, 175, 0.4);
+  border-radius: 10px;
   overflow: hidden;
   flex-shrink: 0;
-  background: rgba(156, 163, 175, 0.04);
-  opacity: 0.85;
+  background: rgba(156, 163, 175, 0.05);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0.9;
 }
 
 .thinking-header {
@@ -939,13 +1029,17 @@ html, body, #root {
 .system-msg.error {
   color: var(--danger);
   background: var(--danger-bg);
-  border: 1px solid rgba(255, 107, 107, 0.3);
+  border: 1px solid rgba(255, 107, 107, 0.25);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .system-msg.abort {
   color: var(--abort-color);
   background: var(--abort-bg);
   border: 1px solid var(--abort-border);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .system-msg p { margin-bottom: 4px; }
@@ -1444,11 +1538,13 @@ html, body, #root {
 
 /* Ask user dialog — compact inline card */
 .ask-user-dialog {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
   border-left: 3px solid var(--accent);
-  border-radius: 8px;
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: 14px 16px;
   margin: 6px 0;
   align-self: flex-start;
   width: auto;
@@ -1468,11 +1564,13 @@ html, body, #root {
   min-width: 200px;
   max-width: 100%;
   margin: 4px 0;
-  border: 1px solid rgba(108, 99, 255, 0.4);
+  border: 1px solid rgba(108, 99, 255, 0.25);
   border-radius: 10px;
   overflow: hidden;
   flex-shrink: 0;
-  background: rgba(108, 99, 255, 0.08);
+  background: rgba(108, 99, 255, 0.06);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .tool-call-header {
@@ -1507,8 +1605,8 @@ html, body, #root {
 }
 
 .tool-call-detail pre {
-  background: var(--code-block-bg);
-  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--glass-border);
   border-radius: 6px;
   padding: 16px;
   overflow: auto;
@@ -1531,16 +1629,18 @@ html, body, #root {
   min-width: 200px;
   max-width: 100%;
   margin: 4px 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: 10px;
   overflow: hidden;
   flex-shrink: 0;
-  background: rgba(76, 175, 80, 0.06);
+  background: rgba(76, 175, 80, 0.05);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .tool-result-block.error {
-  background: rgba(255, 107, 107, 0.08);
-  border-color: rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.06);
+  border-color: rgba(255, 107, 107, 0.25);
 }
 
 .tool-result-header {
@@ -1566,8 +1666,8 @@ html, body, #root {
 }
 
 .tool-result-content pre {
-  background: var(--code-block-bg);
-  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--glass-border);
   border-radius: 6px;
   padding: 16px;
   overflow: auto;
@@ -1638,6 +1738,8 @@ html, body, #root {
   flex-direction: column;
   flex: 1;
   overflow: hidden;
+  padding: 14px;
+  gap: 14px;
 }
 
 .chat-content {
@@ -1645,6 +1747,7 @@ html, body, #root {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  gap: 14px;
 }
 
 .chat-main {
@@ -1655,7 +1758,7 @@ html, body, #root {
   min-width: 0;
 }
 
-/* ── Execution Panel (CLI-style step log, right sidebar) ── */
+/* ── Right Panels (floating cards, no unified background) ── */
 .right-panels {
   width: 320px;
   min-width: 260px;
@@ -1663,17 +1766,21 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-left: 1px solid var(--border);
-  background: var(--bg-secondary);
+  gap: 14px;
 }
 
-/* ── Task Panel (subtask progress) ── */
+/* ── Task Panel (glass card) ── */
 .task-panel {
-  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
 }
 
 .task-panel-header {
@@ -1681,12 +1788,13 @@ html, body, #root {
   padding: 10px 14px;
   user-select: none;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--glass-border);
 }
 .task-panel-title { font-size: 12px; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
 
 .task-panel-list {
   overflow-y: auto;
-  height: 220px;
+  height: 200px;
   flex: none;
 }
 
@@ -1734,18 +1842,25 @@ html, body, #root {
   opacity: 0.6;
 }
 
-/* ── Execution Panel (now inside right-panels, no border-left) ── */
+/* ── Execution Panel (glass card) ── */
 .exec-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
 }
 .exec-panel-header {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 14px;
   user-select: none;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--glass-border);
 }
 .exec-panel-title { font-size: 12px; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
 
