@@ -7,7 +7,7 @@ import SessionList from './SessionList';
 const THEMES = [
   { key: 'dark', icon: '🌙', label: '深色' },
   { key: 'light', icon: '☀️', label: '白色' },
-  { key: 'warm', icon: '🍂', label: '暖色' },
+  { key: 'warm', icon: '🌿', label: '青绿' },
 ];
 
 export default function Sidebar() {

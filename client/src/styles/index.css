@@ -89,46 +89,46 @@
   --orb-3: rgba(37, 99, 235, 0.06);
 }
 
-/* ===== Warm theme ===== */
+/* ===== Teal theme (青绿) ===== */
 [data-theme="warm"] {
-  --bg-primary: #faf8f5;
-  --bg-secondary: #f0ede8;
-  --bg-tertiary: #e8e4de;
-  --border: #d5d0c8;
-  --text-primary: #3d3929;
-  --text-muted: #8c856d;
-  --accent: #7c6f5c;
-  --accent-hover: #6b5f4e;
-  --danger: #c5554a;
-  --danger-bg: rgba(197, 85, 74, 0.07);
-  --success: #5a8a4a;
-  --code-bg: #f0ede8;
-  --code-block-bg: #f5f2ec;
-  --code-block-text: #3d3929;
-  --heading-color: #5c4f3c;
-  --link-color: #7c6f5c;
-  --gradient-start: #7c6f5c;
-  --gradient-end: #b8956a;
-  --user-label: #b8956a;
+  --bg-primary: #f2fbf8;
+  --bg-secondary: #e6f5f1;
+  --bg-tertiary: #d8f0e8;
+  --border: #c0d8cf;
+  --text-primary: #1a3b32;
+  --text-muted: #5f8b7c;
+  --accent: #0d9488;
+  --accent-hover: #0f766e;
+  --danger: #e53935;
+  --danger-bg: rgba(229, 57, 53, 0.07);
+  --success: #2e7d32;
+  --code-bg: #e6f5f1;
+  --code-block-bg: #eef9f5;
+  --code-block-text: #1a3b32;
+  --heading-color: #0f766e;
+  --link-color: #0d9488;
+  --gradient-start: #0d9488;
+  --gradient-end: #14b8a6;
+  --user-label: #14b8a6;
   --abort-color: #b45309;
   --abort-bg: rgba(180, 83, 9, 0.07);
   --abort-border: rgba(180, 83, 9, 0.25);
   /* Glass card */
-  --glass-bg: rgba(250, 248, 245, 0.55);
-  --glass-bg-hover: rgba(250, 248, 245, 0.72);
+  --glass-bg: rgba(242, 251, 248, 0.55);
+  --glass-bg-hover: rgba(242, 251, 248, 0.72);
   --glass-border: rgba(0, 0, 0, 0.07);
   --glass-border-hover: rgba(0, 0, 0, 0.13);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
   --glass-radius: 16px;
   --glass-blur: 14px;
-  --glass-dropdown-bg: #faf8f5;
+  --glass-dropdown-bg: #f2fbf8;
   /* Input field inside glass */
   --input-bg: rgba(0, 0, 0, 0.04);
   --input-bg-focus: rgba(0, 0, 0, 0.07);
   /* Decorative orb colors */
-  --orb-1: rgba(124, 111, 92, 0.15);
-  --orb-2: rgba(184, 149, 106, 0.10);
-  --orb-3: rgba(124, 111, 92, 0.06);
+  --orb-1: rgba(13, 148, 136, 0.15);
+  --orb-2: rgba(20, 184, 166, 0.10);
+  --orb-3: rgba(13, 148, 136, 0.06);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
