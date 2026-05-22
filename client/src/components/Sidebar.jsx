@@ -135,7 +135,7 @@ export default function Sidebar() {
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
         <h2>Claude Web UI</h2>
-        <div className="sidebar-version">v1.1.1</div>
+        <div className="sidebar-version">v1.1.2</div>
       </div>
 
       <div className="sidebar-body">
