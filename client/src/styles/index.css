@@ -207,6 +207,7 @@ html, body, #root {
   flex: 1 1 0px;
   min-height: 0;
   overflow: hidden;
+  padding: 0 12px 4px;
   transition: flex 0.4s cubic-bezier(0.4, 0, 0.2, 1),
               opacity 0.35s ease;
 }
@@ -222,10 +223,16 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   padding: 12px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
 }
 
-.sidebar-body::-webkit-scrollbar { width: 4px; }
-.sidebar-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.sidebar-body-inner::-webkit-scrollbar { width: 4px; }
+.sidebar-body-inner::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* Project Selector */
 .project-selector {
@@ -239,13 +246,13 @@ html, body, #root {
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .project-dropdown-trigger:hover { border-color: var(--accent); }
@@ -270,13 +277,15 @@ html, body, #root {
   left: 0;
   right: 0;
   z-index: 50;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
   margin-top: 4px;
   max-height: 240px;
   overflow-y: auto;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  box-shadow: var(--glass-shadow);
 }
 
 .project-dropdown-empty {
