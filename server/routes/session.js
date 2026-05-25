@@ -265,16 +265,23 @@ async function generateTitleText(prompt) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 100,
+        max_tokens: 50,
         messages: [{ role: 'user', content: `用不超过15个汉字为以下对话生成一个简短的标题，直接返回标题文本，不要带引号、不要解释：${prompt}` }],
         stream: false,
+        thinking: { type: 'disabled' },
       }),
       signal: controller.signal,
     });
     if (!proxyRes.ok) return null;
     const data = await proxyRes.json();
     const textBlock = (data.content || []).find(c => c.type === 'text');
-    return (textBlock?.text || '').trim().slice(0, 30) || null;
+    if (textBlock?.text) return textBlock.text.trim().slice(0, 30);
+    // Fallback: try thinking block or any string content
+    for (const c of (data.content || [])) {
+      if (c.text) return String(c.text).trim().slice(0, 30);
+      if (c.thinking) return String(c.thinking).trim().slice(0, 30);
+    }
+    return null;
   } catch {
     return null;
   } finally {
