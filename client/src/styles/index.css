@@ -1452,9 +1452,7 @@ html, body, #root {
 .confirm-popup {
   position: fixed;
   transform: translate(-50%, -100%);
-  background: var(--glass-bg);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   padding: 14px 18px;
