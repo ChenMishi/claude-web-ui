@@ -22,6 +22,7 @@ export default function InitPanel() {
   const [testResult, setTestResult] = useState(null);
   const [installingEnv, setInstallingEnv] = useState(null);
   const [envProgress, setEnvProgress] = useState({});
+  const [saveMsg, setSaveMsg] = useState('');
 
   // Parse a URL string like "http://127.0.0.1:15721" into host and port
   const parseProxyUrl = (urlStr) => {
@@ -199,11 +200,18 @@ export default function InitPanel() {
   }, []);
 
   const handleSaveConfig = useCallback(async () => {
+    setSaveMsg('');
     try {
       const fullUrl = `${proxyUrl}:${proxyPort}`;
       const d = await saveInitConfig({ proxyUrl: fullUrl, proxyPort });
-      if (d.ok) setStatus(prev => ({ ...prev, saved: true }));
-    } catch {}
+      if (d.ok) {
+        setStatus(prev => ({ ...prev, saved: true }));
+        setSaveMsg('✅ 配置已保存');
+        setTimeout(() => setSaveMsg(''), 2000);
+      }
+    } catch (err) {
+      setSaveMsg(`❌ 保存失败: ${err.message}`);
+    }
   }, [proxyUrl, proxyPort]);
 
   const handleTestProxy = useCallback(async () => {
@@ -336,6 +344,7 @@ export default function InitPanel() {
             <button className="init-btn init-btn-save" onClick={handleSaveConfig}>保存配置</button>
           </div>
           {testResult && <div className={`init-test-result ${testResult}`}>{testResult === 'success' ? '✅ 连接成功' : '❌ 连接失败'}</div>}
+          {saveMsg && <div className="init-test-result" style={{ color: saveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{saveMsg}</div>}
         </div>
       )}
 
