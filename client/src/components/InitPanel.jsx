@@ -23,11 +23,25 @@ export default function InitPanel() {
   const [installingEnv, setInstallingEnv] = useState(null);
   const [envProgress, setEnvProgress] = useState({});
 
+  // Parse a URL string like "http://127.0.0.1:15721" into host and port
+  const parseProxyUrl = (urlStr) => {
+    try {
+      const u = new URL(urlStr);
+      const host = `${u.protocol}//${u.hostname}`;
+      const port = u.port || '15721';
+      return { host, port };
+    } catch {
+      return { host: urlStr || 'http://127.0.0.1', port: '15721' };
+    }
+  };
+
   const loadStatus = useCallback(() => {
     getInitStatus().then(d => {
       setStatus(d);
-      setProxyUrl(d.claudeProxyUrl || d.proxyUrl || 'http://127.0.0.1:15721');
-      setProxyPort(String(d.proxyPort || 15721));
+      const fullUrl = d.claudeProxyUrl || d.proxyUrl || 'http://127.0.0.1:15721';
+      const { host, port } = parseProxyUrl(fullUrl);
+      setProxyUrl(host);
+      setProxyPort(port);
     }).catch(() => {});
   }, []);
 
@@ -36,8 +50,10 @@ export default function InitPanel() {
     setEnvProgress({}); // clear previous results
     const res = await getInitStatus();
     setStatus(res);
-    setProxyUrl(res.claudeProxyUrl || res.proxyUrl || 'http://127.0.0.1:15721');
-    setProxyPort(String(res.proxyPort || 15721));
+    const fullUrl = res.claudeProxyUrl || res.proxyUrl || 'http://127.0.0.1:15721';
+    const { host, port } = parseProxyUrl(fullUrl);
+    setProxyUrl(host);
+    setProxyPort(port);
     setEnvChecked(true);
 
     const items = ['node', 'npm', 'git', 'buildtools', 'sqlite3', 'curl', 'os'];
@@ -184,7 +200,8 @@ export default function InitPanel() {
 
   const handleSaveConfig = useCallback(async () => {
     try {
-      const d = await saveInitConfig({ proxyUrl: `${proxyUrl}:${proxyPort}`, proxyPort });
+      const fullUrl = `${proxyUrl}:${proxyPort}`;
+      const d = await saveInitConfig({ proxyUrl: fullUrl, proxyPort });
       if (d.ok) setStatus(prev => ({ ...prev, saved: true }));
     } catch {}
   }, [proxyUrl, proxyPort]);
