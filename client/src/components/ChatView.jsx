@@ -366,7 +366,15 @@ export default function ChatView() {
         if (usage) execTokens(toTokens(usage));
         appendMessage({ role: 'thinking', content: thinkingText, timestamp: Date.now() });
       },
-      onAssistant: ({ content, usage }) => {
+      onAssistant: ({ content, usage, session_id }) => {
+        // Reload session list as soon as we have the session ID for new sessions
+        if (session_id && !currentSessionId) {
+          setSessionId(session_id);
+          getProjects().then(setProjects).catch(() => {});
+          if (currentProjectId) {
+            getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
+          }
+        }
         if (!hasAssistantText.current) {
           hasAssistantText.current = true;
           textAccum.current = content;
