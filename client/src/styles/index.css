@@ -907,13 +907,13 @@ html, body, #root {
 .input-wrapper textarea::placeholder { color: var(--text-muted); }
 
 .send-btn, .stop-btn {
-  padding: 10px 20px;
+  padding: 6px 18px;
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  height: 48px;
+  height: 36px;
   white-space: nowrap;
 }
 
