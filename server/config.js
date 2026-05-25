@@ -15,7 +15,20 @@ const USERS_FILE = path.join(os.homedir(), '.claude-web-ui', 'users.json');
 const JWT_SECRET_FILE = path.join(os.homedir(), '.claude-web-ui', '.jwt-secret');
 const OLD_AUTH_TOKEN = process.env.AUTH_TOKEN || '';
 
+// Resolve user-specific data directory (non-admin users get ~/.claude-web-ui in their homeDir)
+function getUserDataDir(authUser) {
+  if (!authUser || authUser.role === 'admin') {
+    return { projects: CLAUDE_PROJECTS_DIR, sessions: SESSIONS_DIR };
+  }
+  const base = authUser.homeDir || `/home/${authUser.username}`;
+  return {
+    projects: path.join(base, '.claude-web-ui', 'projects'),
+    sessions: path.join(base, '.claude-web-ui', 'sessions'),
+  };
+}
+
 module.exports = {
   PORT, PROXY_BASE, SESSIONS_DIR, CLAUDE_PROJECTS_DIR, LOG_DIR,
   AUTH_MODE, ADMIN_PASSWORD, JWT_SECRET, USERS_FILE, JWT_SECRET_FILE, OLD_AUTH_TOKEN,
+  getUserDataDir,
 };

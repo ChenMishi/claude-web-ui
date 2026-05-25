@@ -2,12 +2,48 @@ const { Router } = require('express');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { CLAUDE_PROJECTS_DIR } = require('../config');
+const { CLAUDE_PROJECTS_DIR, getUserDataDir } = require('../config');
 const { dirNameToCwd, isPathInside, parseTitleFromJsonl } = require('../utils');
 
 const router = Router();
 
 const IGNORE = new Set(['.git', 'node_modules', '.next', 'dist', '.cache', '.DS_Store']);
+
+// Resolve the real project directory for a given dirName, checking user-specific path first
+function resolveProjectPath(dirName, authUser) {
+  const { projects: userProjects } = getUserDataDir(authUser);
+  const userPath = path.join(userProjects, dirName);
+  if (fs.existsSync(userPath)) return userPath;
+  const globalPath = path.join(CLAUDE_PROJECTS_DIR, dirName);
+  if (fs.existsSync(globalPath)) return globalPath;
+  return (authUser && authUser.role !== 'admin') ? userPath : globalPath;
+}
+
+// Scan a directory for JSONL files and build project info
+function scanProjectDir(dirPath, dirName) {
+  let files = [];
+  try { files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl')); } catch { return null; }
+  let cwd = null;
+  const cwdFile = path.join(dirPath, '.cwd');
+  if (fs.existsSync(cwdFile)) {
+    try { cwd = fs.readFileSync(cwdFile, 'utf8').trim(); } catch {}
+  }
+  if (!cwd) {
+    for (const f of files) {
+      try {
+        const firstLine = fs.readFileSync(path.join(dirPath, f), 'utf8').split('\n').find(l => l.includes('"cwd"'));
+        if (firstLine) { const obj = JSON.parse(firstLine); if (typeof obj.cwd === 'string') { cwd = obj.cwd; break; } }
+      } catch {}
+    }
+  }
+  if (!cwd) cwd = dirNameToCwd(dirName);
+  let updatedAt = 0;
+  for (const f of files) {
+    try { const stat = fs.statSync(path.join(dirPath, f)); if (stat.mtimeMs > updatedAt) updatedAt = stat.mtimeMs; } catch {}
+  }
+  if (updatedAt === 0) { try { updatedAt = fs.statSync(dirPath).mtimeMs; } catch {} }
+  return { id: dirName, cwd, sessionCount: files.length, updatedAt };
+}
 
 // Restrict path access for regular users to their home directory
 function restrictPath(req, targetPath) {
@@ -21,71 +57,52 @@ function restrictPath(req, targetPath) {
   return null; // allowed
 }
 
-// List all projects
+// List all projects — scans both global and user-specific directories
 router.get('/project', async (req, res) => {
-  if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) {
-    // No projects dir — still inject user's project if non-admin
-    if (req.user && req.user.role !== 'admin') {
-      const { findUserById } = require('../auth/users');
-      const user = findUserById(req.user.userId);
-      if (user) {
-        return res.json([{ id: `user-${user.username}`, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() }]);
-      }
-    }
-    return res.json([]);
-  }
-  const entries = fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true });
   const projects = [];
   const seenCwds = new Set();
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const dirName = entry.name;
-    const dirPath = path.join(CLAUDE_PROJECTS_DIR, dirName);
-    const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl'));
-    // Prefer cwd from .cwd metadata file, then JSONL metadata, then dirNameToCwd
-    let cwd = null;
-    const cwdFile = path.join(dirPath, '.cwd');
-    if (fs.existsSync(cwdFile)) {
-      try { cwd = fs.readFileSync(cwdFile, 'utf8').trim(); } catch {}
+  const seenDirs = new Set();
+
+  // Helper: scan a base dir for project entries
+  const scanDir = (baseDir) => {
+    if (!fs.existsSync(baseDir)) return;
+    const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const dirName = entry.name;
+      const dirPath = path.join(baseDir, dirName);
+      if (seenDirs.has(dirName)) continue;
+      seenDirs.add(dirName);
+      const info = scanProjectDir(dirPath, dirName);
+      if (!info || seenCwds.has(info.cwd)) continue;
+      seenCwds.add(info.cwd);
+      projects.push(info);
     }
-    if (!cwd) {
-      for (const f of files) {
-        try {
-          const firstLine = fs.readFileSync(path.join(dirPath, f), 'utf8').split('\n').find(l => l.includes('"cwd"'));
-          if (firstLine) {
-            const obj = JSON.parse(firstLine);
-            if (typeof obj.cwd === 'string') { cwd = obj.cwd; break; }
-          }
-        } catch {}
-      }
-    }
-    if (!cwd) cwd = dirNameToCwd(dirName);
-    // Deduplicate by cwd
-    if (seenCwds.has(cwd)) continue;
-    seenCwds.add(cwd);
-    let updatedAt = 0;
-    for (const f of files) {
-      try { const stat = fs.statSync(path.join(dirPath, f)); if (stat.mtimeMs > updatedAt) updatedAt = stat.mtimeMs; } catch {}
-    }
-    if (updatedAt === 0) { try { updatedAt = fs.statSync(dirPath).mtimeMs; } catch {} }
-    projects.push({ id: dirName, cwd, sessionCount: files.length, updatedAt });
+  };
+
+  // Scan global projects dir (admin's data)
+  scanDir(CLAUDE_PROJECTS_DIR);
+
+  // Scan user-specific projects dir (non-admin's data)
+  const { projects: userProjectsDir } = getUserDataDir(req.user);
+  if (userProjectsDir !== CLAUDE_PROJECTS_DIR) {
+    scanDir(userProjectsDir);
   }
+
   projects.sort((a, b) => b.updatedAt - a.updatedAt);
 
-  // For non-admin users, only show their homeDir project (filter out everything else)
+  // For non-admin users, only show their homeDir project
   if (req.user && req.user.role !== 'admin') {
     const { findUserById } = require('../auth/users');
     const user = findUserById(req.user.userId);
     if (user) {
       const myProject = projects.find(p => p.cwd === user.homeDir);
       if (myProject) {
-        projects = [myProject];
-      } else {
-        projects = [{ id: `user-${user.username}`, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() }];
+        return res.json([myProject]);
       }
-    } else {
-      projects = [];
+      return res.json([{ id: `user-${user.username}`, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() }]);
     }
+    return res.json([]);
   }
 
   res.json(projects);
@@ -160,7 +177,7 @@ router.delete('/project/:id', (req, res) => {
   if (!id || id.includes('..') || id.includes('/')) {
     return res.status(400).json({ error: 'Invalid project id' });
   }
-  const dirPath = path.join(CLAUDE_PROJECTS_DIR, id);
+  const dirPath = resolveProjectPath(id, req.user);
   if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Project not found' });
 
   // Non-admin users can only unlink projects within their homeDir
@@ -185,7 +202,7 @@ router.delete('/project/:id', (req, res) => {
 // List sessions for a project
 router.get('/project/:id/session', (req, res) => {
   const { id } = req.params;
-  const dirPath = path.join(CLAUDE_PROJECTS_DIR, id);
+  const dirPath = resolveProjectPath(id, req.user);
   if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Project not found' });
   const cwd = dirNameToCwd(id);
   const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl'));
@@ -211,9 +228,9 @@ router.get('/project/:id/session', (req, res) => {
 // File tree
 router.get('/project/:id/tree', (req, res) => {
   const { id } = req.params;
-  // Prefer .cwd metadata file, fallback to dirNameToCwd
+  const projDir = resolveProjectPath(id, req.user);
   let cwd = null;
-  const cwdFile = path.join(CLAUDE_PROJECTS_DIR, id, '.cwd');
+  const cwdFile = path.join(projDir, '.cwd');
   if (fs.existsSync(cwdFile)) {
     try { cwd = fs.readFileSync(cwdFile, 'utf8').trim(); } catch {}
   }

@@ -2,7 +2,7 @@ const { Router } = require('express');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR } = require('../config');
+const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR, getUserDataDir } = require('../config');
 const { dirNameToCwd, parseTitleFromJsonl } = require('../utils');
 const { findUserById } = require('../auth/users');
 const {
@@ -240,12 +240,51 @@ function buildSDKOptions(runtime, body, authUser) {
   return options;
 }
 
+// ── User-specific data migration ──
+// After SDK executes, move session files to user's home directory
+function migrateSessionToUserDir(sessionId, cwd, authUser) {
+  const { projects: userProjectsDir } = getUserDataDir(authUser);
+  if (userProjectsDir === CLAUDE_PROJECTS_DIR) return; // admin — no migration needed
+
+  const { getProjectDirName } = require('../store');
+  const projectDir = getProjectDirName(cwd);
+  const srcDir = path.join(CLAUDE_PROJECTS_DIR, projectDir);
+  const srcFile = path.join(srcDir, `${sessionId}.jsonl`);
+  const dstDir = path.join(userProjectsDir, projectDir);
+  const dstFile = path.join(dstDir, `${sessionId}.jsonl`);
+
+  if (!fs.existsSync(srcFile)) return;
+  try {
+    fs.mkdirSync(dstDir, { recursive: true });
+    fs.copyFileSync(srcFile, dstFile);
+    // Write .cwd marker
+    fs.writeFileSync(path.join(dstDir, '.cwd'), cwd, 'utf8');
+    // Keep original as backup, write a .migrated marker
+    fs.writeFileSync(path.join(dstDir, '.migrated'), new Date().toISOString(), 'utf8');
+  } catch (err) {
+    console.error(`[migrate] Failed to migrate session ${sessionId}:`, err.message);
+  }
+}
+
+// Resolve project directory for a user — check user-specific dir first, fallback to global
+function resolveProjectDir(cwd, authUser) {
+  const { projects: userProjectsDir } = getUserDataDir(authUser);
+  const { getProjectDirName } = require('../store');
+  const projectDir = getProjectDirName(cwd);
+  const userPath = path.join(userProjectsDir, projectDir);
+  if (fs.existsSync(userPath)) return userPath;
+  const globalPath = path.join(CLAUDE_PROJECTS_DIR, projectDir);
+  if (fs.existsSync(globalPath)) return globalPath;
+  // Neither exists — return user path for creation
+  return (authUser && authUser.role !== 'admin') ? userPath : globalPath;
+}
+
 // Shared helper — generate a short AI title using the proxy
-async function generateSessionTitle(sessionId, prompt, cwd) {
+async function generateSessionTitle(sessionId, prompt, cwd, authUser) {
   try {
     const title = await generateTitleText(prompt);
     if (title) {
-      storeSessionTitle(sessionId, title, cwd);
+      storeSessionTitle(sessionId, title, cwd, authUser);
     }
     return title || null;
   } catch (err) {
@@ -290,8 +329,9 @@ async function generateTitleText(prompt) {
 }
 
 // Store title .meta.json to disk
-function storeSessionTitle(sessionId, title, cwd) {
-  const dirPath = path.join(CLAUDE_PROJECTS_DIR, require('../store').getProjectDirName(cwd || ''));
+function storeSessionTitle(sessionId, title, cwd, authUser) {
+  const { projects: projectsDir } = getUserDataDir(authUser);
+  const dirPath = path.join(projectsDir, require('../store').getProjectDirName(cwd || ''));
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
   fs.writeFileSync(path.join(dirPath, `${sessionId}.meta.json`), JSON.stringify({ title }), 'utf8');
 }
@@ -581,7 +621,12 @@ router.post('/session/:id/message', async (req, res) => {
     if (wantsStream) {
       // If we have a pending title from before and now know the sessionId, store it
       if (runtime.pendingTitle && runtime.sessionId && isNew) {
-        storeSessionTitle(runtime.sessionId, runtime.pendingTitle, runtime.cwd);
+        storeSessionTitle(runtime.sessionId, runtime.pendingTitle, runtime.cwd, req.user);
+      }
+
+      // Migrate session data to user-specific directory
+      if (runtime.sessionId) {
+        migrateSessionToUserDir(runtime.sessionId, runtime.cwd, req.user);
       }
 
       broadcast(runtime, 'done', {
@@ -682,7 +727,7 @@ router.post('/session/:id/title', async (req, res) => {
   const prompt = (req.body.prompt || '').trim();
   if (!prompt) return res.status(400).json({ error: 'prompt is required' });
 
-  const title = await generateSessionTitle(id, prompt, req.body.cwd);
+  const title = await generateSessionTitle(id, prompt, req.body.cwd, req.user);
   res.json({ title });
 });
 
