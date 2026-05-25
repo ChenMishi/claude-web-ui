@@ -39,7 +39,7 @@ export default function InitPanel() {
   const loadStatus = useCallback(() => {
     getInitStatus().then(d => {
       setStatus(d);
-      const fullUrl = d.claudeProxyUrl || d.proxyUrl || 'http://127.0.0.1:15721';
+      const fullUrl = d.proxyUrl || d.claudeProxyUrl || 'http://127.0.0.1:15721';
       const { host, port } = parseProxyUrl(fullUrl);
       setProxyUrl(host);
       setProxyPort(port);
@@ -51,7 +51,7 @@ export default function InitPanel() {
     setEnvProgress({}); // clear previous results
     const res = await getInitStatus();
     setStatus(res);
-    const fullUrl = res.claudeProxyUrl || res.proxyUrl || 'http://127.0.0.1:15721';
+    const fullUrl = res.proxyUrl || res.claudeProxyUrl || 'http://127.0.0.1:15721';
     const { host, port } = parseProxyUrl(fullUrl);
     setProxyUrl(host);
     setProxyPort(port);
