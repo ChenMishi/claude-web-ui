@@ -29,38 +29,58 @@ export default function LoginPage() {
 
   return (
     <div className="login-overlay">
+      {/* Decorative background */}
+      <div className="login-bg-orb login-orb-1" />
+      <div className="login-bg-orb login-orb-2" />
+
       <div className="login-card">
+        {/* Logo area */}
         <div className="login-header">
+          <div className="login-logo">CW</div>
           <h1>Claude Web UI</h1>
-          <p>请登录以继续</p>
+          <p>AI 驱动的智能工作助手</p>
         </div>
+
+        {/* Divider */}
+        <div className="login-divider">
+          <span>账号登录</span>
+        </div>
+
         <form onSubmit={handleSubmit}>
           <div className="login-field">
-            <label>用户名</label>
+            <span className="login-field-icon">👤</span>
             <input
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              placeholder="请输入用户名"
+              placeholder="用户名"
               autoFocus
               autoComplete="username"
             />
           </div>
           <div className="login-field">
-            <label>密码</label>
+            <span className="login-field-icon">🔒</span>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="请输入密码"
+              placeholder="密码"
               autoComplete="current-password"
             />
           </div>
+
           {error && <div className="login-error">{error}</div>}
+
           <button type="submit" className="login-btn" disabled={loading}>
-            {loading ? '登录中...' : '登录'}
+            {loading ? '登录中...' : '登 录'}
           </button>
         </form>
+
+        {/* Footer */}
+        <div className="login-footer">
+          <span>v1.1.2</span>
+          <span>Secure · Private</span>
+        </div>
       </div>
     </div>
   );
