@@ -219,6 +219,108 @@ install_deps() {
     cd "$PROJECT_DIR"
 }
 
+# ---------- 确保 SDK 二进制可正常运行 ----------
+ensure_sdk_binary() {
+    cd "$PROJECT_DIR"
+
+    # Find the SDK binary
+    local sdk_bin=""
+    for candidate in \
+        node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude \
+        node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl/claude \
+        node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64/claude \
+        node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl/claude \
+    ; do
+        if [ -f "$candidate" ]; then
+            sdk_bin="$candidate"
+            break
+        fi
+    done
+
+    if [ -z "$sdk_bin" ]; then
+        warn "未找到 SDK 二进制文件，请手动安装 @anthropic-ai/claude-agent-sdk"
+        return
+    fi
+
+    log "检查 SDK 二进制: $sdk_bin"
+
+    # 1. Fix permissions
+    if [ ! -x "$sdk_bin" ]; then
+        warn "SDK 二进制缺少可执行权限，正在修复..."
+        chmod +x "$sdk_bin"
+    fi
+
+    # 2. Quick smoke test — try to run with --help or --version
+    if "$sdk_bin" --version &>/dev/null; then
+        log "SDK 二进制自检通过"
+        return
+    fi
+
+    # 3. Check for missing shared libraries
+    warn "SDK 二进制无法启动，检查依赖库..."
+    local missing_libs=""
+    if command -v ldd &>/dev/null; then
+        missing_libs=$(ldd "$sdk_bin" 2>&1 | grep "not found" || true)
+    fi
+
+    if [ -n "$missing_libs" ]; then
+        warn "检测到缺失的动态库:"
+        echo "$missing_libs"
+        echo ""
+
+        # Install common missing libraries per distro
+        if command -v apt &>/dev/null; then
+            apt update -qq 2>/dev/null
+            if echo "$missing_libs" | grep -q "libstdc++"; then
+                apt install -y -qq libstdc++6 2>&1 | tail -1
+            fi
+            if echo "$missing_libs" | grep -q "libc.so\|libc.musl\|ld-musl"; then
+                warn "检测到 musl/glibc 不兼容，尝试安装 musl 兼容层..."
+                apt install -y -qq musl 2>/dev/null || true
+            fi
+            if echo "$missing_libs" | grep -q "libgcc_s"; then
+                apt install -y -qq libgcc-s1 2>&1 | tail -1
+            fi
+            # Install any remaining missing libs generically
+            if echo "$missing_libs" | grep -q "not found"; then
+                warn "尝试安装通用运行时库..."
+                apt install -y -qq libc6 libgcc-s1 libstdc++6 2>/dev/null || true
+            fi
+        elif command -v dnf &>/dev/null; then
+            dnf install -y glibc libstdc++ libgcc 2>&1 | tail -3 || true
+        elif command -v yum &>/dev/null; then
+            yum install -y glibc libstdc++ libgcc 2>&1 | tail -3 || true
+        elif command -v apk &>/dev/null; then
+            apk add --no-cache gcompat libstdc++ 2>&1 | tail -3 || true
+        fi
+
+        # Re-test
+        if "$sdk_bin" --version &>/dev/null; then
+            log "SDK 二进制修复成功"
+            return
+        fi
+
+        # Still failing — give detailed diagnostics
+        warn "SDK 二进制修复后仍然无法启动，以下为诊断信息:"
+        echo "  - 系统架构: $(uname -m)"
+        echo "  - 内核版本: $(uname -r)"
+        if command -v ldd &>/dev/null; then
+            echo "  - 依赖库状态:"
+            ldd "$sdk_bin" 2>&1 | head -20
+        fi
+        echo ""
+        warn "如果上述缺少 musl 相关库，请尝试手动安装 musl-dev 包"
+        warn "已知问题: Ubuntu 20.04 / CentOS 7 缺少 musl 运行时支持"
+    else
+        # 4. Permission issue or SELinux
+        if command -v getenforce &>/dev/null && [ "$(getenforce)" = "Enforcing" ]; then
+            warn "SELinux 处于 Enforcing 模式，可能阻止了 SDK 二进制"
+            warn "临时关闭: setenforce 0"
+        fi
+        warn "无法确定原因，请手动测试: $sdk_bin --version"
+    fi
+}
+
 # ---------- 构建前端 ----------
 build_client() {
     cd "$PROJECT_DIR/client"
@@ -303,5 +405,6 @@ install_build_tools
 install_node
 setup_code
 install_deps
+ensure_sdk_binary
 build_client
 start_server "$PORT"
