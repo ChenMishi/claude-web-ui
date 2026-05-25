@@ -394,7 +394,11 @@ function CCSwitchConfig() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await saveCcswitchConfig(editProvider);
+      await saveCcswitchConfig({
+        providerId: editProvider.id,
+        config_json: editProvider.config_json,
+        pricing: editProvider.pricing,
+      });
       alert('保存成功，重启 CC-Switch 后生效');
       setEditProvider(null);
     } catch (err) { alert('保存失败: ' + err.message); }
