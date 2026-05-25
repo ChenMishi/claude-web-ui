@@ -18,12 +18,16 @@ export default function Sidebar() {
     currentProjectId, selectProject, setSessions,
     currentSessionId, setMessages, chatMessages,
     setView, activeView, theme, setSetting,
-    updateAvailable, user, logout,
+    updateAvailable, user, logout, isStreaming,
   } = useApp();
   const isAdmin = user?.role === 'admin';
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const userMenuRef = useRef(null);
+
+  // Track streaming state in ref to avoid stale closure in effect
+  const streamingRef = useRef(false);
+  streamingRef.current = isStreaming;
 
   // Close user menu on outside click
   useEffect(() => {
@@ -100,9 +104,9 @@ export default function Sidebar() {
     }
   }, [currentProjectId]);
 
-  // When session changes, load from server (always, to ensure fresh data)
+  // When session changes, load from server (skip while streaming to avoid overwriting live SSE messages)
   useEffect(() => {
-    if (!currentSessionId || !currentProjectId) return;
+    if (!currentSessionId || !currentProjectId || streamingRef.current) return;
     console.log('[loadMessages] loading from server:', currentSessionId);
     console.log('[loadMessages] fetching for session:', currentSessionId);
     getSessionMessages(currentSessionId).then(msgs => {
