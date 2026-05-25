@@ -60,7 +60,7 @@ export default function VersionPanel() {
       getUpgradeStatus().then(s => {
         if (s.progress !== undefined) setUpgradeProgress(s.progress);
         if (s.message) setUpgradeMsg(s.message);
-        if (s.status === 'done') {
+        if (s.status === 'done' || s.progress >= 100) {
           setUpgradeProgress(100);
           setUpgradeDone(true);
           setUpgrading(false);
