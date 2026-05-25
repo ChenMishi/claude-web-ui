@@ -71,6 +71,7 @@ router.post('/auth/login', async (req, res) => {
       username: user.username,
       role: user.role,
       avatar: user.avatar || null,
+      homeDir: user.homeDir || `/home/${user.username}`,
     },
   });
 });
