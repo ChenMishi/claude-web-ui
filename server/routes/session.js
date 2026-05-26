@@ -44,6 +44,9 @@ function findSDKBinary() {
 
 const SDK_BINARY = findSDKBinary();
 
+// Separate storage for AskUserQuestion resolves (module-level, accessible by resolve endpoint)
+const askResolves = new Map();
+
 const router = Router();
 
 function sseWrite(res, ev) {
@@ -222,13 +225,9 @@ function buildSDKOptions(runtime, body, authUser) {
     ...runtime.abort ? { abortController: runtime.abort } : {},
   };
 
-  // Store AskUserQuestion resolve callbacks separately
-  const askResolves = new Map();
-
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      // Return immediately to pass Zod, store resolve for later
       const key = runtime.sessionId || 'pending';
       return new Promise((resolve) => { askResolves.set(key, resolve); });
     }
