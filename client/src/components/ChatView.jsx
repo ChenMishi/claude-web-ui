@@ -438,8 +438,12 @@ export default function ChatView() {
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;
     resolveQuestion(currentSessionId, answers).catch(() => {});
+    // Also send answer text as chat message so Claude can see it
+    const answerText = Object.entries(answers.answers || answers)
+      .map(([k, v]) => v).filter(Boolean).join('，');
+    if (answerText) handleSend(answerText);
     setAskUser(null);
-  }, [askUser, currentSessionId]);
+  }, [askUser, currentSessionId, handleSend]);
 
   const hasMessages = chatMessages.length > 0;
   const askQs = askUser?.questions || [];

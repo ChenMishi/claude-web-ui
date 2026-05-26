@@ -775,24 +775,26 @@ router.post('/session/:id/message/resolve', (req, res) => {
   }
   const firstVal = Object.values(body.answers)[0];
 
-  // AskUserQuestion: resolve stored Promise
-  const ctx = askQuestionContext.get(id) || askQuestionContext.get('pending');
-  if (ctx && ctx.resolve && firstVal !== '允许' && firstVal !== '拒绝') {
-    askQuestionContext.delete(id);
-    askQuestionContext.delete('pending');
-    console.log('[resolve] AskUserQuestion resolved:', JSON.stringify(body.answers));
-    ctx.resolve({ behavior: 'allow', updatedInput: { answers: body.answers } });
+  // Tool confirmation (允许/拒绝)
+  if (firstVal === '允许' || firstVal === '拒绝') {
+    const decision = firstVal === '拒绝'
+      ? { behavior: 'deny', message: '用户拒绝执行' }
+      : { behavior: 'allow', updatedInput: {} };
+    let ok = resolvePendingApproval(id, decision);
+    if (!ok) ok = resolvePendingApproval('pending', decision);
+    if (!ok) return res.status(409).json({ error: 'No pending question for this session' });
     return res.json({ ok: true });
   }
 
-  // Tool confirmation (允许/拒绝)
-  const decision = firstVal === '拒绝'
-    ? { behavior: 'deny', message: '用户拒绝执行' }
-    : { behavior: 'allow', updatedInput: {} };
-  let ok = resolvePendingApproval(id, decision);
-  if (!ok) ok = resolvePendingApproval('pending', decision);
-  if (!ok) return res.status(409).json({ error: 'No pending question for this session' });
-  res.json({ ok: true });
+  // AskUserQuestion — inject answer as user message into runtime buffer
+  const answerText = Object.entries(body.answers).map(([k, v]) => `${k}: ${v}`).join('; ');
+  const runtime = getRuntimeSession(id);
+  if (runtime) {
+    broadcast(runtime, 'answer_text', { text: answerText });
+    // Also add to buffer for reconnection
+    if (runtime.buffer) runtime.buffer.push({ event: 'answer_text', data: { text: answerText } });
+  }
+  res.json({ ok: true, text: answerText });
 });
 
 // Generate session title from first user message via Claude
