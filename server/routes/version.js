@@ -130,7 +130,7 @@ router.post('/version/upgrade', (req, res) => {
   const logFile = '/tmp/claude-web-ui-upgrade.log';
   const pidFile = '/tmp/claude-web-ui-upgrade.pid';
 
-  const child = spawn('nohup', ['bash', upgradeScript], {
+  const child = spawn('nohup', ['stdbuf', '-oL', 'bash', upgradeScript], {
     cwd: PROJECT_DIR,
     env: { ...process.env, PORT: process.env.PORT || '3000' },
     stdio: ['ignore', fs.openSync(logFile, 'w'), fs.openSync(logFile, 'a')],
