@@ -36,61 +36,7 @@ export default function SettingsPanel() {
     <div className="settings-panel">
       <h2>⚙ 设置</h2>
 
-      {/* Card 1: 对话 */}
-      <div className="settings-card">
-        <div className="settings-card-header">💬 对话设置</div>
-        <div className="settings-card-body">
-          <div className="settings-row">
-            <label>模型</label>
-            <select value={model} onChange={e => setSetting('model', e.target.value)}>
-              <option value="claude-opus-4-7">Claude Opus 4.7</option>
-              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-            </select>
-          </div>
-          <div className="settings-row">
-            <label>工具权限</label>
-            <select value={permissionLevel} onChange={e => setSetting('permissionLevel', e.target.value)}>
-              <option value="auto">自动执行</option>
-              <option value="confirm-dangerous">写入确认</option>
-              <option value="confirm-all">全部确认</option>
-            </select>
-          </div>
-          <div className="settings-row">
-            <label>System Prompt</label>
-            <textarea value={systemPrompt} onChange={e => setSetting('systemPrompt', e.target.value)}
-              placeholder="自定义 system prompt（留空使用默认）" />
-          </div>
-        </div>
-      </div>
-
-      {/* Card 2: 系统 */}
-      <div className="settings-card">
-        <div className="settings-card-header">📊 系统信息</div>
-        <div className="settings-card-body">
-          <div className="settings-info-row">
-            <span className="settings-info-label">当前项目</span>
-            <span className="settings-info-value">{project ? `${project.cwd} (${project.sessionCount} 个会话)` : '未选择'}</span>
-          </div>
-          <div className="settings-info-row">
-            <span className="settings-info-label">代理地址</span>
-            <span className="settings-info-value">http://127.0.0.1:15721</span>
-          </div>
-          <div className="settings-info-row">
-            <span className="settings-info-label">版本</span>
-            <span className="settings-info-value">v1.1.4</span>
-          </div>
-          <div className="settings-info-row">
-            <span className="settings-info-label">数据存储</span>
-            <span className="settings-info-value mono">~/.claude/projects/</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Card 3: 版本升级 */}
-      <VersionCard />
-
-      {/* Card 4: 用户管理 */}
+      {/* Card 1: 用户管理 */}
       {isAdmin && (
         <div className="settings-card">
           <div className="settings-card-header">👥 用户管理</div>
@@ -125,6 +71,60 @@ export default function SettingsPanel() {
           </div>
         </div>
       )}
+
+      {/* Card 2: 版本升级 */}
+      <VersionCard />
+
+      {/* Card 3: 对话设置 */}
+      <div className="settings-card">
+        <div className="settings-card-header">💬 对话设置</div>
+        <div className="settings-card-body">
+          <div className="settings-row">
+            <label>模型</label>
+            <select value={model} onChange={e => setSetting('model', e.target.value)}>
+              <option value="claude-opus-4-7">Claude Opus 4.7</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+            </select>
+          </div>
+          <div className="settings-row">
+            <label>工具权限</label>
+            <select value={permissionLevel} onChange={e => setSetting('permissionLevel', e.target.value)}>
+              <option value="auto">自动执行</option>
+              <option value="confirm-dangerous">写入确认</option>
+              <option value="confirm-all">全部确认</option>
+            </select>
+          </div>
+          <div className="settings-row">
+            <label>System Prompt</label>
+            <textarea value={systemPrompt} onChange={e => setSetting('systemPrompt', e.target.value)}
+              placeholder="自定义 system prompt（留空使用默认）" />
+          </div>
+        </div>
+      </div>
+
+      {/* Card 4: 系统信息 */}
+      <div className="settings-card">
+        <div className="settings-card-header">📊 系统信息</div>
+        <div className="settings-card-body">
+          <div className="settings-info-row">
+            <span className="settings-info-label">当前项目</span>
+            <span className="settings-info-value">{project ? `${project.cwd} (${project.sessionCount} 个会话)` : '未选择'}</span>
+          </div>
+          <div className="settings-info-row">
+            <span className="settings-info-label">代理地址</span>
+            <span className="settings-info-value">http://127.0.0.1:15721</span>
+          </div>
+          <div className="settings-info-row">
+            <span className="settings-info-label">版本</span>
+            <span className="settings-info-value">v1.1.4</span>
+          </div>
+          <div className="settings-info-row">
+            <span className="settings-info-label">数据存储</span>
+            <span className="settings-info-value mono">~/.claude/projects/</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
