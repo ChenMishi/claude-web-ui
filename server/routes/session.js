@@ -228,10 +228,10 @@ function buildSDKOptions(runtime, body, authUser) {
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      // Abort silently — user will resume after answering
+      // Abort after ensuring broadcast reaches client
       setTimeout(() => {
         try { runtime.abort?.abort(); } catch {}
-      }, 100);
+      }, 500);
       return { behavior: 'allow', updatedInput: input };
     }
 

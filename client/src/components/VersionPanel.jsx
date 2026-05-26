@@ -57,23 +57,18 @@ export default function VersionPanel() {
     if (!upgrading) return;
     const timer = setInterval(() => {
       getUpgradeLog().then(d => {
-        const log = d.log || '';
-        setUpgradeLog(log);
-        // Parse [PROGRESS] XX from log for real-time progress
-        const progressMatch = log.match(/\[PROGRESS\]\s*(\d+)/g);
-        if (progressMatch) {
-          const last = progressMatch[progressMatch.length - 1];
-          const pct = parseInt(last.match(/\d+/)[0]);
-          if (!isNaN(pct)) setUpgradeProgress(pct);
-        }
-        // Parse [INFO] for status message
-        const infoMatch = log.match(/\[INFO\]\s*(.+)/g);
+        setUpgradeLog(d.log || '');
+        // Parse [INFO] for status message display
+        const infoMatch = (d.log || '').match(/\[INFO\]\s*(.+)/g);
         if (infoMatch) {
           const lastInfo = infoMatch[infoMatch.length - 1].replace('[INFO]', '').trim();
           if (lastInfo) setUpgradeMsg(lastInfo);
         }
       }).catch(() => {});
       getUpgradeStatus().then(s => {
+        // Use status file progress — overwritten each time, always current
+        if (s.progress !== undefined) setUpgradeProgress(s.progress);
+        if (s.message) setUpgradeMsg(s.message);
         if (s.status === 'done' || s.progress >= 100) {
           setUpgradeProgress(100);
           setUpgradeDone(true);

@@ -18,6 +18,7 @@ err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 pct()  {
   echo "[PROGRESS] $1" >&2
   echo "{\"status\":\"running\",\"progress\":$1,\"message\":\"$2\"}" > /tmp/claude-web-ui-upgrade.status.json
+  sync
 }
 
 # ---------- 安装基础系统工具 ----------
