@@ -273,6 +273,9 @@ function startServer(opts = {}) {
     }).catch(() => {});
   } catch {}
 
+  // Reset any stale runtime states from previous server instance
+  try { require('./store').resetAllRuntimes(); } catch {}
+
   server.listen(port, '0.0.0.0', () => {
     console.log(`Claude Web UI v2 running at http://0.0.0.0:${port}`);
     console.log(`API docs at http://localhost:${port}/docs`);

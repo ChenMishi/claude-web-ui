@@ -112,6 +112,14 @@ function broadcastDone(runtime, result) {
   runtime.subscribers.clear();
 }
 
+// Reset all runtime statuses to idle (called on server startup)
+function resetAllRuntimes() {
+  for (const rt of runtimeSessions.values()) {
+    rt.status = 'idle';
+    rt.buffer = [];
+  }
+}
+
 module.exports = {
   runtimeSessions, pendingApprovals,
   getProjectDirName, getSessionFile,
@@ -119,4 +127,5 @@ module.exports = {
   getOrCreateRuntime, createPendingRuntime, assignSessionId,
   setPendingApproval, resolvePendingApproval,
   broadcast, subscribeToStream, broadcastDone,
+  resetAllRuntimes,
 };

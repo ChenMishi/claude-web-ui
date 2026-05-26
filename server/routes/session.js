@@ -228,8 +228,9 @@ function buildSDKOptions(runtime, body, authUser) {
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      // Pass through — SDK handles internally
-      return { behavior: 'allow', updatedInput: input };
+      return new Promise((resolve) => {
+        askQuestionContext.set(runtime.sessionId || 'pending', resolve);
+      });
     }
 
     // ── Sandbox checks for non-admin users ──
@@ -786,15 +787,14 @@ router.post('/session/:id/message/resolve', (req, res) => {
     return res.json({ ok: true });
   }
 
-  // AskUserQuestion — inject answer as user message into runtime buffer
-  const answerText = Object.entries(body.answers).map(([k, v]) => `${k}: ${v}`).join('; ');
-  const runtime = getRuntimeSession(id);
-  if (runtime) {
-    broadcast(runtime, 'answer_text', { text: answerText });
-    // Also add to buffer for reconnection
-    if (runtime.buffer) runtime.buffer.push({ event: 'answer_text', data: { text: answerText } });
+  // AskUserQuestion — resolve with plain answers
+  const askResolve = askQuestionContext.get(id) || askQuestionContext.get('pending');
+  if (askResolve && firstVal !== '允许' && firstVal !== '拒绝') {
+    askQuestionContext.delete(id);
+    askQuestionContext.delete('pending');
+    askResolve({ answers: body.answers });
+    return res.json({ ok: true });
   }
-  res.json({ ok: true, text: answerText });
 });
 
 // Generate session title from first user message via Claude
