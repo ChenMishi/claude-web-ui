@@ -2511,6 +2511,23 @@ html, body, #root {
 .profile-avatar-upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .profile-hint {
   font-size: 11px; color: var(--text-muted);
+  margin-top: 4px;
+}
+.profile-default-avatars {
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid var(--glass-border);
+}
+.profile-avatar-grid {
+  display: flex; gap: 10px; justify-content: center; margin-top: 8px;
+}
+.profile-default-avatar-item {
+  width: 48px; height: 48px; border-radius: 50%;
+  cursor: pointer; border: 2px solid transparent;
+  transition: border-color 0.2s, transform 0.15s;
+  object-fit: cover;
+}
+.profile-default-avatar-item:hover {
+  border-color: var(--accent); transform: scale(1.1);
 }
 
 .profile-field {

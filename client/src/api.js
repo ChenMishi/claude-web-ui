@@ -124,7 +124,10 @@ export const restartCcswitch = () => fetchJSON('/init/ccswitch-restart', { metho
 export const initCcswitchProvider = () => fetchJSON('/init/ccswitch-init-provider', { method: 'POST' });
 
 // File system
+export const getDirs = (path) => fetchJSON(`/fs/dirs?path=${encodeURIComponent(path)}`);
 export const mkdir = (path, name) => fetchJSON('/fs/mkdir', { method: 'POST', body: JSON.stringify({ path, name }) });
+export const writeFile = (filePath, content) => fetchJSON('/fs/write', { method: 'POST', body: JSON.stringify({ filePath, content }) });
+export const deleteFileOrDir = (filePath) => fetchJSON('/fs/delete', { method: 'DELETE', body: JSON.stringify({ filePath }) });
 
 // Sessions
 export const getSessionInfo = (id) => fetchJSON(`/session/${id}`);

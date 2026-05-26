@@ -118,6 +118,51 @@ router.get('/fs/dirs', (req, res) => {
   res.json({ path: dirPath, dirs: entries });
 });
 
+// List both files and directories
+router.get('/fs/list', (req, res) => {
+  const dirPath = req.query.path ?? os.homedir();
+  if (!path.isAbsolute(dirPath) || dirPath.includes('..')) {
+    return res.status(403).json({ error: 'Forbidden — invalid path' });
+  }
+  const err = restrictPath(req, dirPath);
+  if (err) return res.status(403).json({ error: err });
+  if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Path not found' });
+  if (!fs.statSync(dirPath).isDirectory()) return res.status(400).json({ error: 'Not a directory' });
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dirPath, { withFileTypes: true })
+      .filter(e => !e.name.startsWith('.'))
+      .sort((a, b) => {
+        if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+  } catch {}
+  const dirs = entries.filter(e => e.isDirectory()).map(e => ({ name: e.name, path: path.join(dirPath, e.name), type: 'dir' }));
+  const files = entries.filter(e => !e.isDirectory()).map(e => ({ name: e.name, path: path.join(dirPath, e.name), type: 'file' }));
+  res.json({ path: dirPath, dirs, files });
+});
+
+// Read file content by absolute path
+router.get('/fs/read', (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({ error: 'path is required' });
+  if (!path.isAbsolute(filePath) || filePath.includes('..')) {
+    return res.status(403).json({ error: 'Forbidden — invalid path' });
+  }
+  const err = restrictPath(req, filePath);
+  if (err) return res.status(403).json({ error: err });
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+  try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return res.status(400).json({ error: 'Not a file' });
+    if (stat.size > 1024 * 1024) return res.status(413).json({ error: 'File too large' });
+    const content = fs.readFileSync(filePath, 'utf8');
+    res.json({ path: filePath, content, size: stat.size });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Create a new directory (for the link dialog)
 router.post('/fs/mkdir', (req, res) => {
   const { path: parentPath, name } = req.body || {};
@@ -139,6 +184,48 @@ router.post('/fs/mkdir', (req, res) => {
     res.json({ ok: true, path: newPath });
   } catch (err) {
     res.status(500).json({ error: `创建目录失败: ${err.message}` });
+  }
+});
+
+// Write / overwrite a file
+router.post('/fs/write', (req, res) => {
+  const { filePath, content } = req.body || {};
+  if (!filePath || content === undefined) return res.status(400).json({ error: 'filePath and content are required' });
+  if (!path.isAbsolute(filePath) || filePath.includes('..')) {
+    return res.status(403).json({ error: 'Forbidden — invalid path' });
+  }
+  const err = restrictPath(req, filePath);
+  if (err) return res.status(403).json({ error: err });
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, content, 'utf8');
+    res.json({ ok: true, path: filePath, size: content.length });
+  } catch (err) {
+    res.status(500).json({ error: `写入文件失败: ${err.message}` });
+  }
+});
+
+// Delete a file or empty directory
+router.delete('/fs/delete', (req, res) => {
+  const { filePath } = req.body || {};
+  if (!filePath) return res.status(400).json({ error: 'filePath is required' });
+  if (!path.isAbsolute(filePath) || filePath.includes('..')) {
+    return res.status(403).json({ error: 'Forbidden — invalid path' });
+  }
+  const err = restrictPath(req, filePath);
+  if (err) return res.status(403).json({ error: err });
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Path not found' });
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) {
+      fs.rmSync(filePath, { recursive: true, force: true });
+    } else {
+      fs.unlinkSync(filePath);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: `删除失败: ${err.message}` });
   }
 });
 
