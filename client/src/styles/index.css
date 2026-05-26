@@ -1229,53 +1229,70 @@ html, body, #root {
 
 /* Settings Panel */
 .settings-panel {
-  padding: 32px;
-  max-width: 600px;
+  padding: 24px 32px;
+  max-width: 720px;
   margin: 0 auto;
   width: 100%;
+  display: flex; flex-direction: column; gap: 16px;
 }
-
 .settings-panel h2 {
-  font-size: 20px;
-  margin-bottom: 24px;
-  color: var(--accent);
+  font-size: 20px; color: var(--accent); margin-bottom: 0;
 }
 
-.settings-group {
-  margin-bottom: 20px;
+/* Settings cards */
+.settings-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+.settings-card-header {
+  padding: 12px 18px;
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+  border-bottom: 1px solid var(--glass-border);
+}
+.settings-card-body {
+  padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 14px;
 }
 
-.settings-group label {
-  display: block;
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Settings form rows */
+.settings-row { display: flex; flex-direction: column; gap: 4px; }
+.settings-row label { font-size: 12px; color: var(--text-muted); }
+.settings-row select, .settings-row input, .settings-row textarea {
+  padding: 10px 14px; background: var(--input-bg);
+  border: 1px solid var(--glass-border); border-radius: 10px;
+  color: var(--text-primary); font-size: 14px; outline: none; font-family: var(--font);
 }
+.settings-row select:focus, .settings-row input:focus, .settings-row textarea:focus { border-color: var(--accent); }
+.settings-row textarea { min-height: 70px; resize: vertical; }
 
-.settings-group select,
-.settings-group input,
-.settings-group textarea {
-  width: 100%;
-  padding: 10px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 14px;
-  outline: none;
-  font-family: var(--font);
+/* Settings info rows */
+.settings-info-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 0;
 }
+.settings-info-label { font-size: 13px; color: var(--text-muted); }
+.settings-info-value { font-size: 13px; color: var(--text-primary); max-width: 60%; text-align: right; word-break: break-all; }
+.settings-info-value.mono { font-family: var(--font-mono); font-size: 12px; }
 
-.settings-group select:focus,
-.settings-group input:focus,
-.settings-group textarea:focus { border-color: var(--accent); }
+/* Settings table */
+.settings-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+.settings-table th, .settings-table td { padding: 8px 10px; border-bottom: 1px solid var(--glass-border); text-align: left; }
+.settings-table th { color: var(--text-muted); font-weight: 500; font-size: 11px; text-transform: uppercase; }
+.settings-table td { color: var(--text-primary); }
 
-.settings-group textarea {
-  min-height: 80px;
-  resize: vertical;
+/* Add user */
+.settings-add-user { display: flex; gap: 8px; margin-top: 4px; }
+.settings-add-user input, .settings-add-user select {
+  padding: 8px 12px; background: var(--input-bg); border: 1px solid var(--glass-border);
+  border-radius: 8px; color: var(--text-primary); font-size: 13px; outline: none; font-family: var(--font);
 }
+.settings-add-user input:focus, .settings-add-user select:focus { border-color: var(--accent); }
+.settings-add-user input { flex: 1; }
 
 /* Theme Switcher */
 .theme-switcher {
