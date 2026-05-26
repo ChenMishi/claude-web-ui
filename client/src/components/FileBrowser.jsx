@@ -21,6 +21,7 @@ export default function FileBrowser() {
   const [showNewFile, setShowNewFile] = useState(false);
   const [msg, setMsg] = useState('');
   const editRef = useRef(null);
+  const lastClickRef = useRef(0);
 
   const loadDir = () => {
     setLoading(true);
@@ -63,6 +64,8 @@ export default function FileBrowser() {
   useEffect(() => { loadFiles(); }, [currentPath]);
 
   const handleFileClick = async (item) => {
+    if (Date.now() - lastClickRef.current < 300) return;
+    lastClickRef.current = Date.now();
     if (item.type === 'dir') {
       setCurrentPath(item.path);
       return;
@@ -146,6 +149,8 @@ export default function FileBrowser() {
   };
 
   const goUp = () => {
+    if (Date.now() - lastClickRef.current < 300) return;
+    lastClickRef.current = Date.now();
     const parent = currentPath.split('/').slice(0, -1).join('/') || '/';
     if (user?.role !== 'admin' && !parent.startsWith(rootPath) && parent !== rootPath) return;
     setCurrentPath(parent);
