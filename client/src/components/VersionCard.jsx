@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
+import { useApp } from '../context/AppContext';
 import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeLog, getUpgradeStatus } from '../api';
 
 export default function VersionCard() {
+  const { setUpdateAvailable } = useApp();
   const [info, setInfo] = useState(null);
   const [remote, setRemote] = useState('');
   const [checkResult, setCheckResult] = useState(null);
@@ -14,12 +16,26 @@ export default function VersionCard() {
   const [upgradeError, setUpgradeError] = useState(null);
   const [upgradeLog, setUpgradeLog] = useState('');
   const logRef = useRef(null);
+  const [checkInterval, setCheckInterval] = useState(() => parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0);
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [upgradeLog]);
 
   useEffect(() => {
     getVersionInfo().then(d => { setInfo(d); setRemote(d.remote || ''); }).catch(() => {});
   }, []);
+
+  // Periodic check
+  useEffect(() => {
+    if (checkInterval <= 0) return;
+    const t = setInterval(() => {
+      checkVersion({ remote }).then(d => {
+        setCheckResult(d);
+        if (d.hasUpdate) setUpdateAvailable(true);
+        localStorage.setItem('claude-ui:lastCheck', JSON.stringify(d));
+      }).catch(() => {});
+    }, checkInterval * 60000);
+    return () => clearInterval(t);
+  }, [checkInterval, remote]);
 
   useEffect(() => {
     if (!upgrading) return;
@@ -92,6 +108,19 @@ export default function VersionCard() {
           </div>
         )}
         {upgradeError && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{upgradeError}</div>}
+
+        {/* Check interval */}
+        <div className="settings-row" style={{ marginTop: 4 }}>
+          <label>定时检测</label>
+          <select value={checkInterval} onChange={e => { const v = parseInt(e.target.value); setCheckInterval(v); localStorage.setItem('claude-ui:checkInterval', String(v)); }}>
+            <option value={0}>关闭</option>
+            <option value={30}>每 30 分钟</option>
+            <option value={60}>每 1 小时</option>
+            <option value={360}>每 6 小时</option>
+            <option value={720}>每 12 小时</option>
+            <option value={1440}>每 24 小时</option>
+          </select>
+        </div>
       </div>
     </div>
   );

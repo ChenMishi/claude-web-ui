@@ -128,14 +128,18 @@ router.post('/version/upgrade', (req, res) => {
   const state = { status: 'running', progress: 0, message: '启动升级...', newVersion: '' };
   writeUpgradeState(state);
 
-  // Run upgrade in background via nohup, write output to temp file
+  // Run upgrade in background, write output to temp file
   const logFile = '/tmp/claude-web-ui-upgrade.log';
   const pidFile = '/tmp/claude-web-ui-upgrade.pid';
 
-  const child = spawn('script', ['-q', '-a', '-c', `bash "${upgradeScript}"`, logFile], {
+  // Truncate old log so stale [INFO] lines don't overwrite status messages
+  fs.writeFileSync(logFile, '');
+
+  // Use stdbuf -oL for line-buffered stdout so log appears in real-time
+  const child = spawn('nohup', ['stdbuf', '-oL', 'bash', upgradeScript], {
     cwd: PROJECT_DIR,
     env: { ...process.env, PORT: process.env.PORT || '3000' },
-    stdio: 'ignore',
+    stdio: ['ignore', fs.openSync(logFile, 'a'), fs.openSync(logFile, 'a')],
     detached: true,
   });
   child.unref();

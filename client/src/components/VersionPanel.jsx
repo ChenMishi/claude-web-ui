@@ -56,17 +56,12 @@ export default function VersionPanel() {
   useEffect(() => {
     if (!upgrading) return;
     const timer = setInterval(() => {
+      // Fetch log first (for display only, never for message)
       getUpgradeLog().then(d => {
         setUpgradeLog(d.log || '');
-        // Parse [INFO] for status message display
-        const infoMatch = (d.log || '').match(/\[INFO\]\s*(.+)/g);
-        if (infoMatch) {
-          const lastInfo = infoMatch[infoMatch.length - 1].replace('[INFO]', '').trim();
-          if (lastInfo) setUpgradeMsg(lastInfo);
-        }
       }).catch(() => {});
+      // Fetch status AFTER log — status message always wins
       getUpgradeStatus().then(s => {
-        // Use status file progress — overwritten each time, always current
         if (s.progress !== undefined) setUpgradeProgress(s.progress);
         if (s.message) setUpgradeMsg(s.message);
         if (s.status === 'done' || s.progress >= 100) {
