@@ -768,14 +768,22 @@ router.get('/session/:id/stream', (req, res) => {
 router.post('/session/:id/message/resolve', (req, res) => {
   const { id } = req.params;
   const body = req.body || {};
-  if (!body.answers || typeof body.answers !== 'object') {
+
+  // Support both formats: array [{question, answer}] or object {answers: {...}}
+  let answers = body;
+  if (body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers)) {
+    answers = body.answers;
+  }
+
+  if (!answers || (Array.isArray(answers) && answers.length === 0)) {
     return res.status(400).json({ error: 'answers is required' });
   }
-  // Check if this is a tool confirmation (user chose 允许/拒绝)
-  const firstAnswer = Object.values(body.answers)[0];
-  const decision = firstAnswer === '拒绝'
+
+  // Check if tool confirmation (单问题 + 允许/拒绝选项)
+  const firstVal = Array.isArray(answers) ? answers[0]?.answer : Object.values(answers)[0];
+  const decision = firstVal === '拒绝'
     ? { behavior: 'deny', message: '用户拒绝执行' }
-    : { behavior: 'allow', updatedInput: { answers: body.answers } };
+    : { behavior: 'allow', updatedInput: { answers } };
 
   console.log('[resolve] answer:', firstAnswer, 'decision:', JSON.stringify(decision));
 

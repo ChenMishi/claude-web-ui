@@ -504,22 +504,25 @@ export default function ChatView() {
                 </div>
               ))}
               <button className="ask-user-submit" onClick={() => {
-                const collected = {};
+                const collected = [];
                 askQs.forEach((q, qi) => {
                   if (q.options && q.options.length > 0) {
+                    let value;
                     if (q.multiSelect) {
                       const checked = document.querySelectorAll(`.ask-user-dialog input[name="q-${qi}"]:checked`);
-                      collected[`q${qi}`] = Array.from(checked).map(c => c.value);
+                      if (checked.length > 0) value = Array.from(checked).map(c => c.value).join(', ');
                     } else {
                       const checked = document.querySelector(`.ask-user-dialog input[name="q-${qi}"]:checked`);
-                      collected[`q${qi}`] = checked ? checked.value : '';
+                      value = checked ? checked.value : '';
                     }
+                    collected.push({ question: q.question || q.header || `问题${qi+1}`, answer: value });
                   } else {
                     const inp = document.querySelector(`.ask-user-dialog [data-q="${qi}"]`);
-                    collected[`q${qi}`] = inp ? inp.value : '';
+                    value = inp ? inp.value : '';
+                    collected.push({ question: q.question || q.header || `问题${qi+1}`, answer: value });
                   }
                 });
-                handleResolveAsk({ answers: collected });
+                handleResolveAsk(collected);
               }}>
                 提交
               </button>
