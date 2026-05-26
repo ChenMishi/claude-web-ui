@@ -537,7 +537,11 @@ router.post('/session/:id/message', async (req, res) => {
   // ── Sandbox: non-admin users get their homeDir as cwd ──
   const sandbox = getUserSandbox(req.user);
   if (sandbox) {
-    body.cwd = sandbox.homeDir;
+    // Only override cwd if it's outside the user's homeDir (allow subdirectories)
+    const { isPathInside } = require('../utils');
+    if (!isPathInside(body.cwd || '/', sandbox.homeDir)) {
+      body.cwd = sandbox.homeDir;
+    }
   }
 
   let runtime;
