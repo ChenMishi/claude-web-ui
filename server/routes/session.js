@@ -225,7 +225,7 @@ function buildSDKOptions(runtime, body, authUser) {
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
       return new Promise((resolve) => {
-        setPendingApproval(runtime.sessionId || 'pending', resolve);
+        setPendingApproval(runtime.sessionId || 'pending', resolve, 'ask', input);
         broadcast(runtime, 'ask_user', { questions: input.questions || [] });
       });
     }
@@ -274,7 +274,7 @@ function buildSDKOptions(runtime, body, authUser) {
       setPendingApproval(runtime.sessionId || 'pending', (result) => {
         console.log('[canUseTool] user answered:', JSON.stringify(result));
         resolve(result);
-      }, 'confirm');
+      }, 'confirm', input);
       broadcast(runtime, 'ask_user', {
         questions: [{ question: `允许执行 ${action}？`, header: action, options: ['允许', '拒绝'] }],
       });

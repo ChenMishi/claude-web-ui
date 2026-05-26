@@ -54,8 +54,8 @@ function assignSessionId(runtime, sessionId) {
   runtimeSessions.set(sessionId, runtime);
 }
 
-function setPendingApproval(sessionId, resolve, type) {
-  pendingApprovals.set(sessionId, { resolve, type: type || 'ask' });
+function setPendingApproval(sessionId, resolve, type, input) {
+  pendingApprovals.set(sessionId, { resolve, type: type || 'ask', input });
 }
 
 function resolvePendingApproval(sessionId, decision) {
@@ -65,6 +65,9 @@ function resolvePendingApproval(sessionId, decision) {
   console.log('[store] resolvePending type:', entry.type, 'decision:', JSON.stringify(decision));
   if (entry.type === 'confirm' && decision.behavior === 'allow') {
     entry.resolve({ behavior: 'allow', updatedInput: {} });
+  } else if (entry.input && decision.behavior === 'allow') {
+    // Merge original input with user's answers
+    entry.resolve({ behavior: 'allow', updatedInput: { ...entry.input, answers: decision.updatedInput?.answers || decision.answers } });
   } else {
     entry.resolve(decision);
   }
