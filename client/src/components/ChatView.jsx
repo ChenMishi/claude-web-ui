@@ -80,10 +80,38 @@ export default function ChatView() {
   const [atTop, setAtTop] = useState(false);
   const loadedCountRef = useRef(0);
 
+  // Message buffer for AskUserQuestion — hide Claude output until user answers
+  const askBufferRef = useRef([]);
+  const isAskBuffered = useRef(false);
+  const appendRef = useRef(appendMessage);
+  const updateRef = useRef(updateLastMessage);
+  appendRef.current = appendMessage;
+  updateRef.current = updateLastMessage;
+
+  // Helper: buffered append/update
+  const bAppend = (msg) => {
+    if (isAskBuffered.current && askRef.current) {
+      askBufferRef.current.push(msg);
+    } else {
+      appendRef.current(msg);
+    }
+  };
+  const bUpdate = (content) => {
+    if (isAskBuffered.current && askRef.current) {
+      const buf = askBufferRef.current;
+      if (buf.length > 0 && buf[buf.length - 1].role === 'assistant') {
+        buf[buf.length - 1] = { ...buf[buf.length - 1], content, streaming: true };
+      }
+    } else {
+      updateRef.current(content);
+    }
+  };
+
   // Auto-scroll when ask dialog appears
   useEffect(() => {
     if (askUser && askRef.current) {
       askRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      isAskBuffered.current = true;
     }
   }, [askUser]);
 
@@ -229,17 +257,17 @@ export default function ChatView() {
                         const thinkingBlocks = (parsed.message?.content || []).filter(c => c.type === 'thinking');
                         if (thinkingBlocks.length > 0) {
                           const thinkingText = thinkingBlocks.map(t => t.thinking).join('\n');
-                          appendMessage({ role: 'thinking', content: thinkingText, timestamp: Date.now() });
+                          bAppend({ role: 'thinking', content: thinkingText, timestamp: Date.now() });
                         }
                         if (textBlocks.length > 0) {
                           const text = textBlocks.map(c => c.text).join('');
                           if (!hasAssistantText.current) {
                             hasAssistantText.current = true;
                             textAccum.current = text;
-                            appendMessage({ role: 'assistant', content: text, streaming: true, timestamp: Date.now() });
+                            bAppend({ role: 'assistant', content: text, streaming: true, timestamp: Date.now() });
                           } else {
                             textAccum.current += text;
-                            updateLastMessage(textAccum.current);
+                            bUpdate(textAccum.current);
                           }
                           execPhase({ phase: 'responding', detail: '' });
                         }
@@ -254,7 +282,7 @@ export default function ChatView() {
                             }
                             const desc = t.input?.description || t.input?.command || t.input?.file_path || '';
                             execPhase({ phase: 'running', detail: `${t.name}:${desc}` });
-                            appendMessage({ role: 'tool', toolCall: { name: t.name, input: t.input, tool_use_id: t.id }, timestamp: Date.now() });
+                            bAppend({ role: 'tool', toolCall: { name: t.name, input: t.input, tool_use_id: t.id }, timestamp: Date.now() });
                           });
                         }
                         if (parsed.message?.usage) execTokens(toTokens(parsed.message.usage));
@@ -262,11 +290,11 @@ export default function ChatView() {
                         const toolResults = (parsed.message?.content || []).filter(c => c.type === 'tool_result');
                         toolResults.forEach(t => {
                           let text = typeof t.content === 'string' ? t.content : JSON.stringify(t.content || '');
-                          appendMessage({ role: 'tool', toolResult: { tool_use_id: t.tool_use_id, content: text, is_error: t.is_error }, timestamp: Date.now() });
+                          bAppend({ role: 'tool', toolResult: { tool_use_id: t.tool_use_id, content: text, is_error: t.is_error }, timestamp: Date.now() });
                         });
                       }
                     } else if (currentEvent === 'done') {
-                      updateLastMessage(null);
+                      bUpdate(null);
                       setStreaming(false);
                       stopTimer();
                       execDone({ tokens: parsed.tokens, cost: parsed.cost });
@@ -276,7 +304,7 @@ export default function ChatView() {
                       setStreaming(false);
                       stopTimer();
                       execReset();
-                      appendMessage({ role: 'system', content: `重连失败: ${parsed.message}`, timestamp: Date.now() });
+                      bAppend({ role: 'system', content: `重连失败: ${parsed.message}`, timestamp: Date.now() });
                       return;
                     }
                   } catch {}
@@ -323,12 +351,12 @@ export default function ChatView() {
     stopTimer();
 
     // End streaming on last assistant message
-    updateLastMessage(null);
+    bUpdate(null);
     setStreaming(false);
 
     // Append a summary system message
     const summary = buildAbortSummary(execStatus);
-    appendMessage({ role: 'system', content: summary, timestamp: Date.now() });
+    bAppend({ role: 'system', content: summary, timestamp: Date.now() });
 
     execReset();
   }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset]);
@@ -338,7 +366,7 @@ export default function ChatView() {
     // If streaming, abort current session first
     if (isStreaming) {
       stopTimer();
-      updateLastMessage(null);
+      bUpdate(null);
       setStreaming(false);
       if (currentSessionId) abortSession(currentSessionId).catch(() => {});
     }
@@ -348,7 +376,7 @@ export default function ChatView() {
     execStart();
     setMainTask(text.length > 30 ? text.slice(0, 30) + '…' : text);
     startTimer();
-    appendMessage({ role: 'user', content: text, timestamp: Date.now() });
+    bAppend({ role: 'user', content: text, timestamp: Date.now() });
     hasAssistantText.current = false;
     textAccum.current = '';
 
@@ -364,7 +392,7 @@ export default function ChatView() {
       onThinking: ({ text: thinkingText, usage }) => {
         execPhase({ phase: 'thinking', detail: thinkingText });
         if (usage) execTokens(toTokens(usage));
-        appendMessage({ role: 'thinking', content: thinkingText, timestamp: Date.now() });
+        bAppend({ role: 'thinking', content: thinkingText, timestamp: Date.now() });
       },
       onAssistant: ({ content, usage, session_id }) => {
         // Reload session list as soon as we have the session ID for new sessions
@@ -378,10 +406,10 @@ export default function ChatView() {
         if (!hasAssistantText.current) {
           hasAssistantText.current = true;
           textAccum.current = content;
-          appendMessage({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
+          bAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
         } else {
           textAccum.current += content;
-          updateLastMessage(textAccum.current);
+          bUpdate(textAccum.current);
         }
         execPhase({ phase: 'responding', detail: '' });
         if (usage) execTokens(toTokens(usage));
@@ -397,16 +425,16 @@ export default function ChatView() {
         const desc = input?.description || input?.command || input?.file_path || '';
         execPhase({ phase: 'running', detail: `${tool}:${desc}` });
         if (usage) execTokens(toTokens(usage));
-        appendMessage({ role: 'tool', toolCall: { name: tool, input, tool_use_id } });
+        bAppend({ role: 'tool', toolCall: { name: tool, input, tool_use_id } });
       },
       onToolResult: ({ tool_use_id, content, is_error }) => {
-        appendMessage({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error } });
+        bAppend({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error } });
       },
       onAskUser: ({ questions }) => {
         setAskUser({ questions });
       },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost }) => {
-        updateLastMessage(null);
+        bUpdate(null);
         setStreaming(false);
         stopTimer();
         execDone({ tokens: doneTokens, cost });
@@ -430,7 +458,7 @@ export default function ChatView() {
         stopTimer();
         execPhase({ phase: 'done', detail: err.message });
         setTimeout(() => execReset(), 5000);
-        appendMessage({ role: 'system', content: `错误: ${err.message}` });
+        bAppend({ role: 'system', content: `错误: ${err.message}` });
       },
     });
   }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer]);
@@ -438,12 +466,41 @@ export default function ChatView() {
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;
     resolveQuestion(currentSessionId, answers).catch(() => {});
-    // Show selected answer in chat as user message
+    // Show selected answer in chat
     const vals = Object.values(answers.answers || answers);
     const text = vals.filter(Boolean).join('，');
-    if (text) appendMessage({ role: 'user', content: `📝 ${text}`, timestamp: Date.now() });
+    if (text) bAppend({ role: 'user', content: `📝 ${text}`, timestamp: Date.now() });
     setAskUser(null);
-  }, [askUser, currentSessionId, appendMessage]);
+    // Flush buffered messages (Claude's response while waiting)
+    isAskBuffered.current = false;
+    if (askBufferRef.current.length > 0) {
+      for (const msg of askBufferRef.current) {
+        appendRef.current(msg);
+      }
+      askBufferRef.current = [];
+    }
+  }, [askUser, currentSessionId]);
+
+  // Buffered append: hold messages while AskUserQuestion dialog is shown
+  const bufferedAppend = useCallback((msg) => {
+    if (isAskBuffered.current && askUser) {
+      askBufferRef.current.push(msg);
+    } else {
+      origAppendRef.current(msg);
+    }
+  }, [askUser]);
+
+  const bufferedUpdate = useCallback((content) => {
+    if (isAskBuffered.current && askUser) {
+      // Update the last buffered assistant message
+      const buf = askBufferRef.current;
+      if (buf.length > 0 && buf[buf.length - 1].role === 'assistant') {
+        buf[buf.length - 1] = { ...buf[buf.length - 1], content, streaming: true };
+      }
+    } else {
+      origUpdateRef.current(content);
+    }
+  }, [askUser]);
 
   const hasMessages = chatMessages.length > 0;
   const askQs = askUser?.questions || [];
