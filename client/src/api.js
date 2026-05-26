@@ -123,9 +123,7 @@ export const getCcswitchStatus = () => fetchJSON('/init/ccswitch-status');
 export const restartCcswitch = () => fetchJSON('/init/ccswitch-restart', { method: 'POST' });
 export const initCcswitchProvider = () => fetchJSON('/init/ccswitch-init-provider', { method: 'POST' });
 
-// File system
-export const getDirs = (path) => fetchJSON(`/fs/dirs?path=${encodeURIComponent(path)}`);
-export const mkdir = (path, name) => fetchJSON('/fs/mkdir', { method: 'POST', body: JSON.stringify({ path, name }) });
+// File system (write / delete)
 export const writeFile = (filePath, content) => fetchJSON('/fs/write', { method: 'POST', body: JSON.stringify({ filePath, content }) });
 export const deleteFileOrDir = (filePath) => fetchJSON('/fs/delete', { method: 'DELETE', body: JSON.stringify({ filePath }) });
 
