@@ -454,6 +454,8 @@ export default function ChatView() {
       onError: (err) => {
         // Ignore errors from previous (aborted) executions
         if (execIdRef.current !== myExecId) return;
+        // AskUserQuestion abort is expected — don't show error
+        if (askRef.current) return;
         setStreaming(false);
         stopTimer();
         execPhase({ phase: 'done', detail: err.message });
@@ -466,20 +468,14 @@ export default function ChatView() {
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;
     resolveQuestion(currentSessionId, answers).catch(() => {});
-    // Show selected answer in chat
     const vals = Object.values(answers.answers || answers);
     const text = vals.filter(Boolean).join('，');
-    if (text) bAppend({ role: 'user', content: `📝 ${text}`, timestamp: Date.now() });
     setAskUser(null);
-    // Flush buffered messages (Claude's response while waiting)
-    isAskBuffered.current = false;
-    if (askBufferRef.current.length > 0) {
-      for (const msg of askBufferRef.current) {
-        appendRef.current(msg);
-      }
-      askBufferRef.current = [];
+    // Send answer as new message — session was silently aborted, will resume
+    if (text) {
+      setTimeout(() => handleSend(text), 200);
     }
-  }, [askUser, currentSessionId]);
+  }, [askUser, currentSessionId, handleSend]);
 
   // Buffered append: hold messages while AskUserQuestion dialog is shown
   const bufferedAppend = useCallback((msg) => {
