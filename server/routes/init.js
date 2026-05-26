@@ -5,7 +5,20 @@ const path = require('path');
 const os = require('os');
 const router = Router();
 
+const PROJECT_DIR = path.resolve(__dirname, '..', '..');
 const LOG_DIR = path.join(PROJECT_DIR, 'logs');
+const CONFIG_FILE = path.join(PROJECT_DIR, 'init-config.json');
+
+function findSDKBin() {
+  try {
+    const sdkEntry = require.resolve('@anthropic-ai/claude-agent-sdk');
+    const sdkDir = path.dirname(sdkEntry);
+    const arch = process.arch === 'x64' ? 'x64' : 'arm64';
+    const bin = path.join(sdkDir, '..', `claude-agent-sdk-${process.platform}-${arch}`, 'claude');
+    return fs.existsSync(bin) ? bin : null;
+  } catch { return null; }
+}
+const SDK_BIN = findSDKBin();
 
 function logInit(msg, err) {
   try {
@@ -46,7 +59,6 @@ router.get('/init/status', (_req, res) => {
     proxyUrl: config.proxyUrl || 'http://127.0.0.1:15721',
     proxyPort: config.proxyPort || 15721,
     claudeProxyUrl: config.claudeProxyUrl || process.env.CLAUDE_PROXY || 'http://127.0.0.1:15721',
-    sdkVersion: getSDKVersion(),
     saved: !!fs.existsSync(CONFIG_FILE),
     env: checkEnvironment(),
   });
@@ -349,7 +361,7 @@ router.post('/init/ccswitch-restart', (req, res) => {
       }
     }, 2000);
   } catch (err) {
-    logCcswitch("Error in ccswitch route"', err);
+    logCcswitch("Error in ccswitch route", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -380,7 +392,7 @@ router.get('/init/ccswitch-config', (req, res) => {
       })),
     });
   } catch (err) {
-    logCcswitch("Error in ccswitch route"', err);
+    logCcswitch("Error in ccswitch route", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -408,7 +420,7 @@ router.post('/init/ccswitch-config', (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    logCcswitch("Error in ccswitch route"', err);
+    logCcswitch("Error in ccswitch route", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -488,7 +500,7 @@ router.post('/init/ccswitch-init-provider', (req, res) => {
 
     res.json({ ok: true, message: '默认 Provider 已创建，请编辑配置后重启 CC-Switch' });
   } catch (err) {
-    logCcswitch("Error in ccswitch route"', err);
+    logCcswitch("Error in ccswitch route", err);
     res.status(500).json({ error: err.message });
   }
 });

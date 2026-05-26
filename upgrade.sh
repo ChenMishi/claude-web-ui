@@ -120,7 +120,9 @@ echo ""
 
 cd "$PROJECT_DIR"
 
+pct 1 "检查系统工具..."
 install_system_tools
+pct 3 "检查 Node.js 环境..."
 ensure_node
 
 pct 5 "升级中..."
@@ -165,24 +167,25 @@ ensure_build_tools
 pct 20 "安装服务端依赖..."
 log "更新服务端依赖..."
 npm install --production 2>&1 | tail -3
-pct 30 "编译原生模块..."
+pct 25 "编译原生模块..."
 log "编译原生模块 (node-pty / bcrypt)..."
 npm rebuild node-pty bcrypt 2>&1 | tail -3 || warn "部分原生模块编译失败，终端功能可能不可用"
 
-pct 40 "安装前端依赖..."
+pct 35 "安装前端依赖..."
 log "更新前端依赖..."
 cd client && npm install 2>&1 | tail -3
 cd "$PROJECT_DIR"
 
 # ---------- 重新构建前端 ----------
-pct 60 "构建前端..."
-log "重新构建前端..."
+pct 50 "构建前端准备..."
+log "开始构建前端..."
 cd client
 if npm run build 2>&1; then
+    pct 75 "构建成功，准备启动..."
     log "前端构建成功"
 else
     err "前端构建失败，查看上方输出"
-    echo "{\"status\":\"error\",\"progress\":60,\"message\":\"构建失败\"}" > /tmp/claude-web-ui-upgrade.status.tmp && mv /tmp/claude-web-ui-upgrade.status.tmp /tmp/claude-web-ui-upgrade.status.json
+    echo "{\"status\":\"error\",\"progress\":70,\"message\":\"构建失败\"}" > /tmp/claude-web-ui-upgrade.status.tmp && mv /tmp/claude-web-ui-upgrade.status.tmp /tmp/claude-web-ui-upgrade.status.json
     exit 1
 fi
 cd "$PROJECT_DIR"

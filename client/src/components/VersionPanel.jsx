@@ -211,8 +211,8 @@ export default function VersionPanel() {
                 <>{upgradeProgress}% — {upgradeMsg}</>
               )}
             </div>
-            {upgrading && upgradeLog && (
-              <pre className="version-upgrade-log" ref={logRef}>{upgradeLog}</pre>
+            {upgrading && (
+              <pre className="version-upgrade-log" ref={logRef}>{upgradeLog || '等待日志...'}</pre>
             )}
           </div>
         ) : (
