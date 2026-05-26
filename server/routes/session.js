@@ -792,7 +792,7 @@ router.post('/session/:id/message/resolve', (req, res) => {
   if (askResolve && firstVal !== '允许' && firstVal !== '拒绝') {
     askQuestionContext.delete(id);
     askQuestionContext.delete('pending');
-    askResolve({ answers: body.answers });
+    askResolve({ behavior: 'allow', updatedInput: { answers: body.answers } });
     return res.json({ ok: true });
   }
 });
