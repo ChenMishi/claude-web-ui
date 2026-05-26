@@ -100,7 +100,15 @@ router.get('/project', async (req, res) => {
       if (myProject) {
         return res.json([myProject]);
       }
-      return res.json([{ id: `user-${user.username}`, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() }]);
+      // Auto-create project: ensure dir + .cwd file exists for file browser
+      const { projects: userProjectsDir } = getUserDataDir(req.user);
+      const projDirName = `user-${user.username}`;
+      const projDir = path.join(userProjectsDir, projDirName);
+      if (!fs.existsSync(projDir)) {
+        fs.mkdirSync(projDir, { recursive: true });
+        fs.writeFileSync(path.join(projDir, '.cwd'), user.homeDir, 'utf8');
+      }
+      return res.json([{ id: projDirName, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() }]);
     }
     return res.json([]);
   }
