@@ -224,10 +224,9 @@ function buildSDKOptions(runtime, body, authUser) {
 
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
-      return new Promise((resolve) => {
-        setPendingApproval(runtime.sessionId || 'pending', resolve, 'ask', input);
-        broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      });
+      // Allow immediately, let the SDK proceed — answers handled separately
+      broadcast(runtime, 'ask_user', { questions: input.questions || [] });
+      return { behavior: 'allow', updatedInput: input };
     }
 
     // ── Sandbox checks for non-admin users ──
