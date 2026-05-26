@@ -16,7 +16,7 @@ log()  { echo -e "${GREEN}[INFO]${NC}  $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC}  $1" >&2; }
 err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 pct()  {
-  echo "[PROGRESS] $1"
+  echo "[PROGRESS] $1" >&2
   echo "{\"status\":\"running\",\"progress\":$1,\"message\":\"$2\"}" > /tmp/claude-web-ui-upgrade.status.json
 }
 
