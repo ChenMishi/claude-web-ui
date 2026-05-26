@@ -152,8 +152,9 @@ router.post('/project/link', (req, res) => {
   const err = restrictPath(req, cwd);
   if (err) return res.status(403).json({ error: err });
   const dirName = cwd.replace(/[/\\]+/g, '-').replace(/-$/, '') || '-';
-  const dirPath = path.join(CLAUDE_PROJECTS_DIR, dirName);
-  if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) fs.mkdirSync(CLAUDE_PROJECTS_DIR, { recursive: true });
+  const { projects: myProjectsDir } = getUserDataDir(req.user);
+  const dirPath = path.join(myProjectsDir, dirName);
+  if (!fs.existsSync(myProjectsDir)) fs.mkdirSync(myProjectsDir, { recursive: true });
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
   fs.writeFileSync(path.join(dirPath, '.cwd'), cwd, 'utf8');
   res.json({ ok: true, id: dirName, cwd });

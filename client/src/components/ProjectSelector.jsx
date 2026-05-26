@@ -25,9 +25,19 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
 
   useEffect(() => {
     if (showDialog) {
-      getDirs(currentPath).then(d => setDirs(d.dirs)).catch(() => {});
+      getDirs(currentPath).then(d => setDirs(d.dirs)).catch(() => setDirs([]));
     }
   }, [showDialog, currentPath]);
+
+  // For non-admin users, don't allow navigating above homeDir
+  const homeBoundary = user?.role !== 'admin' ? (user?.homeDir || `/home/${user?.username}`) : null;
+
+  const goUp = () => {
+    const parent = currentPath.split('/').slice(0, -1).join('/') || '/';
+    // Restrict: non-admin users cannot navigate above their homeDir
+    if (homeBoundary && !parent.startsWith(homeBoundary) && parent !== homeBoundary) return;
+    setCurrentPath(parent);
+  };
 
   const handleLink = async () => {
     try {
@@ -156,10 +166,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
             </div>
             <div className="dialog-dir-list">
               {currentPath !== '/' && (
-                <div
-                  className="dialog-dir-item"
-                  onClick={() => setCurrentPath(currentPath.split('/').slice(0, -1).join('/') || '/')}
-                >
+                <div className="dialog-dir-item" onClick={goUp}>
                   <span>📁</span>
                   <span className="name" style={{ color: 'var(--text-muted)' }}>..</span>
                 </div>
