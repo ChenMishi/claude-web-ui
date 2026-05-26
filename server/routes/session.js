@@ -430,16 +430,22 @@ router.delete('/session/:id', (req, res) => {
   runtime?.abort?.abort();
   deleteRuntimeSession(id);
   let deleted = false;
-  if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
-    for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
+  // Scan both global and user-specific project directories
+  const dirsToScan = [CLAUDE_PROJECTS_DIR];
+  const { projects: userProjects } = getUserDataDir(req.user);
+  if (userProjects !== CLAUDE_PROJECTS_DIR && fs.existsSync(userProjects)) {
+    dirsToScan.push(userProjects);
+  }
+  for (const baseDir of dirsToScan) {
+    if (!fs.existsSync(baseDir)) continue;
+    for (const entry of fs.readdirSync(baseDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const file = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`);
+      const file = path.join(baseDir, entry.name, `${id}.jsonl`);
       if (fs.existsSync(file)) {
         fs.rmSync(file, { force: true });
-        const metaFile = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.meta.json`);
+        const metaFile = path.join(baseDir, entry.name, `${id}.meta.json`);
         if (fs.existsSync(metaFile)) fs.rmSync(metaFile, { force: true });
         deleted = true;
-        break;
       }
     }
   }
