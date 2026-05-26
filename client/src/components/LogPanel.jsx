@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { authHeaders } from '../api';
 
 const BASE = '/api';
 
@@ -7,7 +8,7 @@ export default function LogPanel() {
   const [tab, setTab] = useState('server');
 
   const load = () => {
-    fetch(`${BASE}/init/log-errors`).then(r => r.json()).then(d => setLogs(d)).catch(() => {});
+    fetch(`${BASE}/init/log-errors`, { headers: authHeaders() }).then(r => r.json()).then(d => setLogs(d)).catch(() => {});
   };
 
   useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, []);
