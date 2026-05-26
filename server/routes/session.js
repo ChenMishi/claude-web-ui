@@ -308,7 +308,14 @@ function migrateSessionToUserDir(sessionId, cwd, authUser) {
     fs.mkdirSync(dstDir, { recursive: true });
     fs.copyFileSync(srcFile, dstFile);
     fs.writeFileSync(path.join(dstDir, '.cwd'), cwd, 'utf8');
-    fs.writeFileSync(path.join(dstDir, '.migrated'), new Date().toISOString(), 'utf8');
+    // Delete source file so admin's global directory doesn't see it
+    try { fs.unlinkSync(srcFile); } catch {}
+    // Clean up empty source directory
+    const srcDir = path.dirname(srcFile);
+    try {
+      const remaining = fs.readdirSync(srcDir).filter(f => !f.startsWith('.'));
+      if (remaining.length === 0) fs.rmdirSync(srcDir);
+    } catch {}
   } catch (err) {
     console.error(`[migrate] Failed to migrate session ${sessionId}:`, err.message);
   }
