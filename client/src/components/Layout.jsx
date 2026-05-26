@@ -6,7 +6,6 @@ import ChatView from './ChatView';
 import FileBrowser from './FileBrowser';
 import TerminalView from './TerminalView';
 import SettingsPanel from './SettingsPanel';
-import VersionPanel from './VersionPanel';
 import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
 import LoginPage from './LoginPage';
@@ -65,7 +64,6 @@ export default function Layout() {
         {activeView === 'files' && <FileBrowser />}
         {activeView === 'terminal' && <TerminalView />}
         {isAdmin && activeView === 'settings' && <SettingsPanel />}
-        {isAdmin && <div style={{ display: activeView === 'version' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}><VersionPanel /></div>}
         {isAdmin && activeView === 'init' && <InitPanel />}
         {activeView === 'logs' && <LogPanel />}
       </main>

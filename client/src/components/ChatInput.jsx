@@ -108,7 +108,7 @@ export default function ChatInput({ onSend, onStop, disabled }) {
       case 'files': setView('files'); break;
       case 'terminal': setView('terminal'); break;
       case 'settings': setView('settings'); break;
-      case 'version': setView('version'); break;
+      case 'version': setView('settings'); break;
       case 'theme-dark': setSetting('theme', 'dark'); inputRef.current.value = ''; break;
       case 'theme-light': setSetting('theme', 'light'); inputRef.current.value = ''; break;
       case 'theme-warm': setSetting('theme', 'warm'); inputRef.current.value = ''; break;

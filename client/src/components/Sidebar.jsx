@@ -180,17 +180,6 @@ export default function Sidebar() {
           </button>
         )}
         {isAdmin && (
-          <button className={activeView === 'version' ? 'active' : ''} onClick={() => setView('version')}>
-            🏷 版本
-            {updateAvailable && (
-              <>
-                <span className="nav-badge" />
-                <span className="nav-update-tag">新版本可升级!</span>
-              </>
-            )}
-          </button>
-        )}
-        {isAdmin && (
           <button className={activeView === 'init' ? 'active' : ''} onClick={() => setView('init')}>
             🔧 初始化
           </button>

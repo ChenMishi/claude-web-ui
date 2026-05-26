@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getUsers, createUser, deleteUser } from '../api';
+import VersionCard from './VersionCard';
 
 export default function SettingsPanel() {
   const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId, user } = useApp();
@@ -86,7 +87,10 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      {/* Card 3: 用户管理 */}
+      {/* Card 3: 版本升级 */}
+      <VersionCard />
+
+      {/* Card 4: 用户管理 */}
       {isAdmin && (
         <div className="settings-card">
           <div className="settings-card-header">👥 用户管理</div>
