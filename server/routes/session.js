@@ -222,11 +222,15 @@ function buildSDKOptions(runtime, body, authUser) {
     ...runtime.abort ? { abortController: runtime.abort } : {},
   };
 
+  // Store AskUserQuestion resolve callbacks separately
+  const askResolves = new Map();
+
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
-      // Allow immediately, let the SDK proceed — answers handled separately
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      return { behavior: 'allow', updatedInput: input };
+      // Return immediately to pass Zod, store resolve for later
+      const key = runtime.sessionId || 'pending';
+      return new Promise((resolve) => { askResolves.set(key, resolve); });
     }
 
     // ── Sandbox checks for non-admin users ──
