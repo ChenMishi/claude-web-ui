@@ -210,8 +210,7 @@ function buildSDKOptions(runtime, body, authUser) {
   const options = {
     cwd: sandbox ? sandbox.homeDir : runtime.cwd,
     permissionMode: 'acceptEdits',
-    // Don't set pathToClaudeCodeExecutable — let SDK use internal binary
-    // which handles AskUserQuestion natively
+    pathToClaudeCodeExecutable: SDK_BINARY,
     ...runtime.sessionId ? { resume: runtime.sessionId } : {},
     ...agentOptions.model !== undefined ? { model: agentOptions.model } : {},
     ...agentOptions.maxTurns !== undefined ? { maxTurns: agentOptions.maxTurns } : {},
