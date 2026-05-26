@@ -57,60 +57,40 @@ function restrictPath(req, targetPath) {
   return null; // allowed
 }
 
-// List all projects — scans both global and user-specific directories
+// List all projects — each user sees only their own directory
 router.get('/project', async (req, res) => {
+  const { projects: myProjectsDir } = getUserDataDir(req.user);
   const projects = [];
   const seenCwds = new Set();
-  const seenDirs = new Set();
 
-  // Helper: scan a base dir for project entries
-  const scanDir = (baseDir) => {
-    if (!fs.existsSync(baseDir)) return;
-    const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  // Scan user's own project directory
+  if (fs.existsSync(myProjectsDir)) {
+    const entries = fs.readdirSync(myProjectsDir, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      const dirName = entry.name;
-      const dirPath = path.join(baseDir, dirName);
-      if (seenDirs.has(dirName)) continue;
-      seenDirs.add(dirName);
-      const info = scanProjectDir(dirPath, dirName);
+      const dirPath = path.join(myProjectsDir, entry.name);
+      const info = scanProjectDir(dirPath, entry.name);
       if (!info || seenCwds.has(info.cwd)) continue;
       seenCwds.add(info.cwd);
       projects.push(info);
     }
-  };
-
-  // Scan global projects dir (admin's data)
-  scanDir(CLAUDE_PROJECTS_DIR);
-
-  // Scan user-specific projects dir (non-admin's data)
-  const { projects: userProjectsDir } = getUserDataDir(req.user);
-  if (userProjectsDir !== CLAUDE_PROJECTS_DIR) {
-    scanDir(userProjectsDir);
   }
 
   projects.sort((a, b) => b.updatedAt - a.updatedAt);
 
-  // For non-admin users, only show their homeDir project
-  if (req.user && req.user.role !== 'admin') {
-    const { findUserById } = require('../auth/users');
-    const user = findUserById(req.user.userId);
-    if (user) {
-      const myProject = projects.find(p => p.cwd === user.homeDir);
-      if (myProject) {
-        return res.json([myProject]);
-      }
-      // Auto-create project: ensure dir + .cwd file exists for file browser
-      const { projects: userProjectsDir } = getUserDataDir(req.user);
-      const projDirName = `user-${user.username}`;
-      const projDir = path.join(userProjectsDir, projDirName);
-      if (!fs.existsSync(projDir)) {
-        fs.mkdirSync(projDir, { recursive: true });
-        fs.writeFileSync(path.join(projDir, '.cwd'), user.homeDir, 'utf8');
-      }
-      return res.json([{ id: projDirName, cwd: user.homeDir, sessionCount: 0, updatedAt: Date.now() }]);
+  // Ensure default project exists for the user
+  const defaultCwd = req.user && req.user.role !== 'admin'
+    ? (req.user.homeDir || `/home/${req.user.username}`)
+    : os.homedir();
+
+  if (!seenCwds.has(defaultCwd)) {
+    const dirName = defaultCwd.replace(/[/\\]+/g, '-').replace(/-$/, '') || '-';
+    const projDir = path.join(myProjectsDir, dirName);
+    if (!fs.existsSync(projDir)) {
+      fs.mkdirSync(projDir, { recursive: true });
+      fs.writeFileSync(path.join(projDir, '.cwd'), defaultCwd, 'utf8');
     }
-    return res.json([]);
+    projects.unshift({ id: dirName, cwd: defaultCwd, sessionCount: 0, updatedAt: Date.now() });
   }
 
   res.json(projects);
