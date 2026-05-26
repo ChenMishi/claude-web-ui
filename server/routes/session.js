@@ -157,6 +157,27 @@ const LOCAL_DANGEROUS = [
   'modprobe -r', 'rmmod',
 ];
 
+function getUserSandbox(authUser) {
+  if (!authUser || authUser.role === 'admin') return null;
+  const user = findUserById(authUser.userId);
+  if (!user) return null;
+  return {
+    username: user.username,
+    homeDir: user.homeDir || `/home/${user.username}`,
+    osUid: user.osUid,
+    osGid: user.osGid,
+  };
+}
+
+function isPathAllowed(filePath, homeDir) {
+  if (!filePath || !homeDir) return false;
+  const resolved = path.resolve(filePath);
+  const home = path.resolve(homeDir);
+  if (resolved === home || resolved.startsWith(home + path.sep)) return true;
+  if (resolved.startsWith('/tmp/')) return true;
+  return false;
+}
+
 function sandboxBashCommand(command, sandbox) {
   if (!sandbox) return command; // admin, no sandboxing
 
@@ -193,7 +214,8 @@ function buildSDKOptions(runtime, body, authUser) {
     ...agentOptions.systemPrompt !== undefined ? { systemPrompt: agentOptions.systemPrompt } : {},
     ...agentOptions.maxBudgetUsd !== undefined ? { maxBudgetUsd: agentOptions.maxBudgetUsd } : {},
     ...agentOptions.effort !== undefined ? { effort: agentOptions.effort } : {},
-    ...agentOptions.additionalDirectories?.length ? { additionalDirectories: agentOptions.additionalDirectories } : {},
+    // Non-admin users: strip additionalDirectories (could be used to bypass sandbox)
+    ...(sandbox ? {} : (agentOptions.additionalDirectories?.length ? { additionalDirectories: agentOptions.additionalDirectories } : {})),
     ...agentOptions.env !== undefined ? { env: agentOptions.env } : {},
     ...agentOptions.thinking !== undefined ? { thinking: agentOptions.thinking } : {},
     stream_options: { include_usage: true },
@@ -221,13 +243,14 @@ function buildSDKOptions(runtime, body, authUser) {
             throw new Error(`安全限制：不能写入 ${input.file_path}，只能在 ${sandbox.homeDir} 目录下操作`);
           }
         }
-        // Read: check file is within homeDir, /etc, /usr, /tmp
-        if (toolName === 'Read' && input.file_path) {
-          const resolved = path.resolve(input.file_path);
-          if (!isPathAllowed(resolved, sandbox.homeDir) &&
-              !resolved.startsWith('/etc/') && !resolved.startsWith('/usr/') &&
-              resolved !== '/etc' && resolved !== '/usr') {
-            throw new Error(`安全限制：不能读取 ${input.file_path}`);
+        // Read / Glob / Grep: limit search scope for non-admin users
+        if ((toolName === 'Read' || toolName === 'Glob' || toolName === 'Grep') && input.file_path) {
+          const resolved = path.resolve(input.file_path || input.pattern || '');
+          const basePath = resolved.split(path.sep).slice(0, 3).join(path.sep) || resolved;
+          if (!isPathAllowed(basePath, sandbox.homeDir) &&
+              !basePath.startsWith('/etc/') && !basePath.startsWith('/usr/') &&
+              basePath !== '/etc' && basePath !== '/usr') {
+            throw new Error(`安全限制：不能${toolName === 'Read' ? '读取' : '搜索'} ${input.file_path || input.pattern}`);
           }
         }
       } catch (err) {
