@@ -8,7 +8,10 @@ export default function LogPanel() {
   const [tab, setTab] = useState('server');
 
   const load = () => {
-    fetch(`${BASE}/init/log-errors`, { headers: authHeaders() }).then(r => r.json()).then(d => setLogs(d)).catch(() => {});
+    fetch(`${BASE}/init/log-errors`, { headers: authHeaders() })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(d => setLogs(d))
+      .catch(err => console.error('Log load error:', err));
   };
 
   useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, []);
