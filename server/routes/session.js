@@ -44,8 +44,8 @@ function findSDKBinary() {
 
 const SDK_BINARY = findSDKBinary();
 
-// Separate storage for AskUserQuestion resolves (module-level, accessible by resolve endpoint)
-const askResolves = new Map();
+// Separate storage for AskUserQuestion context (module-level)
+const askQuestionContext = new Map();
 
 const router = Router();
 
@@ -228,8 +228,9 @@ function buildSDKOptions(runtime, body, authUser) {
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      const key = runtime.sessionId || 'pending';
-      return new Promise((resolve) => { askResolves.set(key, resolve); });
+      // Store question context globally for later resolution
+      askQuestionContext.set(runtime.sessionId || 'pending', { runtime, input });
+      return { behavior: 'allow', updatedInput: input };
     }
 
     // ── Sandbox checks for non-admin users ──
@@ -770,28 +771,33 @@ router.get('/session/:id/stream', (req, res) => {
 router.post('/session/:id/message/resolve', (req, res) => {
   const { id } = req.params;
   const body = req.body || {};
-
-  // Support both formats: array [{question, answer}] or object {answers: {...}}
-  let answers = body;
-  if (body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers)) {
-    answers = body.answers;
-  }
-
-  if (!answers || (Array.isArray(answers) && answers.length === 0)) {
+  if (!body.answers || typeof body.answers !== 'object') {
     return res.status(400).json({ error: 'answers is required' });
   }
+  const firstVal = Object.values(body.answers)[0];
 
-  // Check if tool confirmation (单问题 + 允许/拒绝选项)
-  const firstVal = Array.isArray(answers) ? answers[0]?.answer : Object.values(answers)[0];
+  // AskUserQuestion: inject answers as tool_result via SSE broadcast
+  const ctx = askQuestionContext.get(id) || askQuestionContext.get('pending');
+  if (ctx && firstVal !== '允许' && firstVal !== '拒绝') {
+    askQuestionContext.delete(id);
+    askQuestionContext.delete('pending');
+    const ansJson = JSON.stringify({ answers: body.answers });
+    broadcast(ctx.runtime, 'user_input', { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: ctx.toolUseId || 'ask', content: ansJson }] } });
+    // Also try injecting as a raw message
+    const runtime = getRuntimeSession(id);
+    if (runtime) {
+      broadcast(runtime, 'answer', { answers: body.answers });
+    }
+    console.log('[resolve] AskUserQuestion injected:', ansJson);
+    return res.json({ ok: true });
+  }
+
+  // Tool confirmation (允许/拒绝)
   const decision = firstVal === '拒绝'
     ? { behavior: 'deny', message: '用户拒绝执行' }
-    : { behavior: 'allow', updatedInput: { answers } };
-
-  console.log('[resolve] answer:', firstVal, 'decision:', JSON.stringify(decision));
-
+    : { behavior: 'allow', updatedInput: {} };
   let ok = resolvePendingApproval(id, decision);
   if (!ok) ok = resolvePendingApproval('pending', decision);
-  console.log('[resolve] resolved:', ok);
   if (!ok) return res.status(409).json({ error: 'No pending question for this session' });
   res.json({ ok: true });
 });
