@@ -18,26 +18,26 @@ try { query = require('@anthropic-ai/claude-agent-sdk').query; } catch { /* will
 
 function findSDKBinary() {
   try {
-    // Resolve from the SDK's own package directory
-    const sdkDir = path.dirname(require.resolve('@anthropic-ai/claude-agent-sdk/package.json'));
-    // Find the platform binary package alongside the SDK
+    // sdkEntry = .../node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs
+    const sdkEntry = require.resolve('@anthropic-ai/claude-agent-sdk');
+    // Go to the SDK package dir, then sibling binary package
+    const sdkDir = path.dirname(sdkEntry);
     const arch = process.arch === 'x64' ? 'x64' : 'arm64';
+    // Binary is a sibling of the SDK package: @anthropic-ai/claude-agent-sdk-linux-x64/claude
     const candidates = [
       path.join(sdkDir, '..', `claude-agent-sdk-${process.platform}-${arch}`, 'claude'),
       path.join(sdkDir, '..', `claude-agent-sdk-${process.platform}-${arch}-musl`, 'claude'),
-      path.join(path.dirname(sdkDir), `claude-agent-sdk-${process.platform}-${arch}`, 'claude'),
-      path.join(path.dirname(sdkDir), `claude-agent-sdk-${process.platform}-${arch}-musl`, 'claude'),
     ];
     for (const bin of candidates) {
       if (fs.existsSync(bin)) {
-        console.log('[SDK] Found binary at:', bin);
+        console.log('[SDK] Binary found at:', bin);
         return bin;
       }
     }
-    console.warn('[SDK] Binary not found. Searched:', candidates);
+    console.warn('[SDK] Binary not found, SDK will search internally. Checked:', candidates[0]);
     return null;
   } catch (err) {
-    console.error('[SDK] Error finding binary:', err.message);
+    console.warn('[SDK] Error finding binary:', err.message);
     return null;
   }
 }

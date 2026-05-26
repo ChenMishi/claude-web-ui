@@ -250,6 +250,33 @@ ensure_sdk_binary() {
         chmod +x "$sdk_bin"
     fi
 
+    # 2. Quick smoke test — try to run with --version
+    if "$sdk_bin" --version &>/dev/null; then
+        log "SDK 二进制自检通过 ($("$sdk_bin" --version 2>&1 | head -1))"
+    else
+        warn "SDK 二进制 --version 测试失败，可能是动态库缺失"
+        if command -v ldd &>/dev/null; then
+            warn "缺失的依赖库:"
+            ldd "$sdk_bin" 2>&1 | grep "not found" || true
+        fi
+    fi
+
+    # 3. Verify Node can load the SDK module
+    local sdk_ok=$(cd "$PROJECT_DIR" && node -e "
+        try {
+            require.resolve('@anthropic-ai/claude-agent-sdk');
+            console.log('OK');
+        } catch(e) {
+            console.log('FAIL:' + e.message);
+        }
+    " 2>&1)
+    if [ "$sdk_ok" = "OK" ]; then
+        log "SDK Node 模块加载正常"
+    else
+        warn "SDK Node 模块加载失败: $sdk_ok"
+        warn "请检查 npm install 是否成功，或手动执行: cd $PROJECT_DIR && npm install"
+    fi
+
     # 2. Quick smoke test — try to run with --help or --version
     if "$sdk_bin" --version &>/dev/null; then
         log "SDK 二进制自检通过"
