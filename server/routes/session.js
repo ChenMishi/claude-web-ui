@@ -785,7 +785,7 @@ router.post('/session/:id/message/resolve', (req, res) => {
     ? { behavior: 'deny', message: '用户拒绝执行' }
     : { behavior: 'allow', updatedInput: { answers } };
 
-  console.log('[resolve] answer:', firstAnswer, 'decision:', JSON.stringify(decision));
+  console.log('[resolve] answer:', firstVal, 'decision:', JSON.stringify(decision));
 
   let ok = resolvePendingApproval(id, decision);
   if (!ok) ok = resolvePendingApproval('pending', decision);
