@@ -19,7 +19,9 @@ function readUpgradeState() {
 }
 
 function writeUpgradeState(state) {
-  fs.writeFileSync(UPGRADE_STATUS_FILE, JSON.stringify(state), 'utf8');
+  const tmp = UPGRADE_STATUS_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state), 'utf8');
+  fs.renameSync(tmp, UPGRADE_STATUS_FILE);
 }
 
 function getGitRemote() {

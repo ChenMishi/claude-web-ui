@@ -17,8 +17,7 @@ warn() { echo -e "${YELLOW}[WARN]${NC}  $1" >&2; }
 err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 pct()  {
   echo "[PROGRESS] $1" >&2
-  echo "{\"status\":\"running\",\"progress\":$1,\"message\":\"$2\"}" > /tmp/claude-web-ui-upgrade.status.json
-  sync
+  echo "{\"status\":\"running\",\"progress\":$1,\"message\":\"$2\"}" > /tmp/claude-web-ui-upgrade.status.tmp && mv /tmp/claude-web-ui-upgrade.status.tmp /tmp/claude-web-ui-upgrade.status.json
 }
 
 # ---------- 安装基础系统工具 ----------
@@ -183,7 +182,7 @@ if npm run build 2>&1; then
     log "前端构建成功"
 else
     err "前端构建失败，查看上方输出"
-    echo "{\"status\":\"error\",\"progress\":60,\"message\":\"构建失败\"}" > /tmp/claude-web-ui-upgrade.status.json
+    echo "{\"status\":\"error\",\"progress\":60,\"message\":\"构建失败\"}" > /tmp/claude-web-ui-upgrade.status.tmp && mv /tmp/claude-web-ui-upgrade.status.tmp /tmp/claude-web-ui-upgrade.status.json
     exit 1
 fi
 cd "$PROJECT_DIR"
@@ -211,7 +210,7 @@ echo "$NEW_PID" > .pid
 sleep 3
 if lsof -i ":$PORT" &>/dev/null; then
     NEW_VERSION=$(cat VERSION 2>/dev/null || echo "?")
-    echo "{\"status\":\"done\",\"progress\":100,\"message\":\"升级完成，请刷新页面\",\"newVersion\":\"$NEW_VERSION\"}" > /tmp/claude-web-ui-upgrade.status.json
+    echo "{\"status\":\"done\",\"progress\":100,\"message\":\"升级完成，请刷新页面\",\"newVersion\":\"$NEW_VERSION\"}" > /tmp/claude-web-ui-upgrade.status.tmp && mv /tmp/claude-web-ui-upgrade.status.tmp /tmp/claude-web-ui-upgrade.status.json
     pct 100 "升级完成，请刷新页面！"
     SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     [ -z "$SERVER_IP" ] && SERVER_IP="localhost"
@@ -225,7 +224,7 @@ if lsof -i ":$PORT" &>/dev/null; then
     echo "  ╚════════════════════════════════════╝"
     echo ""
 else
-    echo "{\"status\":\"error\",\"progress\":100,\"message\":\"启动失败，查看日志\"}" > /tmp/claude-web-ui-upgrade.status.json
+    echo "{\"status\":\"error\",\"progress\":100,\"message\":\"启动失败，查看日志\"}" > /tmp/claude-web-ui-upgrade.status.tmp && mv /tmp/claude-web-ui-upgrade.status.tmp /tmp/claude-web-ui-upgrade.status.json
     err "启动失败，查看日志: $PROJECT_DIR/server.log"
     cat "$PROJECT_DIR/server.log" | tail -20
     exit 1
