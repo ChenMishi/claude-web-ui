@@ -177,6 +177,12 @@ export default function Sidebar() {
         {isAdmin && (
           <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
             ⚙ 设置
+            {updateAvailable && (
+              <>
+                <span className="nav-badge" />
+                <span className="nav-update-tag">新版本!</span>
+              </>
+            )}
           </button>
         )}
         {isAdmin && (
