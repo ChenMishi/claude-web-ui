@@ -773,19 +773,11 @@ router.post('/session/:id/message/resolve', (req, res) => {
   }
   // Check if this is a tool confirmation (user chose 允许/拒绝)
   const firstAnswer = Object.values(body.answers)[0];
-  const isToolConfirm = firstAnswer === '允许' || firstAnswer === '拒绝';
+  const decision = firstAnswer === '拒绝'
+    ? { behavior: 'deny', message: '用户拒绝执行' }
+    : { behavior: 'allow', updatedInput: { answers: body.answers } };
 
-  let decision;
-  if (isToolConfirm) {
-    decision = firstAnswer === '拒绝'
-      ? { behavior: 'deny', message: '用户拒绝执行' }
-      : { behavior: 'allow', updatedInput: {} };
-  } else {
-    // AskUserQuestion — pass answers directly to SDK
-    decision = { answers: body.answers };
-  }
-
-  console.log('[resolve] firstAnswer:', firstAnswer, 'isToolConfirm:', isToolConfirm);
+  console.log('[resolve] answer:', firstAnswer, 'decision:', JSON.stringify(decision));
 
   let ok = resolvePendingApproval(id, decision);
   if (!ok) ok = resolvePendingApproval('pending', decision);
