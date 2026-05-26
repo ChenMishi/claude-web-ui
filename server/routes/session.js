@@ -228,9 +228,9 @@ function buildSDKOptions(runtime, body, authUser) {
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      // Store question context globally for later resolution
-      askQuestionContext.set(runtime.sessionId || 'pending', { runtime, input });
-      return { behavior: 'allow', updatedInput: input };
+      return new Promise((resolve) => {
+        askQuestionContext.set(runtime.sessionId || 'pending', { resolve });
+      });
     }
 
     // ── Sandbox checks for non-admin users ──
@@ -776,19 +776,13 @@ router.post('/session/:id/message/resolve', (req, res) => {
   }
   const firstVal = Object.values(body.answers)[0];
 
-  // AskUserQuestion: inject answers as tool_result via SSE broadcast
+  // AskUserQuestion: resolve stored Promise
   const ctx = askQuestionContext.get(id) || askQuestionContext.get('pending');
-  if (ctx && firstVal !== '允许' && firstVal !== '拒绝') {
+  if (ctx && ctx.resolve && firstVal !== '允许' && firstVal !== '拒绝') {
     askQuestionContext.delete(id);
     askQuestionContext.delete('pending');
-    const ansJson = JSON.stringify({ answers: body.answers });
-    broadcast(ctx.runtime, 'user_input', { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: ctx.toolUseId || 'ask', content: ansJson }] } });
-    // Also try injecting as a raw message
-    const runtime = getRuntimeSession(id);
-    if (runtime) {
-      broadcast(runtime, 'answer', { answers: body.answers });
-    }
-    console.log('[resolve] AskUserQuestion injected:', ansJson);
+    console.log('[resolve] AskUserQuestion resolved:', JSON.stringify(body.answers));
+    ctx.resolve({ behavior: 'allow', updatedInput: { answers: body.answers } });
     return res.json({ ok: true });
   }
 
