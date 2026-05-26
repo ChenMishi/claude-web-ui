@@ -124,38 +124,51 @@ function handleSDKMessage(message, runtime, isStreaming) {
 }
 
 // ── Security: user sandbox helpers ──
-const DANGEROUS_COMMANDS = ['sudo', 'su ', 'passwd', 'chown', 'chmod 777', 'mkfs', 'dd if=', 'rm -rf /', ':(){'];
 
-function getUserSandbox(authUser) {
-  if (!authUser || authUser.role === 'admin') return null; // admin = no sandbox
-  const user = findUserById(authUser.userId);
-  if (!user) return null;
-  return {
-    username: user.username,
-    homeDir: user.homeDir || `/home/${user.username}`,
-    osUid: user.osUid,
-    osGid: user.osGid,
-  };
-}
+// Commands that remote tools (ssh/scp/rsync/ansible) are allowed to use on OTHER machines
+const REMOTE_PREFIXES = ['ssh ', 'scp ', 'rsync ', 'ansible', 'ansible-playbook'];
 
-function isPathAllowed(filePath, homeDir) {
-  if (!filePath || !homeDir) return false;
-  const resolved = path.resolve(filePath);
-  const home = path.resolve(homeDir);
-  // Allow home dir and /tmp
-  if (resolved === home || resolved.startsWith(home + path.sep)) return true;
-  if (resolved.startsWith('/tmp/')) return true;
-  return false;
-}
+// Dangerous commands blocked for regular users on the LOCAL machine
+const LOCAL_DANGEROUS = [
+  // Privilege escalation
+  'sudo', 'su ', 'su -', 'pkexec',
+  // System power control
+  'reboot', 'shutdown', 'poweroff', 'halt',
+  'init 0', 'init 6', 'telinit',
+  'systemctl reboot', 'systemctl poweroff', 'systemctl halt', 'systemctl suspend',
+  // Process termination
+  'kill -9 1', 'kill -9 -1', 'killall',
+  // System service control
+  'systemctl stop', 'systemctl disable', 'systemctl mask',
+  'service stop', 'service disable',
+  // User/password management
+  'passwd', 'usermod', 'userdel', 'groupdel',
+  // Filesystem / Ownership
+  'chown', 'chmod 777', 'chmod -R 777',
+  'mount ', 'umount ', 'mkfs', 'fdisk', 'parted',
+  'mkswap', 'swapon', 'swapoff',
+  // Network / Firewall
+  'iptables -F', 'iptables -X', 'iptables -P', 'nft flush',
+  // Data destruction
+  'dd if=', 'rm -rf /', 'shred',
+  // Fork bomb
+  ':(){ :|:& };:',
+  // Kernel / Module
+  'modprobe -r', 'rmmod',
+];
 
 function sandboxBashCommand(command, sandbox) {
   if (!sandbox) return command; // admin, no sandboxing
 
-  // Block dangerous commands
   const lower = (command || '').toLowerCase();
-  for (const dc of DANGEROUS_COMMANDS) {
-    if (lower.includes(dc.toLowerCase())) {
-      throw new Error(`安全限制：普通用户不能执行包含 "${dc}" 的命令`);
+
+  // Check if this is a remote operation — if so, skip local dangerous checks
+  const isRemote = REMOTE_PREFIXES.some(prefix => lower.startsWith(prefix));
+  if (!isRemote) {
+    for (const dc of LOCAL_DANGEROUS) {
+      if (lower.includes(dc.toLowerCase())) {
+        throw new Error(`安全限制：普通用户不能执行包含 "${dc}" 的命令`);
+      }
     }
   }
 
