@@ -290,24 +290,35 @@ function migrateSessionToUserDir(sessionId, cwd, authUser) {
   const { projects: userProjectsDir } = getUserDataDir(authUser);
   if (userProjectsDir === CLAUDE_PROJECTS_DIR) return; // admin — no migration needed
 
+  // Find the session JSONL in global projects dir (SDK may use different dir naming)
+  const srcFile = findSessionInDir(CLAUDE_PROJECTS_DIR, sessionId);
+  if (!srcFile) return;
+
   const { getProjectDirName } = require('../store');
   const projectDir = getProjectDirName(cwd);
-  const srcDir = path.join(CLAUDE_PROJECTS_DIR, projectDir);
-  const srcFile = path.join(srcDir, `${sessionId}.jsonl`);
   const dstDir = path.join(userProjectsDir, projectDir);
   const dstFile = path.join(dstDir, `${sessionId}.jsonl`);
 
-  if (!fs.existsSync(srcFile)) return;
   try {
     fs.mkdirSync(dstDir, { recursive: true });
     fs.copyFileSync(srcFile, dstFile);
-    // Write .cwd marker
     fs.writeFileSync(path.join(dstDir, '.cwd'), cwd, 'utf8');
-    // Keep original as backup, write a .migrated marker
     fs.writeFileSync(path.join(dstDir, '.migrated'), new Date().toISOString(), 'utf8');
   } catch (err) {
     console.error(`[migrate] Failed to migrate session ${sessionId}:`, err.message);
   }
+}
+
+// Scan a base directory for a specific session JSONL file
+function findSessionInDir(baseDir, sessionId) {
+  if (!fs.existsSync(baseDir)) return null;
+  const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const file = path.join(baseDir, entry.name, `${sessionId}.jsonl`);
+    if (fs.existsSync(file)) return file;
+  }
+  return null;
 }
 
 // Resolve project directory for a user — check user-specific dir first, fallback to global
