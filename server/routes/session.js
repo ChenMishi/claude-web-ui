@@ -228,9 +228,7 @@ function buildSDKOptions(runtime, body, authUser) {
   options.canUseTool = async (toolName, input) => {
     if (toolName === 'AskUserQuestion') {
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      return new Promise((resolve) => {
-        askQuestionContext.set(runtime.sessionId || 'pending', resolve);
-      });
+      return { behavior: 'allow', updatedInput: input };
     }
 
     // ── Sandbox checks for non-admin users ──
@@ -792,7 +790,7 @@ router.post('/session/:id/message/resolve', (req, res) => {
   if (askResolve && firstVal !== '允许' && firstVal !== '拒绝') {
     askQuestionContext.delete(id);
     askQuestionContext.delete('pending');
-    askResolve({ behavior: 'allow', updatedInput: { answers: body.answers } });
+    askResolve({ answers: body.answers });
     return res.json({ ok: true });
   }
 });

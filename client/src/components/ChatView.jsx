@@ -438,8 +438,12 @@ export default function ChatView() {
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;
     resolveQuestion(currentSessionId, answers).catch(() => {});
+    // Show selected answer in chat as user message
+    const vals = Object.values(answers.answers || answers);
+    const text = vals.filter(Boolean).join('，');
+    if (text) appendMessage({ role: 'user', content: `📝 ${text}`, timestamp: Date.now() });
     setAskUser(null);
-  }, [askUser, currentSessionId]);
+  }, [askUser, currentSessionId, appendMessage]);
 
   const hasMessages = chatMessages.length > 0;
   const askQs = askUser?.questions || [];
