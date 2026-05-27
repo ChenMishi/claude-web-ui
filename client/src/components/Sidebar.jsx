@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo } from '../api';
+import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo, restartServer } from '../api';
 import ProjectSelector from './ProjectSelector';
 import SessionList from './SessionList';
 import ProfileModal from './ProfileModal';
@@ -23,6 +23,11 @@ export default function Sidebar() {
   const isAdmin = user?.role === 'admin';
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const [restartStatus, setRestartStatus] = useState(null); // null | 'restarting' | 'done' | 'timeout' | 'error'
+  const [restartError, setRestartError] = useState('');
+  const restartStatusRef = useRef(null);
+  const [confirmRestart, setConfirmRestart] = useState(null); // { x, y } or null
   const userMenuRef = useRef(null);
 
   // Track streaming state in ref to avoid stale closure in effect
@@ -142,6 +147,42 @@ export default function Sidebar() {
     });
   }, [currentSessionId, currentProjectId]);
 
+  const handleRestart = async () => {
+    setConfirmRestart(null);
+    setRestarting(true);
+    setRestartStatus('restarting');
+    restartStatusRef.current = 'restarting';
+    setRestartError('');
+    setMenuOpen(false);
+    try {
+      await restartServer();
+      // Wait for old server to be killed (restart script sleeps 2s before kill)
+      await new Promise(r => setTimeout(r, 4000));
+      const poll = setInterval(async () => {
+        try {
+          const res = await fetch('/api/auth/status');
+          if (res.ok) {
+            clearInterval(poll);
+            restartStatusRef.current = 'done';
+            setRestartStatus('done');
+            setTimeout(() => window.location.reload(), 1000);
+          }
+        } catch {}
+      }, 2000);
+      setTimeout(() => {
+        clearInterval(poll);
+        if (restartStatusRef.current === 'restarting') {
+          setRestartStatus('timeout');
+          restartStatusRef.current = 'timeout';
+        }
+      }, 60000);
+    } catch (err) {
+      setRestartStatus('error');
+      restartStatusRef.current = 'error';
+      setRestartError(err.message);
+    }
+  };
+
   return (
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
@@ -174,6 +215,9 @@ export default function Sidebar() {
         <button className={activeView === 'terminal' ? 'active' : ''} onClick={() => setView('terminal')}>
           🖥 终端
         </button>
+        <button className={activeView === 'skills' ? 'active' : ''} onClick={() => setView('skills')}>
+          🧩 技能
+        </button>
         {isAdmin && (
           <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
             ⚙ 设置
@@ -183,16 +227,6 @@ export default function Sidebar() {
                 <span className="nav-update-tag">新版本!</span>
               </>
             )}
-          </button>
-        )}
-        {isAdmin && (
-          <button className={activeView === 'init' ? 'active' : ''} onClick={() => setView('init')}>
-            🔧 初始化
-          </button>
-        )}
-        {isAdmin && (
-          <button className={activeView === 'logs' ? 'active' : ''} onClick={() => setView('logs')}>
-            📋 日志
           </button>
         )}
 
@@ -240,6 +274,17 @@ export default function Sidebar() {
               <button onClick={() => { setProfileOpen(true); setMenuOpen(false); }}>
                 ⚙ 个人设置
               </button>
+              {isAdmin && (
+                <button
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setConfirmRestart({ x: rect.left + rect.width / 2, y: rect.top });
+                  }}
+                  disabled={restarting}
+                >
+                  {restarting ? '⏳ 重启中...' : '🔄 重启服务'}
+                </button>
+              )}
               <button onClick={logout}>
                 🚪 退出登录
               </button>
@@ -249,6 +294,52 @@ export default function Sidebar() {
       )}
 
       {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
+
+      {confirmRestart && (
+        <div className="confirm-popup-overlay" onClick={() => setConfirmRestart(null)}>
+          <div
+            className="confirm-popup"
+            style={{ left: confirmRestart.x, top: confirmRestart.y - 10 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="confirm-popup-text">确认重启服务？<br /><small style={{color:'var(--text-muted)',fontSize:11}}>正在进行的会话会中断</small></div>
+            <div className="confirm-popup-actions">
+              <button className="confirm-popup-cancel" onClick={() => setConfirmRestart(null)}>取消</button>
+              <button className="confirm-popup-ok" onClick={handleRestart}>确定重启</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {restartStatus && (
+        <div className="restart-overlay">
+          <div className="restart-toast">
+            {restartStatus === 'error' ? (
+              <>
+                <p style={{color:'var(--danger)'}}>重启失败</p>
+                <p style={{fontSize:13,color:'var(--text-muted)'}}>{restartError}</p>
+                <button className="restart-reload-btn" onClick={() => { setRestartStatus(null); setRestarting(false); }}>关闭</button>
+              </>
+            ) : (
+              <>
+                {(restartStatus === 'restarting') && <div className="restart-spinner" />}
+                {restartStatus === 'restarting' && (
+                  <p>服务重启中，请稍候...</p>
+                )}
+                {restartStatus === 'done' && (
+                  <p>服务已重启，即将刷新页面...</p>
+                )}
+                {restartStatus === 'timeout' && (
+                  <>
+                    <p>重启超时，请手动检查服务状态</p>
+                    <button className="restart-reload-btn" onClick={() => window.location.reload()}>刷新页面</button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

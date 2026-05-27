@@ -228,4 +228,29 @@ router.put('/auth/me/avatar', requireAuth, (req, res) => {
   }
 });
 
+// POST /api/restart — admin only, restart the web UI server
+router.post('/restart', requireAuth, requireRole('admin'), (req, res) => {
+  const { spawn } = require('child_process');
+  const path = require('path');
+
+  const projectDir = path.resolve(__dirname, '..', '..');
+  const nodeBin = process.execPath || '/usr/bin/node';
+  const restartScript =
+    `sleep 2
+kill ${process.pid} 2>/dev/null
+cd ${projectDir}
+nohup ${nodeBin} server.js > server.log 2>&1 &
+echo "Server restarted with PID $!"
+`;
+
+  const child = spawn('bash', ['-c', restartScript], {
+    detached: true,
+    stdio: 'ignore',
+    cwd: projectDir,
+  });
+  child.unref();
+
+  res.json({ ok: true, message: '服务正在重启，请稍候...' });
+});
+
 module.exports = router;

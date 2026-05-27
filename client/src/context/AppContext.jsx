@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import { getMe, getAuthStatus, setTokens, clearTokens, setOnTokenExpired } from '../api';
+import { getMe, getAuthStatus, setTokens, clearTokens, setOnTokenExpired, listModels, switchModel as apiSwitchModel } from '../api';
 
 const AppContext = createContext(null);
 
@@ -48,6 +48,8 @@ const initialState = {
   theme: loadState('theme', 'dark'),
   permissionLevel: loadState('permissionLevel', 'auto'),
   model: loadState('model', 'claude-opus-4-7'),
+  availableModels: [],
+  currentModel: loadState('currentModel', ''),
   systemPrompt: loadState('systemPrompt', ''),
   execStatus: {
     phase: 'idle', // idle | thinking | running | responding | done
@@ -150,6 +152,8 @@ function reducer(state, action) {
     case 'SET_SETTING':
       localStorage.setItem(`claude-ui:${action.payload.key}`, JSON.stringify(action.payload.value));
       next = { ...state, [action.payload.key]: action.payload.value }; break;
+    case 'SET_MODELS':
+      next = { ...state, availableModels: action.payload.models || [], currentModel: action.payload.current || state.currentModel }; break;
     // Execution status actions
     case 'EXEC_START':
       next = { ...state, tasks: [], mainTask: null, execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
@@ -236,6 +240,22 @@ export function AppContextProvider({ children }) {
   const setMainTask = useCallback((subject) => dispatch({ type: 'SET_MAIN_TASK', payload: { subject } }), []);
   const updateMainTask = useCallback((subject) => dispatch({ type: 'UPDATE_MAIN_TASK', payload: { subject } }), []);
 
+  // Load available models from CC-Switch on mount
+  const loadAvailableModels = useCallback(async () => {
+    try {
+      const data = await listModels();
+      dispatch({ type: 'SET_MODELS', payload: { models: data.models || [], current: data.current || '' } });
+    } catch {}
+  }, []);
+
+  const switchCurrentModel = useCallback(async (model) => {
+    setSetting('currentModel', model);
+    try { await apiSwitchModel(model); } catch {}
+  }, [setSetting]);
+
+  // Load models once on mount
+  useEffect(() => { loadAvailableModels(); }, [loadAvailableModels]);
+
   // Persist key settings to localStorage
   useEffect(() => {
     try {
@@ -299,6 +319,7 @@ export function AppContextProvider({ children }) {
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, updateTask, clearTasks, setMainTask, updateMainTask,
     setUpdateAvailable,
+    loadAvailableModels, switchCurrentModel,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

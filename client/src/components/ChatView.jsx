@@ -63,6 +63,7 @@ export default function ChatView() {
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, updateTask, setMainTask, updateMainTask, execStatus,
+    currentModel,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -389,7 +390,7 @@ export default function ChatView() {
       sessionId,
       cwd,
       prompt: text,
-      options: { model, systemPrompt: systemPrompt || undefined, permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
+      options: { model: currentModel || model, systemPrompt: systemPrompt || undefined, permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
       onThinking: ({ text: thinkingText, usage }) => {
         execPhase({ phase: 'thinking', detail: thinkingText });
         if (usage) execTokens(toTokens(usage));
@@ -464,7 +465,7 @@ export default function ChatView() {
         bAppend({ role: 'system', content: `错误: ${err.message}` });
       },
     });
-  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer]);
+  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer]);
 
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;

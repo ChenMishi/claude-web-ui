@@ -62,7 +62,7 @@ function listSkills(user, projectDir) {
   for (const s of scanDir(SHARED_SKILLS_DIR)) {
     s.source = 'shared';
     s.editable = user?.role === 'admin';
-    if (!seen.has(s.name)) seen.set(s.name, s);
+    seen.set(s.name, s);
   }
 
   // Layer 3: User personal (higher priority)

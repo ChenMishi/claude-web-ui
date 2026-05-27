@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getSkill, createSkill, updateSkill } from '../api';
+import { getSkill, createSkill, updateSkill, listModels } from '../api';
 
 const TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'NotebookEdit'];
 const CATEGORIES = ['开发', '运维', '文档', '安全', '其他'];
@@ -26,12 +26,18 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
   const [deniedTools, setDeniedTools] = useState([]);
   const [permissionMode, setPermissionMode] = useState('acceptEdits');
   const [body, setBody] = useState('');
+  const [version, setVersion] = useState('1.0.0');
+  const [author, setAuthor] = useState('');
   const [targetScope, setTargetScope] = useState('personal');
+  const [availableModels, setAvailableModels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Load available models
+    listModels().then(d => setAvailableModels(d.models || [])).catch(() => {});
+
     if (skill) {
       setLoading(true);
       getSkill(skill.name, projectDir)
@@ -47,13 +53,15 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
           setDeniedTools(s.deniedTools || []);
           setPermissionMode(s.permissionMode || 'acceptEdits');
           setBody(s.body || '');
+          setVersion(s.version || '1.0.0');
+          setAuthor(s.author || '');
         })
         .catch(err => setError(err.message))
         .finally(() => setLoading(false));
     }
   }, [skill, projectDir]);
 
-  const toggleTool = (tool, list, setter) => {
+  const toggleTool = (tool, setter) => {
     setter(prev =>
       prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool]
     );
@@ -75,8 +83,8 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
       allowedTools,
       deniedTools,
       permissionMode,
-      version: skill?.version || '1.0.0',
-      author: skill?.author || user?.username || 'unknown',
+      version,
+      author: author || user?.username || 'unknown',
     };
 
     setSaving(true);
@@ -96,7 +104,7 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
 
   if (loading) {
     return (
-      <div className="dialog-overlay" onClick={() => onClose(false)}>
+      <div className="dialog-overlay">
         <div className="skills-editor-modal" onClick={e => e.stopPropagation()}>
           <div className="skills-loading">加载中...</div>
         </div>
@@ -105,7 +113,7 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
   }
 
   return (
-    <div className="dialog-overlay" onClick={() => onClose(false)}>
+    <div className="dialog-overlay">
       <div className="skills-editor-modal" onClick={e => e.stopPropagation()}>
         <div className="skills-editor-header">
           <h3>{isEdit ? '编辑技能' : '新建技能'}</h3>
@@ -135,7 +143,7 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
           </div>
 
           <div className="skills-editor-row">
-            <div className="skills-editor-field skills-editor-field-sm">
+            <div className="skills-editor-field">
               <label>图标</label>
               <div className="skills-icon-picker">
                 {ICONS.map(i => (
@@ -143,28 +151,39 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
                 ))}
               </div>
             </div>
-            <div className="skills-editor-field skills-editor-field-sm">
+          </div>
+
+          <div className="skills-editor-row">
+            <div className="skills-editor-field">
               <label>分类</label>
               <select value={category} onChange={e => setCategory(e.target.value)}>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div className="skills-editor-field skills-editor-field-sm">
+            <div className="skills-editor-field">
               <label>权限模式</label>
               <select value={permissionMode} onChange={e => setPermissionMode(e.target.value)}>
                 {PERM_MODES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
-          </div>
-
-          <div className="skills-editor-field">
-            <label>推荐模型（可选，留空使用当前模型）</label>
-            <select value={model} onChange={e => setModel(e.target.value)}>
-              <option value="">使用当前模型</option>
-              <option value="claude-opus-4-7">Claude Opus 4.7</option>
-              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-            </select>
+            <div className="skills-editor-field">
+              <label>推荐模型</label>
+              <select value={model} onChange={e => setModel(e.target.value)}>
+                <option value="">使用当前模型</option>
+                {availableModels.length > 0 ? (
+                  availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                ) : (
+                  <>
+                    <option value="claude-opus-4-7">Claude Opus 4.7</option>
+                    <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                  </>
+                )}
+                {model && !availableModels.includes(model) && availableModels.length > 0 && (
+                  <option value={model}>{model} (当前技能设定)</option>
+                )}
+              </select>
+            </div>
           </div>
 
           <div className="skills-editor-field">
@@ -174,7 +193,7 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
                 <button
                   key={t}
                   className={`skills-tool-chip ${allowedTools.includes(t) ? 'active' : ''}`}
-                  onClick={() => toggleTool(t, allowedTools, setAllowedTools)}
+                  onClick={() => toggleTool(t, setAllowedTools)}
                 >{t}</button>
               ))}
             </div>
@@ -187,7 +206,7 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
                 <button
                   key={t}
                   className={`skills-tool-chip deny ${deniedTools.includes(t) ? 'active' : ''}`}
-                  onClick={() => toggleTool(t, deniedTools, setDeniedTools)}
+                  onClick={() => toggleTool(t, setDeniedTools)}
                 >{t}</button>
               ))}
             </div>
@@ -211,6 +230,19 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
                 <option value="personal">个人技能</option>
                 <option value="shared">共享技能（所有用户可用）</option>
               </select>
+            </div>
+          )}
+
+          {isEdit && (
+            <div className="skills-editor-row">
+              <div className="skills-editor-field">
+                <label>版本号</label>
+                <input type="text" value={version} onChange={e => setVersion(e.target.value)} placeholder="1.0.0" />
+              </div>
+              <div className="skills-editor-field">
+                <label>作者</label>
+                <input type="text" value={author} disabled />
+              </div>
             </div>
           )}
         </div>

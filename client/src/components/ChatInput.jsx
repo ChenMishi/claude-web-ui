@@ -36,7 +36,8 @@ const COMMANDS = [
 
 export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSkillChange }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
-    setView, setMessages, currentProjectId, selectProject, theme, chatMessages, projects } = useApp();
+    setView, setMessages, currentProjectId, selectProject, theme, chatMessages, projects,
+    availableModels, currentModel, switchCurrentModel } = useApp();
   const inputRef = useRef(null);
   const cmdListRef = useRef(null);
   const skillsRef = useRef(null);
@@ -229,10 +230,16 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
         />
         <div className="input-select-group">
           <span className="input-select-icon" title="模型">⚡</span>
-          <select className="input-select input-select-model" value={model} onChange={e => setSetting('model', e.target.value)}>
-            <option value="claude-opus-4-7">Claude Opus 4.7</option>
-            <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+          <select className="input-select input-select-model" value={currentModel || model} onChange={e => switchCurrentModel(e.target.value)}>
+            {availableModels.length > 0 ? (
+              availableModels.map(m => <option key={m} value={m}>{m}</option>)
+            ) : (
+              <>
+                <option value="claude-opus-4-7">Claude Opus 4.7</option>
+                <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+              </>
+            )}
           </select>
         </div>
         <div className="input-select-group">
@@ -252,7 +259,15 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
           >{activeSkill ? activeSkill.icon + ' ' + activeSkill.displayName : '技能'}</button>
           {activeSkill && (
             <button
-              onClick={() => onSkillChange(null)}
+              onClick={() => {
+                const el = inputRef.current;
+                if (el && activeSkill) {
+                  const prefix = '/' + activeSkill.name + ' ';
+                  if (el.value.startsWith(prefix)) el.value = el.value.slice(prefix.length);
+                  else if (el.value.startsWith('/' + activeSkill.name)) el.value = el.value.slice(activeSkill.name.length + 1);
+                }
+                onSkillChange(null);
+              }}
               style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1 }}
               title="取消激活"
             >✕</button>
@@ -272,10 +287,23 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
                         className={`skills-chip ${isActive ? 'active' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
+                          const el = inputRef.current;
                           if (isActive) {
                             onSkillChange(null);
+                            if (el) {
+                              const prefix = '/' + s.name + ' ';
+                              if (el.value.startsWith(prefix)) el.value = el.value.slice(prefix.length);
+                              else if (el.value.startsWith('/' + s.name)) el.value = el.value.slice(s.name.length + 1);
+                            }
                           } else {
                             onSkillChange({ name: s.name, displayName: s.displayName, icon: s.icon || '🔧' });
+                            if (el) {
+                              const cmd = '/' + s.name + ' ';
+                              el.value = cmd + el.value;
+                              el.focus();
+                              el.style.height = 'auto';
+                              el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+                            }
                           }
                           setShowSkills(false);
                         }}

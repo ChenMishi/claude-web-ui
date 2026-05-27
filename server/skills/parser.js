@@ -10,7 +10,8 @@ function parseSkillFile(filePath) {
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
     return parseSkillContent(raw, filePath);
-  } catch {
+  } catch (err) {
+    console.error(`[skills] Failed to parse skill file: ${filePath}`, err.message);
     return null;
   }
 }

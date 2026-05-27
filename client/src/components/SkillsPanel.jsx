@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { listSkills, deleteSkillApi, listMarketplaceSkills, installMarketplaceSkill } from '../api';
 import SkillEditor from './SkillEditor';
+import SkillDetailModal from './SkillDetailModal';
 
 const CATEGORIES = ['全部', '开发', '运维', '文档', '安全', '其他'];
 
@@ -19,6 +20,7 @@ export default function SkillsPanel() {
   const [loading, setLoading] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState(null);
+  const [detailSkill, setDetailSkill] = useState(null);
   const [error, setError] = useState('');
 
   const loadSkills = useCallback(() => {
@@ -69,12 +71,8 @@ export default function SkillsPanel() {
   const handleInstall = async (skill) => {
     try {
       setError('');
-      // Built-in/local skills: install by name; remote: install by URL
-      if (skill.downloadUrl) {
-        await installMarketplaceSkill({ url: skill.downloadUrl, targetScope: isAdmin ? 'shared' : 'personal' });
-      } else {
-        await installMarketplaceSkill({ skillName: skill.name, targetScope: isAdmin ? 'shared' : 'personal' });
-      }
+      // Official marketplace skills: install by name (server handles GitHub + builtin fallback)
+      await installMarketplaceSkill({ skillName: skill.name, targetScope: isAdmin ? 'shared' : 'personal' });
       loadSkills();
     } catch (err) {
       setError(err.message);
@@ -112,9 +110,13 @@ export default function SkillsPanel() {
           </div>
 
           {loading ? (
-            <div className="skills-loading">加载中...</div>
+            <div className="skills-loading">
+              <div className="skills-loading-spinner" />
+              加载中...
+            </div>
           ) : skills.length === 0 ? (
             <div className="skills-empty">
+              <div className="skills-empty-icon">📦</div>
               <p>暂无技能</p>
               <p className="skills-empty-hint">点击「新建技能」创建自定义技能，或前往「技能市场」安装</p>
             </div>
@@ -169,9 +171,13 @@ export default function SkillsPanel() {
           </div>
 
           {loading ? (
-            <div className="skills-loading">加载中...</div>
+            <div className="skills-loading">
+              <div className="skills-loading-spinner" />
+              加载中...
+            </div>
           ) : filteredMarket.length === 0 ? (
             <div className="skills-empty">
+              <div className="skills-empty-icon">🔍</div>
               <p>{marketSearch ? '没有匹配的技能' : '技能市场暂无内容'}</p>
             </div>
           ) : (
@@ -179,18 +185,22 @@ export default function SkillsPanel() {
               {filteredMarket.map(s => {
                 const installed = installedNames.has(s.name);
                 return (
-                  <div key={s.name} className={`skills-card ${installed ? 'skills-card-installed' : ''}`}>
-                    <div className="skills-card-icon">{s.icon || '🔧'}</div>
+                  <div key={s.name}
+                    className={`skills-card ${installed ? 'skills-card-installed' : ''}`}
+                    onClick={() => !installed && setDetailSkill(s)}
+                    style={!installed ? { cursor: 'pointer' } : {}}
+                  >
+                    <div className="skills-card-icon">{s.icon || '📦'}</div>
                     <div className="skills-card-body">
-                      <div className="skills-card-name">{s.displayName || s.name}</div>
-                      <div className="skills-card-desc">{s.description || ''}</div>
+                      <div className="skills-card-name">{s.displayNameCN || s.displayName || s.name}</div>
+                      <div className="skills-card-desc">{s.descriptionCN || s.description || ''}</div>
                       <div className="skills-card-meta">
-                        <span className="skills-card-cat">{s.category || '其他'}</span>
+                        {s.category && <span className="skills-card-cat">{s.category}</span>}
                         {s.author && <span className="skills-card-author">@{s.author}</span>}
                         {s.downloads > 0 && <span className="skills-card-downloads">{s.downloads} 安装</span>}
                       </div>
                     </div>
-                    <div className="skills-card-actions">
+                    <div className="skills-card-actions" onClick={e => e.stopPropagation()}>
                       {installed ? (
                         <span className="skills-installed-badge">已安装</span>
                       ) : (
@@ -210,6 +220,16 @@ export default function SkillsPanel() {
           skill={editingSkill}
           projectDir={projectDir}
           onClose={handleEditorClose}
+        />
+      )}
+
+      {detailSkill && (
+        <SkillDetailModal
+          skill={detailSkill}
+          onClose={(installed) => {
+            setDetailSkill(null);
+            if (installed) loadSkills();
+          }}
         />
       )}
     </div>

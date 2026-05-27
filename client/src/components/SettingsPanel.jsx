@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getUsers, createUser, deleteUser } from '../api';
 import VersionCard from './VersionCard';
-import SkillsPanel from './SkillsPanel';
+import InitPanel from './InitPanel';
+import LogPanel from './LogPanel';
 
 export default function SettingsPanel() {
-  const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId, user } = useApp();
+  const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId, user,
+    availableModels, currentModel, switchCurrentModel } = useApp();
   const isAdmin = user?.role === 'admin';
   const project = projects.find(p => p.id === currentProjectId);
-  const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'skills'
+  const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'init' | 'logs'
 
   const [users, setUsers] = useState([]);
   const [newUsername, setNewUsername] = useState('');
@@ -40,7 +42,8 @@ export default function SettingsPanel() {
 
       <div className="settings-tabs">
         <button className={settingsTab === 'general' ? 'active' : ''} onClick={() => setSettingsTab('general')}>常规设置</button>
-        <button className={settingsTab === 'skills' ? 'active' : ''} onClick={() => setSettingsTab('skills')}>🧩 技能管理</button>
+        <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}>🔧 初始化</button>
+        <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}>📋 日志</button>
       </div>
 
       {settingsTab === 'general' ? (
@@ -90,10 +93,16 @@ export default function SettingsPanel() {
             <div className="settings-card-body">
               <div className="settings-row">
                 <label>模型</label>
-                <select value={model} onChange={e => setSetting('model', e.target.value)}>
-                  <option value="claude-opus-4-7">Claude Opus 4.7</option>
-                  <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                  <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                <select value={currentModel || model} onChange={e => switchCurrentModel(e.target.value)}>
+                  {availableModels.length > 0 ? (
+                    availableModels.map(m => <option key={m} value={m}>{m}</option>)
+                  ) : (
+                    <>
+                      <option value="claude-opus-4-7">Claude Opus 4.7</option>
+                      <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                      <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div className="settings-row">
@@ -135,8 +144,10 @@ export default function SettingsPanel() {
             </div>
           </div>
         </>
+      ) : settingsTab === 'init' ? (
+        <InitPanel />
       ) : (
-        <SkillsPanel />
+        <LogPanel />
       )}
     </div>
   );

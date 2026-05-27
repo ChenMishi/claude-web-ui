@@ -6,8 +6,7 @@ import ChatView from './ChatView';
 import FileBrowser from './FileBrowser';
 import TerminalView from './TerminalView';
 import SettingsPanel from './SettingsPanel';
-import InitPanel from './InitPanel';
-import LogPanel from './LogPanel';
+import SkillsPanel from './SkillsPanel';
 import LoginPage from './LoginPage';
 
 const BASE = '/api';
@@ -63,9 +62,8 @@ export default function Layout() {
         {activeView === 'chat' && <ChatView />}
         {activeView === 'files' && <FileBrowser />}
         {activeView === 'terminal' && <TerminalView />}
+        {activeView === 'skills' && <SkillsPanel />}
         {isAdmin && activeView === 'settings' && <SettingsPanel />}
-        {isAdmin && activeView === 'init' && <InitPanel />}
-        {activeView === 'logs' && <LogPanel />}
       </main>
     </div>
   );

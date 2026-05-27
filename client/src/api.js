@@ -128,6 +128,71 @@ export const initCcswitchProvider = () => fetchJSON('/init/ccswitch-init-provide
 export const writeFile = (filePath, content) => fetchJSON('/fs/write', { method: 'POST', body: JSON.stringify({ filePath, content }) });
 export const deleteFileOrDir = (filePath) => fetchJSON('/fs/delete', { method: 'DELETE', body: JSON.stringify({ filePath }) });
 
+// Upload a single file with progress (base64 via JSON, XHR for progress events)
+export function uploadFile(dir, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1];
+      const body = JSON.stringify({ dir, fileName: file.name, content: base64 });
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/fs/upload');
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      const headers = authHeaders({});
+      Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress({ loaded: e.loaded, total: e.total, fileName: file.name });
+      };
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+          else reject(new Error(data.error || `HTTP ${xhr.status}`));
+        } catch { reject(new Error('解析响应失败')); }
+      };
+      xhr.onerror = () => reject(new Error('上传失败'));
+      xhr.send(body);
+    };
+    reader.onerror = () => reject(new Error('读取文件失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Download a file with progress
+export function downloadFile(filePath, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', `/api/fs/download?path=${encodeURIComponent(filePath)}`);
+    xhr.responseType = 'blob';
+    const headers = authHeaders({});
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    xhr.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress({ loaded: e.loaded, total: e.total, fileName: filePath.split('/').pop() });
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const blob = xhr.response;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filePath.split('/').pop();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        resolve({ ok: true });
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.error || `HTTP ${xhr.status}`));
+        } catch { reject(new Error(`HTTP ${xhr.status}`)); }
+      }
+    };
+    xhr.onerror = () => reject(new Error('下载失败'));
+    xhr.send();
+  });
+}
+
 // Sessions
 export const getSessionInfo = (id) => fetchJSON(`/session/${id}`);
 export const deleteSession = (id) => fetchJSON(`/session/${id}`, { method: 'DELETE' });
@@ -296,37 +361,54 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
 
 export async function listSkills(projectDir) {
   const params = projectDir ? `?projectDir=${encodeURIComponent(projectDir)}` : '';
-  return fetchJSON(`/api/skills${params}`);
+  return fetchJSON(`/skills${params}`);
 }
 
 export async function getSkill(name, projectDir) {
   const params = projectDir ? `?projectDir=${encodeURIComponent(projectDir)}` : '';
-  return fetchJSON(`/api/skills/${encodeURIComponent(name)}${params}`);
+  return fetchJSON(`/skills/${encodeURIComponent(name)}${params}`);
 }
 
 export async function createSkill(data) {
-  return fetchJSON('/api/skills', { method: 'POST', body: JSON.stringify(data) });
+  return fetchJSON('/skills', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function updateSkill(name, data, projectDir) {
   const params = projectDir ? `?projectDir=${encodeURIComponent(projectDir)}` : '';
-  return fetchJSON(`/api/skills/${encodeURIComponent(name)}${params}`, {
+  return fetchJSON(`/skills/${encodeURIComponent(name)}${params}`, {
     method: 'PUT', body: JSON.stringify(data),
   });
 }
 
 export async function deleteSkillApi(name, projectDir) {
   const params = projectDir ? `?projectDir=${encodeURIComponent(projectDir)}` : '';
-  return fetchJSON(`/api/skills/${encodeURIComponent(name)}${params}`, { method: 'DELETE' });
+  return fetchJSON(`/skills/${encodeURIComponent(name)}${params}`, { method: 'DELETE' });
 }
 
 export async function listMarketplaceSkills() {
-  return fetchJSON('/api/skills/marketplace/list');
+  return fetchJSON('/skills/marketplace/list');
 }
 
 export async function installMarketplaceSkill({ url, targetScope, skillName }) {
   const body = skillName ? { skillName, targetScope } : { url, targetScope };
-  return fetchJSON('/api/skills/marketplace/install', {
+  return fetchJSON('/skills/marketplace/install', {
     method: 'POST', body: JSON.stringify(body),
   });
+}
+
+// ── Model API (CC-Switch default provider) ──
+
+export async function listModels() {
+  return fetchJSON('/models');
+}
+
+export async function switchModel(model) {
+  return fetchJSON('/models/switch', {
+    method: 'POST', body: JSON.stringify({ model }),
+  });
+}
+
+// Server restart (admin only)
+export async function restartServer() {
+  return fetchJSON('/restart', { method: 'POST' });
 }

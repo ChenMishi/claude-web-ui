@@ -541,4 +541,129 @@ router.get('/init/log-errors', (req, res) => {
   } catch { res.json({ frontend: [], server: [], init: [], ccswitch: [], syslog: [] }); }
 });
 
+// ── Model listing & switching (from CC-Switch default provider) ──
+
+// In-memory model cache (2 min TTL)
+let modelsCache = null;
+let modelsCacheTime = 0;
+const MODELS_CACHE_TTL = 2 * 60 * 1000;
+
+router.get('/models', async (req, res) => {
+  try {
+    // Return cached models if fresh
+    if (modelsCache && (Date.now() - modelsCacheTime) < MODELS_CACHE_TTL) {
+      return res.json(modelsCache);
+    }
+
+    const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
+    if (!fs.existsSync(dbPath)) return res.json({ models: [], current: null });
+
+    const query = (sql) => {
+      const out = execSync(`sqlite3 -json "${dbPath}" "${sql}"`, { encoding: 'utf8', timeout: 5000 }).trim();
+      return out ? JSON.parse(out) : [];
+    };
+
+    const providers = query("SELECT id, settings_config FROM providers WHERE id='default'");
+    if (!providers.length) return res.json({ models: [], current: null });
+
+    const cfg = typeof providers[0].settings_config === 'string'
+      ? JSON.parse(providers[0].settings_config || '{}')
+      : (providers[0].settings_config || {});
+
+    // CC-Switch stores config under 'env' key
+    const env = cfg.env || cfg;
+
+    const baseUrl = env.ANTHROPIC_BASE_URL || '';
+    const token = env.ANTHROPIC_AUTH_TOKEN || '';
+    const current = env.ANTHROPIC_MODEL || '';
+
+    if (!baseUrl || !token) return res.json({ models: [], current });
+
+    // Fetch model list from the provider's /v1/models
+    let models = [];
+    try {
+      const resp = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/models`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        models = (data.data || []).map(m => m.id);
+      }
+    } catch {
+      // Fallback: use current model only
+      if (current) models = [current];
+    }
+
+    modelsCache = { models, current };
+    modelsCacheTime = Date.now();
+    res.json(modelsCache);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/models/switch', async (req, res) => {
+  try {
+    const { model } = req.body || {};
+    if (!model) return res.status(400).json({ error: 'model is required' });
+
+    const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'CC-Switch 数据库未找到' });
+
+    const run = (sql) => {
+      execSync(`sqlite3 "${dbPath}" "${sql.replace(/"/g, '\\"')}"`, { encoding: 'utf8', timeout: 5000 });
+    };
+
+    // Read current config
+    const out = execSync(`sqlite3 -json "${dbPath}" "SELECT settings_config FROM providers WHERE id='default'"`, { encoding: 'utf8', timeout: 5000 }).trim();
+    const providers = out ? JSON.parse(out) : [];
+    if (!providers.length) return res.status(404).json({ error: 'default provider 未找到' });
+
+    const cfg = typeof providers[0].settings_config === 'string'
+      ? JSON.parse(providers[0].settings_config || '{}')
+      : (providers[0].settings_config || {});
+
+    // CC-Switch stores config under 'env' key
+    const env = cfg.env || cfg;
+
+    // Update all 4 model fields
+    env.ANTHROPIC_MODEL = model;
+    env.ANTHROPIC_DEFAULT_HAIKU_MODEL = model;
+    env.ANTHROPIC_DEFAULT_SONNET_MODEL = model;
+    env.ANTHROPIC_DEFAULT_OPUS_MODEL = model;
+
+    cfg.env = env;
+    const json = JSON.stringify(cfg).replace(/'/g, "''");
+    run(`UPDATE providers SET settings_config = '${json}' WHERE id = 'default'`);
+
+    // Restart CC-Switch
+    try {
+      execSync('pkill -f cc-switch 2>/dev/null || true', { timeout: 3000 });
+    } catch {}
+    // CC-Switch will be auto-restarted by its own service manager or we start it
+    try {
+      const ccPath = checkCCSwitch();
+      if (ccPath) {
+        const logFile = path.join(os.homedir(), '.cc-switch', 'cc-switch.log');
+        const child = require('child_process').spawn('nohup', [ccPath], {
+          cwd: path.dirname(ccPath),
+          env: { ...process.env },
+          stdio: ['ignore', fs.openSync(logFile, 'a'), fs.openSync(logFile, 'a')],
+          detached: true,
+        });
+        child.unref();
+      }
+    } catch {}
+
+    // Bust cache
+    modelsCache = null;
+
+    res.json({ ok: true, model });
+  } catch (err) {
+    logCcswitch("Error in model switch", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
