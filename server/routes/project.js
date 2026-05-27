@@ -163,6 +163,30 @@ router.get('/fs/read', (req, res) => {
   }
 });
 
+// Download a file (binary-safe, triggers browser download)
+router.get('/fs/download', (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({ error: 'path is required' });
+  if (!path.isAbsolute(filePath) || filePath.includes('..')) {
+    return res.status(403).json({ error: 'Forbidden — invalid path' });
+  }
+  const err = restrictPath(req, filePath);
+  if (err) return res.status(403).json({ error: err });
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+  try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return res.status(400).json({ error: 'Not a file' });
+    if (stat.size > 50 * 1024 * 1024) return res.status(413).json({ error: 'File too large (max 50MB)' });
+    const fileName = path.basename(filePath);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Length', stat.size);
+    fs.createReadStream(filePath).pipe(res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Create a new directory (for the link dialog)
 router.post('/fs/mkdir', (req, res) => {
   const { path: parentPath, name } = req.body || {};
@@ -203,6 +227,31 @@ router.post('/fs/write', (req, res) => {
     res.json({ ok: true, path: filePath, size: content.length });
   } catch (err) {
     res.status(500).json({ error: `写入文件失败: ${err.message}` });
+  }
+});
+
+// Upload a file (base64 encoded, supports binary)
+router.post('/fs/upload', (req, res) => {
+  const { dir, fileName, content } = req.body || {};
+  if (!dir || !fileName || content === undefined) {
+    return res.status(400).json({ error: 'dir, fileName, content are required' });
+  }
+  if (!path.isAbsolute(dir) || dir.includes('..')) {
+    return res.status(403).json({ error: 'Forbidden — invalid path' });
+  }
+  if (fileName.includes('/') || fileName.includes('\\') || fileName === '.' || fileName === '..') {
+    return res.status(400).json({ error: 'Invalid file name' });
+  }
+  const err = restrictPath(req, dir);
+  if (err) return res.status(403).json({ error: err });
+  const filePath = path.join(dir, fileName);
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const buf = Buffer.from(content, 'base64');
+    fs.writeFileSync(filePath, buf);
+    res.json({ ok: true, path: filePath, size: buf.length });
+  } catch (err) {
+    res.status(500).json({ error: `上传文件失败: ${err.message}` });
   }
 });
 

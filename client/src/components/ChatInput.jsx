@@ -69,9 +69,12 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
     if (!text) return;
     onSend(text);
     inputRef.current.value = '';
+    if (activeSkill) {
+      inputRef.current.value = '/' + activeSkill.name + ' ';
+    }
     inputRef.current.style.height = 'auto';
     setShowCommands(false);
-  }, [onSend]);
+  }, [onSend, activeSkill]);
 
   const handleStop = useCallback(() => {
     if (!isStreaming) return;

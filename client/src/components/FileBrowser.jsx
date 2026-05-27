@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getDirs, readFile, writeFile, deleteFileOrDir, mkdir } from '../api';
+import FileTransfer from './FileTransfer';
 
 export default function FileBrowser() {
   const { user } = useApp();
@@ -20,6 +21,7 @@ export default function FileBrowser() {
   const [newFileName, setNewFileName] = useState('');
   const [showNewFile, setShowNewFile] = useState(false);
   const [msg, setMsg] = useState('');
+  const [showTransfer, setShowTransfer] = useState(false);
   const editRef = useRef(null);
   const lastClickRef = useRef(0);
 
@@ -166,6 +168,7 @@ export default function FileBrowser() {
         <div className="file-tree-header">
           <span className="file-tree-title">📁 文件浏览</span>
           <div className="file-tree-toggle">
+            <button onClick={() => setShowTransfer(true)} title="文件传输" style={{ fontWeight: 600 }}>📁 文件传输</button>
             <button onClick={() => setShowNewDir(true)} title="新建目录">📂+</button>
             <button onClick={() => setShowNewFile(true)} title="新建文件">📄+</button>
           </div>
@@ -283,6 +286,7 @@ export default function FileBrowser() {
           <div className="empty-state">选择左侧文件以查看内容</div>
         )}
       </div>
+      {showTransfer && <FileTransfer onClose={() => setShowTransfer(false)} />}
     </div>
   );
 }

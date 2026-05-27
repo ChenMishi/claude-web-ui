@@ -485,16 +485,28 @@ function CCSwitchConfig() {
         <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>Haiku / Sonnet / Opus 均映射到此模型</div>
         <h4 style={{ marginTop: 16 }}>📊 模型定价 (美元/百万token)</h4>
         <div className="init-pricing-grid">
-          {edPricing.slice(0, 5).map(p => (
+          {edPricing.map(p => (
             <div key={p.model_id} className="init-pricing-item">
               <span className="init-pricing-name">{p.model_name || p.model_id}</span>
               <div className="init-pricing-inputs">
-                <label>输入</label><input type="number" step="0.01" value={p.input_price || 0} onChange={e => {
-                  const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, input_price: parseFloat(e.target.value) || 0 } : x);
+                <label>输入</label><input type="number" step="0.01" min="0" value={p.input_price || 0} onChange={e => {
+                  const v = Math.max(0, parseFloat(e.target.value) || 0);
+                  const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, input_price: v } : x);
                   setEditProvider({ ...editProvider, pricing: newPricing });
                 }} />
-                <label>输出</label><input type="number" step="0.01" value={p.output_price || 0} onChange={e => {
-                  const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, output_price: parseFloat(e.target.value) || 0 } : x);
+                <label>输出</label><input type="number" step="0.01" min="0" value={p.output_price || 0} onChange={e => {
+                  const v = Math.max(0, parseFloat(e.target.value) || 0);
+                  const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, output_price: v } : x);
+                  setEditProvider({ ...editProvider, pricing: newPricing });
+                }} />
+                <label>缓存读</label><input type="number" step="0.01" min="0" value={p.cache_read_price || 0} onChange={e => {
+                  const v = Math.max(0, parseFloat(e.target.value) || 0);
+                  const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, cache_read_price: v } : x);
+                  setEditProvider({ ...editProvider, pricing: newPricing });
+                }} />
+                <label>缓存写</label><input type="number" step="0.01" min="0" value={p.cache_write_price || 0} onChange={e => {
+                  const v = Math.max(0, parseFloat(e.target.value) || 0);
+                  const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, cache_write_price: v } : x);
                   setEditProvider({ ...editProvider, pricing: newPricing });
                 }} />
               </div>

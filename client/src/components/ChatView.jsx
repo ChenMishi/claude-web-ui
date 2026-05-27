@@ -376,9 +376,9 @@ export default function ChatView() {
     const myExecId = ++execIdRef.current;
     setStreaming(true);
     execStart();
-    setMainTask(text.length > 30 ? text.slice(0, 30) + '…' : text);
+    setMainTask(promptText.length > 30 ? promptText.slice(0, 30) + '…' : promptText);
     startTimer();
-    bAppend({ role: 'user', content: text, timestamp: Date.now() });
+    bAppend({ role: 'user', content: promptText, timestamp: Date.now() });
     hasAssistantText.current = false;
     textAccum.current = '';
 
@@ -386,10 +386,18 @@ export default function ChatView() {
     const cwd = project?.cwd || '/root';
     const sessionId = currentSessionId || 'new';
 
+    // Strip slash-command prefix from prompt when skill is active (skill already applied via system prompt)
+    let promptText = text;
+    if (activeSkill) {
+      const prefix = '/' + activeSkill.name + ' ';
+      if (promptText.startsWith(prefix)) promptText = promptText.slice(prefix.length).trim();
+      else if (promptText.startsWith('/' + activeSkill.name)) promptText = promptText.slice(activeSkill.name.length + 1).trim();
+    }
+
     runAgent({
       sessionId,
       cwd,
-      prompt: text,
+      prompt: promptText,
       options: { model: currentModel || model, systemPrompt: systemPrompt || undefined, permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
       onThinking: ({ text: thinkingText, usage }) => {
         execPhase({ phase: 'thinking', detail: thinkingText });
