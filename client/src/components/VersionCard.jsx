@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeLog, getUpgradeStatus } from '../api';
+import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeStatus } from '../api';
 
 export default function VersionCard() {
   const { setUpdateAvailable } = useApp();
@@ -14,11 +14,7 @@ export default function VersionCard() {
   const [upgradeMsg, setUpgradeMsg] = useState('');
   const [upgradeDone, setUpgradeDone] = useState(false);
   const [upgradeError, setUpgradeError] = useState(null);
-  const [upgradeLog, setUpgradeLog] = useState('');
-  const logRef = useRef(null);
   const [checkInterval, setCheckInterval] = useState(() => parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0);
-
-  useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [upgradeLog]);
 
   useEffect(() => {
     getVersionInfo().then(d => { setInfo(d); setRemote(d.remote || ''); }).catch(() => {});
@@ -40,13 +36,9 @@ export default function VersionCard() {
   useEffect(() => {
     if (!upgrading) return;
     const t = setInterval(() => {
-      getUpgradeLog().then(d => {
-        setUpgradeLog(d.log || '');
-        const m = (d.log || '').match(/\[INFO\]\s*(.+)/g);
-        if (m) { const last = m[m.length-1].replace('[INFO]','').trim(); if (last) setUpgradeMsg(last); }
-      }).catch(() => {});
       getUpgradeStatus().then(s => {
         if (s.progress !== undefined) setUpgradeProgress(s.progress);
+        if (s.message) setUpgradeMsg(s.message);
         if (s.status === 'done' || s.progress >= 100) { setUpgradeProgress(100); setUpgradeDone(true); setUpgrading(false); }
         if (s.status === 'error') { setUpgradeError(s.message || '升级失败'); setUpgrading(false); }
       }).catch(() => {});
@@ -62,7 +54,7 @@ export default function VersionCard() {
   }, [remote]);
 
   const handleUpgrade = useCallback(async () => {
-    flushSync(() => { setUpgrading(true); setUpgradeProgress(0); setUpgradeMsg('启动升级...'); setUpgradeDone(false); setUpgradeError(null); setUpgradeLog(''); });
+    flushSync(() => { setUpgrading(true); setUpgradeProgress(0); setUpgradeMsg('启动升级...'); setUpgradeDone(false); setUpgradeError(null); });
     try { const d = await upgradeVersion({ remote }); if (!d.ok) { setUpgradeError(d.error||'启动失败'); setUpgrading(false); } }
     catch (err) { setUpgradeError(`启动失败: ${err.message}`); setUpgrading(false); }
   }, [remote]);
@@ -85,7 +77,21 @@ export default function VersionCard() {
         </div>
         {checkResult && !checkResult.error && (
           <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: checkResult.hasUpdate ? 'rgba(255,183,77,0.1)' : 'rgba(76,175,80,0.1)', border: `1px solid ${checkResult.hasUpdate ? 'rgba(255,183,77,0.3)' : 'rgba(76,175,80,0.2)'}` }}>
-            {checkResult.hasUpdate ? <>🆕 新版本 v{checkResult.newVersion}（当前 v{checkResult.currentVersion}）</> : <>✅ 最新 v{checkResult.currentVersion}</>}
+            {checkResult.hasUpdate ? (
+              <>
+                <div style={{ marginBottom: checkResult.commits?.length ? 8 : 0 }}>🆕 新版本 v{checkResult.newVersion}（当前 v{checkResult.currentVersion}）</div>
+                {checkResult.commits?.length > 0 && (
+                  <div className="version-update-commits">
+                    {checkResult.commits.map((c, i) => (
+                      <div key={i} className="version-commit-item">
+                        <span className={`version-commit-tag tag-${c.category}`}>{c.category}</span>
+                        <code>{c.hash?.slice(0, 8)}</code> {c.message}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : <>✅ 最新 v{checkResult.currentVersion}</>}
           </div>
         )}
         {checkResult?.hasUpdate && !upgrading && !upgradeDone && (
@@ -102,9 +108,6 @@ export default function VersionCard() {
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {upgradeDone ? (upgradeMsg.includes('失败') ? `100% — ${upgradeMsg}` : <>100% — 升级完成，请<a href="#" onClick={e => { e.preventDefault(); location.reload(); }} style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}>刷新</a></>) : `${upgradeProgress}% — ${upgradeMsg}`}
             </div>
-            {upgrading && upgradeLog && (
-              <pre ref={logRef} style={{ marginTop: 8, background: '#0d0d1f', border: '1px solid var(--border)', borderRadius: 8, padding: 10, maxHeight: 200, overflow: 'auto', fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.5, color: '#a0e0a0', whiteSpace: 'pre-wrap' }}>{upgradeLog}</pre>
-            )}
           </div>
         )}
         {upgradeError && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{upgradeError}</div>}
