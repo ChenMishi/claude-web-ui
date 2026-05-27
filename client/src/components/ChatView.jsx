@@ -72,6 +72,7 @@ export default function ChatView() {
   const [askUser, setAskUser] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [activeSkill, setActiveSkill] = useState(null); // { name, displayName, icon }
   const askRef = useRef(null);
   const chatMessagesRef = useRef(chatMessages);
   chatMessagesRef.current = chatMessages;
@@ -388,7 +389,7 @@ export default function ChatView() {
       sessionId,
       cwd,
       prompt: text,
-      options: { model, systemPrompt: systemPrompt || undefined, permissionLevel },
+      options: { model, systemPrompt: systemPrompt || undefined, permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
       onThinking: ({ text: thinkingText, usage }) => {
         execPhase({ phase: 'thinking', detail: thinkingText });
         if (usage) execTokens(toTokens(usage));
@@ -589,7 +590,7 @@ export default function ChatView() {
           <ExecutionPanel />
         </div>
       </div>
-      <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} />
+      <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} activeSkill={activeSkill} onSkillChange={setActiveSkill} />
     </div>
   );
 }

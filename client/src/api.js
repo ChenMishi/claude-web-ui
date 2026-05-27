@@ -291,3 +291,42 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
     onError?.(err);
   }
 }
+
+// ── Skills API ──
+
+export async function listSkills(projectDir) {
+  const params = projectDir ? `?projectDir=${encodeURIComponent(projectDir)}` : '';
+  return fetchJSON(`/api/skills${params}`);
+}
+
+export async function getSkill(name, projectDir) {
+  const params = projectDir ? `?projectDir=${encodeURIComponent(projectDir)}` : '';
+  return fetchJSON(`/api/skills/${encodeURIComponent(name)}${params}`);
+}
+
+export async function createSkill(data) {
+  return fetchJSON('/api/skills', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateSkill(name, data, projectDir) {
+  const params = projectDir ? `?projectDir=${encodeURIComponent(projectDir)}` : '';
+  return fetchJSON(`/api/skills/${encodeURIComponent(name)}${params}`, {
+    method: 'PUT', body: JSON.stringify(data),
+  });
+}
+
+export async function deleteSkillApi(name, projectDir) {
+  const params = projectDir ? `?projectDir=${encodeURIComponent(projectDir)}` : '';
+  return fetchJSON(`/api/skills/${encodeURIComponent(name)}${params}`, { method: 'DELETE' });
+}
+
+export async function listMarketplaceSkills() {
+  return fetchJSON('/api/skills/marketplace/list');
+}
+
+export async function installMarketplaceSkill({ url, targetScope, skillName }) {
+  const body = skillName ? { skillName, targetScope } : { url, targetScope };
+  return fetchJSON('/api/skills/marketplace/install', {
+    method: 'POST', body: JSON.stringify(body),
+  });
+}

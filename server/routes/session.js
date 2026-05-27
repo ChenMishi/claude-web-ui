@@ -207,6 +207,39 @@ function buildSDKOptions(runtime, body, authUser) {
   const level = agentOptions.permissionLevel || 'auto';
   const sandbox = getUserSandbox(authUser);
 
+  // ── Active skill integration ──
+  const activeSkillName = agentOptions.activeSkill || null;
+  let skillAllowedTools = null; // null = no restriction, [] = allow nothing, [...] = allow list
+  let skillDeniedTools = [];
+
+  if (activeSkillName) {
+    try {
+      const { getSkill } = require('../skills/store');
+      const skill = getSkill(activeSkillName, authUser, sandbox ? sandbox.homeDir : runtime.cwd);
+      if (skill) {
+        // Prepend skill body to system prompt
+        const skillPrompt = `[技能: ${skill.displayName || skill.name}]\n${skill.body}`;
+        const userPrompt = agentOptions.systemPrompt || '';
+        agentOptions.systemPrompt = skillPrompt + (userPrompt ? '\n\n---\n\n' + userPrompt : '');
+
+        // Collect skill tool restrictions
+        if (skill.allowedTools && skill.allowedTools.length > 0) {
+          skillAllowedTools = new Set(skill.allowedTools);
+        }
+        if (skill.deniedTools && skill.deniedTools.length > 0) {
+          skillDeniedTools = skill.deniedTools;
+        }
+
+        // Skill model preference (lower priority than explicit user choice)
+        if (skill.model && agentOptions.model === undefined) {
+          agentOptions.model = skill.model;
+        }
+      }
+    } catch (err) {
+      console.error('[skills] Error loading skill:', err.message);
+    }
+  }
+
   const options = {
     cwd: sandbox ? sandbox.homeDir : runtime.cwd,
     permissionMode: 'acceptEdits',
@@ -226,6 +259,14 @@ function buildSDKOptions(runtime, body, authUser) {
   };
 
   options.canUseTool = async (toolName, input) => {
+    // ── Skill tool restrictions (applied first, before sandbox) ──
+    if (skillDeniedTools.includes(toolName)) {
+      return { behavior: 'deny', message: `技能限制：不允许使用 ${toolName} 工具` };
+    }
+    if (skillAllowedTools !== null && !skillAllowedTools.has(toolName)) {
+      return { behavior: 'deny', message: `技能限制：${toolName} 不在允许列表中` };
+    }
+
     if (toolName === 'AskUserQuestion') {
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
       // Abort after ensuring broadcast reaches client

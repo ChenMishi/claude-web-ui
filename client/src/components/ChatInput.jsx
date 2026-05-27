@@ -1,6 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { abortSession } from '../api';
+import { abortSession, listSkills } from '../api';
 import ExecutionBar from './ExecutionBar';
 
 const COMMANDS = [
@@ -34,14 +34,26 @@ const COMMANDS = [
   { cmd: '/perm all', desc: '所有工具操作需确认', action: 'perm-all' },
 ];
 
-export default function ChatInput({ onSend, onStop, disabled }) {
+export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSkillChange }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
-    setView, setMessages, currentProjectId, selectProject, theme, chatMessages } = useApp();
+    setView, setMessages, currentProjectId, selectProject, theme, chatMessages, projects } = useApp();
   const inputRef = useRef(null);
   const cmdListRef = useRef(null);
+  const skillsRef = useRef(null);
+  const skillsContainerRef = useRef(null);
   const [showCommands, setShowCommands] = useState(false);
+  const [showSkills, setShowSkills] = useState(false);
   const [filteredCmds, setFilteredCmds] = useState([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [skills, setSkills] = useState([]);
+
+  // Load skills from API
+  useEffect(() => {
+    const project = projects.find(p => p.id === currentProjectId);
+    listSkills(project?.cwd || null)
+      .then(d => setSkills(d.skills || []))
+      .catch(() => {});
+  }, [currentProjectId, projects]);
 
   // Auto-scroll selected command into view
   useEffect(() => {
@@ -177,11 +189,16 @@ export default function ChatInput({ onSend, onStop, disabled }) {
 
   // Close commands on outside click
   useEffect(() => {
-    if (!showCommands) return;
-    const handler = () => setShowCommands(false);
+    if (!showCommands && !showSkills) return;
+    const handler = (e) => {
+      if (showSkills && skillsContainerRef.current && !skillsContainerRef.current.contains(e.target)) {
+        setShowSkills(false);
+      }
+      if (showCommands) setShowCommands(false);
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [showCommands]);
+  }, [showCommands, showSkills]);
 
   return (
     <div className="input-area">
@@ -225,6 +242,56 @@ export default function ChatInput({ onSend, onStop, disabled }) {
             <option value="confirm-dangerous">写入确认</option>
             <option value="confirm-all">全部确认</option>
           </select>
+        </div>
+        <div className="input-select-group" style={{ position: 'relative' }} ref={skillsContainerRef}>
+          <span className="input-select-icon" title="技能">🔧</span>
+          <button
+            className="input-select input-select-skill"
+            onClick={() => setShowSkills(!showSkills)}
+            style={{ background: 'transparent', border: 'none', color: showSkills || activeSkill ? 'var(--accent)' : 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', whiteSpace: 'nowrap' }}
+          >{activeSkill ? activeSkill.icon + ' ' + activeSkill.displayName : '技能'}</button>
+          {activeSkill && (
+            <button
+              onClick={() => onSkillChange(null)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1 }}
+              title="取消激活"
+            >✕</button>
+          )}
+          {showSkills && (
+            <div className="skills-popup" ref={skillsRef}>
+              <div className="skills-popup-title">选择技能（激活后改变 Claude 行为模式）</div>
+              <div className="skills-popup-grid">
+                {skills.length === 0 ? (
+                  <div className="skills-popup-empty">暂无技能，前往设置页「技能管理」创建或安装</div>
+                ) : (
+                  skills.map(s => {
+                    const isActive = activeSkill?.name === s.name;
+                    return (
+                      <button
+                        key={s.name}
+                        className={`skills-chip ${isActive ? 'active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isActive) {
+                            onSkillChange(null);
+                          } else {
+                            onSkillChange({ name: s.name, displayName: s.displayName, icon: s.icon || '🔧' });
+                          }
+                          setShowSkills(false);
+                        }}
+                      >
+                        <span className="skills-chip-icon">{s.icon || '🔧'}</span>
+                        <span className="skills-chip-label">{s.displayName || s.name}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <div className="skills-popup-footer">
+                <a href="#" onClick={e => { e.preventDefault(); setView('settings'); setShowSkills(false); }}>管理技能 →</a>
+              </div>
+            </div>
+          )}
         </div>
         {isStreaming && (
           <button className="stop-btn" onClick={handleStop}>
