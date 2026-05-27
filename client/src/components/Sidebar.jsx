@@ -213,14 +213,14 @@ export default function Sidebar() {
           📁 文件
         </button>
         <button className={activeView === 'terminal' ? 'active' : ''} onClick={() => setView('terminal')}>
-          🖥 终端
+          💻 终端
         </button>
         <button className={activeView === 'skills' ? 'active' : ''} onClick={() => setView('skills')}>
           🧩 技能
         </button>
         {isAdmin && (
           <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
-            ⚙ 设置
+            🔧 设置
             {updateAvailable && (
               <>
                 <span className="nav-badge" />

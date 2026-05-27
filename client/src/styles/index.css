@@ -2503,6 +2503,11 @@ html, body, #root {
 }
 .exec-step-result pre { margin: 0; }
 
+.exec-step-think { opacity: 0.6; }
+.exec-step-think .exec-step-action { font-style: italic; color: var(--text-muted); }
+.exec-step-asst .exec-step-action.asst { color: var(--text-primary); }
+.exec-step-asst.running .exec-step-action.asst { color: var(--accent); }
+
 /* Load more messages */
 .load-more-row { text-align: center; padding: 8px 0; }
 .load-more-btn {

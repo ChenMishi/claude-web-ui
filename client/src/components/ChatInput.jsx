@@ -319,7 +319,7 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
                 )}
               </div>
               <div className="skills-popup-footer">
-                <a href="#" onClick={e => { e.preventDefault(); setView('settings'); setShowSkills(false); }}>管理技能 →</a>
+                <a href="#" onClick={e => { e.preventDefault(); setView('skills'); setShowSkills(false); }}>管理技能 →</a>
               </div>
             </div>
           )}

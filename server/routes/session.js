@@ -217,8 +217,17 @@ function buildSDKOptions(runtime, body, authUser) {
       const { getSkill } = require('../skills/store');
       const skill = getSkill(activeSkillName, authUser, sandbox ? sandbox.homeDir : runtime.cwd);
       if (skill) {
-        // Prepend skill body to system prompt
-        const skillPrompt = `[技能: ${skill.displayName || skill.name}]\n${skill.body}`;
+        // Prepend skill body to system prompt with explicit activation notice.
+        // The Skill tool is NOT used for custom skills — the instructions are inline
+        // and must be followed directly.
+        const skillPrompt = [
+          `[已激活技能: ${skill.displayName || skill.name}]`,
+          `(技能注册名: ${skill.name})`,
+          `此技能已在当前对话中激活，以下指令已生效。你必须直接遵守这些指令，`,
+          `不要通过 Skill 工具来调用此技能，因为 Skill 工具只识别系统内置技能。`,
+          ``,
+          `${skill.body}`,
+        ].join('\n');
         const userPrompt = agentOptions.systemPrompt || '';
         agentOptions.systemPrompt = skillPrompt + (userPrompt ? '\n\n---\n\n' + userPrompt : '');
 
@@ -260,6 +269,10 @@ function buildSDKOptions(runtime, body, authUser) {
 
   options.canUseTool = async (toolName, input) => {
     // ── Skill tool restrictions (applied first, before sandbox) ──
+    // Custom skills are injected inline — block Skill tool to prevent "Unknown skill" errors
+    if (activeSkillName && toolName === 'Skill') {
+      return { behavior: 'deny', message: `无需使用 Skill 工具：自定义技能 "${activeSkillName}" 已激活并注入到系统提示中，请直接按技能指令执行。` };
+    }
     if (skillDeniedTools.includes(toolName)) {
       return { behavior: 'deny', message: `技能限制：不允许使用 ${toolName} 工具` };
     }
