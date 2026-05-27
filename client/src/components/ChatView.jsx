@@ -376,6 +376,15 @@ export default function ChatView() {
     const myExecId = ++execIdRef.current;
     setStreaming(true);
     execStart();
+
+    // Strip slash-command prefix from prompt when skill is active (skill already applied via system prompt)
+    let promptText = text;
+    if (activeSkill) {
+      const prefix = '/' + activeSkill.name + ' ';
+      if (promptText.startsWith(prefix)) promptText = promptText.slice(prefix.length).trim();
+      else if (promptText.startsWith('/' + activeSkill.name)) promptText = promptText.slice(activeSkill.name.length + 1).trim();
+    }
+
     setMainTask(promptText.length > 30 ? promptText.slice(0, 30) + '…' : promptText);
     startTimer();
     bAppend({ role: 'user', content: promptText, timestamp: Date.now() });
@@ -385,14 +394,6 @@ export default function ChatView() {
     const project = projects.find(p => p.id === currentProjectId);
     const cwd = project?.cwd || '/root';
     const sessionId = currentSessionId || 'new';
-
-    // Strip slash-command prefix from prompt when skill is active (skill already applied via system prompt)
-    let promptText = text;
-    if (activeSkill) {
-      const prefix = '/' + activeSkill.name + ' ';
-      if (promptText.startsWith(prefix)) promptText = promptText.slice(prefix.length).trim();
-      else if (promptText.startsWith('/' + activeSkill.name)) promptText = promptText.slice(activeSkill.name.length + 1).trim();
-    }
 
     runAgent({
       sessionId,
@@ -473,7 +474,7 @@ export default function ChatView() {
         bAppend({ role: 'system', content: `错误: ${err.message}` });
       },
     });
-  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer]);
+  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, addTask, updateTask, setMainTask, updateMainTask]);
 
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;

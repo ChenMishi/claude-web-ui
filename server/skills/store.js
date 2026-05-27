@@ -6,6 +6,9 @@ const BUILTIN_DIR = path.resolve(__dirname, '..', 'builtin-skills');
 const SHARED_SKILLS_DIR = path.join(
   (process.env.HOME || '/root'), '.claude-web-ui', 'skills'
 );
+const CLAUDE_SKILLS_DIR = path.join(
+  (process.env.HOME || '/root'), '.claude', 'skills'
+);
 
 /**
  * Get the user's personal skills directory.
@@ -62,6 +65,13 @@ function listSkills(user, projectDir) {
   for (const s of scanDir(SHARED_SKILLS_DIR)) {
     s.source = 'shared';
     s.editable = user?.role === 'admin';
+    seen.set(s.name, s);
+  }
+
+  // Layer 2.5: Claude Code user skills (~/.claude/skills/)
+  for (const s of scanDir(CLAUDE_SKILLS_DIR)) {
+    s.source = 'claude';
+    s.editable = true;
     seen.set(s.name, s);
   }
 
@@ -130,6 +140,10 @@ function createSkill(meta, body, user, targetScope) {
 
   const content = serializeSkill(meta, body);
   fs.writeFileSync(filePath, content, 'utf8');
+
+  // Sync to Claude Code skills directory so slash-commands work
+  syncToClaudeDir(meta.name, content);
+
   return { ok: true, filePath };
 }
 
@@ -152,6 +166,10 @@ function updateSkill(name, meta, body, user, projectDir) {
 
   const content = serializeSkill(meta, body);
   fs.writeFileSync(skill.filePath, content, 'utf8');
+
+  // Sync to Claude Code skills directory
+  syncToClaudeDir(name, content);
+
   return { ok: true, filePath: skill.filePath };
 }
 
@@ -169,15 +187,35 @@ function deleteSkill(name, user, projectDir) {
 
   try {
     fs.unlinkSync(skill.filePath);
+    // Also remove from Claude Code skills directory
+    const claudePath = path.join(CLAUDE_SKILLS_DIR, `${name}.md`);
+    try { if (fs.existsSync(claudePath)) fs.unlinkSync(claudePath); } catch {}
     return { ok: true };
   } catch (err) {
     return { ok: false, errors: [err.message] };
   }
 }
 
+/**
+ * Sync a skill file to the Claude Code skills directory (~/.claude/skills/).
+ * This is the standard path Claude Code uses for user-level skills,
+ * enabling slash-command recognition.
+ */
+function syncToClaudeDir(name, content) {
+  try {
+    if (!fs.existsSync(CLAUDE_SKILLS_DIR)) {
+      fs.mkdirSync(CLAUDE_SKILLS_DIR, { recursive: true });
+    }
+    const claudePath = path.join(CLAUDE_SKILLS_DIR, `${name}.md`);
+    fs.writeFileSync(claudePath, content, 'utf8');
+  } catch (err) {
+    console.error(`[skills] Failed to sync skill "${name}" to Claude dir:`, err.message);
+  }
+}
+
 module.exports = {
-  BUILTIN_DIR, SHARED_SKILLS_DIR,
+  BUILTIN_DIR, SHARED_SKILLS_DIR, CLAUDE_SKILLS_DIR,
   getUserSkillsDir, listSkills, getSkill,
   createSkill, updateSkill, deleteSkill,
-  getSaveDir,
+  getSaveDir, syncToClaudeDir,
 };
