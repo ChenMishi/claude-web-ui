@@ -194,6 +194,7 @@ export default function InitPanel() {
         : component === 'git' ? res.env?.git
         : component === 'sqlite3' ? res.env?.sqlite3
         : component === 'curl' ? res.env?.curl
+        : component === 'gtk' ? res.env?.gtk
         : true;
       setEnvProgress(prev => ({ ...prev, [component]: { checked: true, ok: envOk, pct: 100 } }));
       setInstallingEnv(null);
@@ -230,6 +231,7 @@ export default function InitPanel() {
     { key: 'git', label: 'Git', ok: env.git, value: env.gitVersion || '未安装' },
     { key: 'buildtools', label: '编译工具', ok: env.buildTools, value: env.buildTools ? '已安装' : '未安装 (node-pty需要)' },
     { key: 'sqlite3', label: 'sqlite3', ok: env.sqlite3, value: env.sqlite3 ? '已安装' : '未安装 (CC-Switch需要)' },
+    { key: 'gtk', label: 'GTK3 运行库', ok: env.gtk, value: env.gtk ? '已安装' : '未安装 (CC-Switch需要)' },
     { key: 'curl', label: 'curl', ok: env.curl, value: env.curl ? '已安装' : '未安装' },
   ];
   if (env.os) envItems.push({ key: 'os', label: '操作系统', ok: true, value: `${env.os} (${env.arch})` });

@@ -87,9 +87,18 @@ function checkEnvironment() {
     curl: checkCommand('curl'),
     sqlite3: checkCommand('sqlite3'),
     buildTools: checkCommand('make') || checkCommand('gcc'),
+    gtk: checkGTK(),
     systemd: checkCommand('systemctl'),
     home: os.homedir(),
   };
+}
+
+function checkGTK() {
+  try {
+    // Check if libgtk-3.so.0 can be found by ldconfig
+    execSync('ldconfig -p | grep -q libgtk-3', { encoding: 'utf8', timeout: 2000 });
+    return true;
+  } catch { return false; }
 }
 
 function checkCCSwitch() {
@@ -165,7 +174,7 @@ router.post('/init/install-ccswitch', (req, res) => {
 
 function installDeb(debFile, send, res) {
   const proc = spawn('bash', ['-c',
-    `dpkg -i "${debFile}" 2>&1 && echo "INSTALL_DONE" && apt-get install -f -y 2>&1 && echo "DEPS_FIXED" && apt-get install -y libgtk-3-0 libgdk-pixbuf2.0-0 2>&1 && echo "GTK_DEPS_OK"`]);
+    `dpkg -i "${debFile}" 2>&1 && echo "INSTALL_DONE" && apt-get install -f -y 2>&1 && echo "DEPS_FIXED"`]);
   proc.stdout.on('data', (d) => send('log', { text: d.toString() }));
   proc.stderr.on('data', (d) => send('log', { text: d.toString() }));
   proc.on('close', (code) => {
@@ -186,6 +195,7 @@ router.post('/init/install-env/:component', (req, res) => {
     buildtools: `apt install -y build-essential python3 2>&1`,
     curl: `apt install -y curl 2>&1`,
     sqlite3: `apt install -y sqlite3 2>&1`,
+    gtk: `apt install -y libgtk-3-0 libgdk-pixbuf2.0-0 2>&1`,
   };
 
   const script = installScripts[component];
@@ -229,7 +239,9 @@ router.post('/init/install-env/:component', (req, res) => {
       ? (checkCommand('make') || checkCommand('gcc'))
       : component === 'node'
         ? checkCommand('node')
-        : checkCommand(component);
+        : component === 'gtk'
+          ? checkGTK()
+          : checkCommand(component);
     send('done', { success: installed, pct: 100, text: installed ? `${component} 安装完成` : `${component} 安装失败` });
     res.end();
   });
