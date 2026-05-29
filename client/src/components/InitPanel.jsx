@@ -487,10 +487,22 @@ function CCSwitchConfig() {
         </div>
         <div className="init-config-row">
           <label>默认模型</label>
-          <input type="text" value={edEnv.ANTHROPIC_MODEL || ''} onChange={e => {
-            const newEnv = { ...edEnv, ANTHROPIC_MODEL: e.target.value };
-            setEditProvider({ ...editProvider, config_json: { ...editProvider.config_json, env: newEnv } });
-          }} style={{ flex: 1 }} />
+          {(() => {
+            const avail = config.availableModels || [];
+            return avail.length > 0 ? (
+              <select value={edEnv.ANTHROPIC_MODEL || ''} onChange={e => {
+                const newEnv = { ...edEnv, ANTHROPIC_MODEL: e.target.value };
+                setEditProvider({ ...editProvider, config_json: { ...editProvider.config_json, env: newEnv } });
+              }} style={{ flex: 1 }}>
+                {avail.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            ) : (
+              <input type="text" value={edEnv.ANTHROPIC_MODEL || ''} onChange={e => {
+                const newEnv = { ...edEnv, ANTHROPIC_MODEL: e.target.value };
+                setEditProvider({ ...editProvider, config_json: { ...editProvider.config_json, env: newEnv } });
+              }} style={{ flex: 1 }} placeholder="手动输入模型名" />
+            );
+          })()}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>Haiku / Sonnet / Opus 均映射到此模型</div>
         <div className="init-config-actions" style={{ marginTop: 12 }}>
