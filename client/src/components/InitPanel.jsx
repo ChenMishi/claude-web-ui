@@ -410,7 +410,6 @@ function CCSwitchConfig() {
       await saveCcswitchConfig({
         providerId: editProvider.id,
         config_json: editProvider.config_json,
-        pricing: editProvider.pricing,
       });
       alert('保存成功，重启 CC-Switch 后生效');
       setEditProvider(null);
@@ -466,11 +465,9 @@ function CCSwitchConfig() {
   const defaultProvider = config.providers.find(p => p.id === 'default');
   const cfg = defaultProvider.config || {};
   const env = cfg.env || {};
-  const currentPricing = config.pricing || [];
 
   if (editProvider) {
     const edEnv = editProvider.config_json?.env || {};
-    const edPricing = editProvider.pricing || currentPricing;
     return (
       <div className="init-ccswitch-config">
         <h4>🔧 编辑 Provider: {editProvider.name}</h4>
@@ -496,45 +493,6 @@ function CCSwitchConfig() {
           }} style={{ flex: 1 }} />
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>Haiku / Sonnet / Opus 均映射到此模型</div>
-        <h4 style={{ marginTop: 16 }}>
-          📊 模型定价 (美元/百万token)
-          <button className="init-btn init-btn-test" style={{ marginLeft: 8, fontSize: 10, padding: '2px 8px' }}
-            onClick={() => { loadConfig(); }}
-            title="从 Provider 刷新模型列表">🔄 刷新</button>
-        </h4>
-        {(() => {
-          const avail = config.availableModels || [];
-          const filtered = avail.length > 0
-            ? edPricing.filter(p => avail.includes(p.model_id))
-            : edPricing;
-          if (avail.length > 0 && filtered.length === 0) {
-            return <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>
-              Provider 未返回可用模型（请检查 API Key 和 Base URL 是否正确，CC-Switch 是否已启动）
-            </div>;
-          }
-          if (avail.length > 0) {
-            const hidden = edPricing.length - filtered.length;
-            return (
-              <>
-                {hidden > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
-                  已过滤 {hidden} 个不在 Provider 中的模型，仅显示 {filtered.length} 个可用模型
-                </div>}
-                <div className="init-pricing-grid">
-                  {filtered.map(p => (
-                    <PricingRow key={p.model_id} p={p} edPricing={edPricing} setEditProvider={setEditProvider} editProvider={editProvider} />
-                  ))}
-                </div>
-              </>
-            );
-          }
-          return (
-            <div className="init-pricing-grid">
-              {filtered.map(p => (
-                <PricingRow key={p.model_id} p={p} edPricing={edPricing} setEditProvider={setEditProvider} editProvider={editProvider} />
-              ))}
-            </div>
-          );
-        })()}
         <div className="init-config-actions" style={{ marginTop: 12 }}>
           <button className="init-btn init-btn-save" onClick={handleSave} disabled={saving}>{saving ? '保存中...' : '保存配置'}</button>
           <button className="init-btn init-btn-test" onClick={() => setEditProvider(null)}>取消</button>
@@ -551,7 +509,7 @@ function CCSwitchConfig() {
         <div className="init-info-item"><span className="init-info-label">Provider</span><span className="init-info-value">{defaultProvider.name} ({defaultProvider.id})</span></div>
         <div className="init-info-item"><span className="init-info-label">模型</span><span className="init-info-value mono">{env.ANTHROPIC_MODEL || '未配置'}</span></div>
       </div>
-      <button className="init-btn init-btn-test" style={{ marginTop: 8 }} onClick={() => setEditProvider({ ...defaultProvider, config_json: cfg, pricing: currentPricing })}>
+      <button className="init-btn init-btn-test" style={{ marginTop: 8 }} onClick={() => setEditProvider({ ...defaultProvider, config_json: cfg })}>
         编辑配置
       </button>
     </div>
@@ -590,32 +548,3 @@ function EnvCard({ item, checked, installing, progress, onInstall }) {
   );
 }
 
-function PricingRow({ p, edPricing, setEditProvider, editProvider }) {
-  return (
-    <div className="init-pricing-item">
-      <span className="init-pricing-name">{p.model_name || p.model_id}</span>
-      <div className="init-pricing-inputs">
-        <label>输入</label><input type="number" step="0.01" min="0" value={p.input_price || 0} onChange={e => {
-          const v = Math.max(0, parseFloat(e.target.value) || 0);
-          const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, input_price: v } : x);
-          setEditProvider({ ...editProvider, pricing: newPricing });
-        }} />
-        <label>输出</label><input type="number" step="0.01" min="0" value={p.output_price || 0} onChange={e => {
-          const v = Math.max(0, parseFloat(e.target.value) || 0);
-          const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, output_price: v } : x);
-          setEditProvider({ ...editProvider, pricing: newPricing });
-        }} />
-        <label>缓存读</label><input type="number" step="0.01" min="0" value={p.cache_read_price || 0} onChange={e => {
-          const v = Math.max(0, parseFloat(e.target.value) || 0);
-          const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, cache_read_price: v } : x);
-          setEditProvider({ ...editProvider, pricing: newPricing });
-        }} />
-        <label>缓存写</label><input type="number" step="0.01" min="0" value={p.cache_write_price || 0} onChange={e => {
-          const v = Math.max(0, parseFloat(e.target.value) || 0);
-          const newPricing = edPricing.map(x => x.model_id === p.model_id ? { ...x, cache_write_price: v } : x);
-          setEditProvider({ ...editProvider, pricing: newPricing });
-        }} />
-      </div>
-    </div>
-  );
-}
