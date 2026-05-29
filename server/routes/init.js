@@ -404,17 +404,29 @@ router.post('/init/ccswitch-config', (req, res) => {
     const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
     if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'CC-Switch 数据库未找到' });
 
-    const run = (sql) => execSync(`sqlite3 "${dbPath}" "${sql.replace(/"/g, '\\"')}"`, { encoding: 'utf8', timeout: 5000 });
+    // Escape single quotes for SQLite: ' → ''
+    const esc = (v) => String(v).replace(/'/g, "''");
+
+    // Execute SQL via temp file to avoid shell escaping issues
+    const runFile = (sql) => {
+      const tmpFile = `/tmp/ccswitch-config-${Date.now()}-${Math.random().toString(36).slice(2)}.sql`;
+      fs.writeFileSync(tmpFile, sql, 'utf8');
+      try {
+        execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
+      } finally {
+        try { fs.unlinkSync(tmpFile); } catch {}
+      }
+    };
 
     if (providerId && config_json) {
-      const json = JSON.stringify(config_json).replace(/'/g, "''");
-      run(`UPDATE providers SET settings_config = '${json}' WHERE id = '${providerId}'`);
+      const json = JSON.stringify(config_json);
+      runFile(`UPDATE providers SET settings_config = '${esc(json)}' WHERE id = '${esc(providerId)}'`);
     }
 
     if (pricing && Array.isArray(pricing)) {
       for (const p of pricing) {
-        run(`INSERT OR REPLACE INTO model_pricing (model_id, display_name, input_cost_per_million, output_cost_per_million, cache_read_cost_per_million, cache_creation_cost_per_million)
-          VALUES ('${p.model_id}', '${p.model_name || p.model_id}', ${p.input_price || 0}, ${p.output_price || 0}, ${p.cache_read_price || 0}, ${p.cache_write_price || 0})`);
+        runFile(`INSERT OR REPLACE INTO model_pricing (model_id, display_name, input_cost_per_million, output_cost_per_million, cache_read_cost_per_million, cache_creation_cost_per_million)
+          VALUES ('${esc(p.model_id)}', '${esc(p.model_name || p.model_id)}', ${Number(p.input_price) || 0}, ${Number(p.output_price) || 0}, ${Number(p.cache_read_price) || 0}, ${Number(p.cache_write_price) || 0})`);
       }
     }
 
@@ -612,7 +624,13 @@ router.post('/models/switch', async (req, res) => {
     if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'CC-Switch 数据库未找到' });
 
     const run = (sql) => {
-      execSync(`sqlite3 "${dbPath}" "${sql.replace(/"/g, '\\"')}"`, { encoding: 'utf8', timeout: 5000 });
+      const tmpFile = `/tmp/models-switch-${Date.now()}-${Math.random().toString(36).slice(2)}.sql`;
+      fs.writeFileSync(tmpFile, sql, 'utf8');
+      try {
+        execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
+      } finally {
+        try { fs.unlinkSync(tmpFile); } catch {}
+      }
     };
 
     // Read current config
@@ -639,7 +657,7 @@ router.post('/models/switch', async (req, res) => {
 
     // Restart CC-Switch
     try {
-      execSync('pkill -f cc-switch 2>/dev/null || true', { timeout: 3000 });
+      execSync('pkill -x cc-switch 2>/dev/null || true', { timeout: 3000 });
     } catch {}
     // CC-Switch will be auto-restarted by its own service manager or we start it
     try {

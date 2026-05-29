@@ -23,6 +23,7 @@ export default function InitPanel() {
   const [installingEnv, setInstallingEnv] = useState(null);
   const [envProgress, setEnvProgress] = useState({});
   const [saveMsg, setSaveMsg] = useState('');
+  const [ccSwitchVersion, setCcSwitchVersion] = useState('3.14.1');
 
   // Parse a URL string like "http://127.0.0.1:15721" into host and port
   const parseProxyUrl = (urlStr) => {
@@ -139,7 +140,7 @@ export default function InitPanel() {
     try {
       const res = await fetch(`${BASE}/init/install-ccswitch`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json', Accept: 'text/event-stream' }),
-        body: JSON.stringify({ version: '3.14.1' }),
+        body: JSON.stringify({ version: ccSwitchVersion }),
       });
       const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
       while (true) {
@@ -156,7 +157,7 @@ export default function InitPanel() {
     } catch {}
     setInstallingCcswitch(false);
     setTimeout(() => loadStatus(), 1000);
-  }, [loadStatus]);
+  }, [loadStatus, ccSwitchVersion]);
 
   const handleInstallEnv = useCallback(async (component) => {
     setInstallingEnv(component);
@@ -286,7 +287,14 @@ export default function InitPanel() {
             <div className="init-info-item"><span className="init-info-label">状态</span><span className="init-info-value">{status.claudeInstalled ? `已安装 (${status.claudeVersion || 'v?'})` : '未安装'}</span></div>
             <div className="init-info-item"><span className="init-info-label">路径</span><span className="init-info-value mono">{status.claudePath || '—'}</span></div>
           </div>
-          {status.claudeInstalled && (
+          {!status.claudeInstalled ? (
+            <div className="init-deploy-area">
+              <button className="init-btn init-btn-install" onClick={handleInstallClaude} disabled={installingClaude}>
+                {installingClaude ? '安装中...' : '安装 Claude Code'}
+              </button>
+              {claudeInstallLog && <div className="init-install-log"><pre>{claudeInstallLog}</pre></div>}
+            </div>
+          ) : (
             <div className="init-deploy-area" style={{ marginTop: 10 }}>
               <button className="init-btn init-btn-test" onClick={handleCheckClaudeUpdate} disabled={checkingClaudeUpdate} style={{ marginRight: 8 }}>
                 {checkingClaudeUpdate ? '检查中...' : '检查更新'}
@@ -317,7 +325,12 @@ export default function InitPanel() {
           </div>
           {!status.ccSwitchInstalled && (
             <div className="init-deploy-area">
-              <button className="init-btn init-btn-install" onClick={handleInstallCCSwitch} disabled={installingCcswitch}>{installingCcswitch ? '安装中...' : '安装 CC-Switch'}</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>版本:</span>
+                <input type="text" value={ccSwitchVersion} onChange={e => setCcSwitchVersion(e.target.value)}
+                  style={{ width: 80, fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }} />
+                <button className="init-btn init-btn-install" onClick={handleInstallCCSwitch} disabled={installingCcswitch}>{installingCcswitch ? '安装中...' : '安装 CC-Switch'}</button>
+              </div>
               {installLog && <div className="init-install-log"><pre>{installLog}</pre></div>}
             </div>
           )}
