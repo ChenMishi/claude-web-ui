@@ -40,8 +40,8 @@
   --glass-blur: 14px;
   --glass-dropdown-bg: #16213e;
   /* Input field inside glass */
-  --input-bg: rgba(255, 255, 255, 0.05);
-  --input-bg-focus: rgba(255, 255, 255, 0.08);
+  --input-bg: rgba(255, 255, 255, 0.10);
+  --input-bg-focus: rgba(255, 255, 255, 0.15);
   /* Decorative orb colors */
   --orb-1: rgba(108, 99, 255, 0.28);
   --orb-2: rgba(224, 64, 251, 0.20);
