@@ -387,6 +387,18 @@ router.post('/init/ccswitch-restart', (req, res) => {
       try {
         execSync('pgrep -x cc-switch', { timeout: 2000 });
         fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} CC-Switch 启动成功\n`);
+        // Ensure Claude routing is enabled (otherwise port won't listen)
+        const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
+        if (fs.existsSync(dbPath)) {
+          try {
+            const config = readConfig();
+            const port = config.proxyPort || 15721;
+            const tmpFile = `/tmp/ccswitch-routing-${Date.now()}.sql`;
+            fs.writeFileSync(tmpFile, `INSERT OR REPLACE INTO proxy_config (app_type, proxy_enabled, listen_address, listen_port, enable_logging, enabled) VALUES ('claude', 1, '127.0.0.1', ${port}, 1, 1);`);
+            execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
+            try { fs.unlinkSync(tmpFile); } catch {}
+          } catch {}
+        }
         res.json({ ok: true });
       } catch {
         const errLog = fs.readFileSync(logFile, 'utf8').slice(-500);
@@ -573,6 +585,16 @@ router.post('/init/ccswitch-init-provider', (req, res) => {
       VALUES ('default', 'claude', 'Default Provider', '${escapedConfig}', '', 'custom', 1, 0, '{}', '1.0');`;
     fs.writeFileSync(tmpFile, sql);
     execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
+
+    // Also enable Claude routing in proxy_config (otherwise port won't listen)
+    try {
+      const config = readConfig();
+      const port = config.proxyPort || 15721;
+      const routingSql = `INSERT OR REPLACE INTO proxy_config (app_type, proxy_enabled, listen_address, listen_port, enable_logging, enabled)
+        VALUES ('claude', 1, '127.0.0.1', ${port}, 1, 1);`;
+      fs.writeFileSync(tmpFile, routingSql);
+      execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
+    } catch { /* proxy_config table might not exist yet, will be handled after restart */ }
 
     res.json({ ok: true, message: '默认 Provider 已创建，请编辑配置后重启 CC-Switch' });
   } catch (err) {
