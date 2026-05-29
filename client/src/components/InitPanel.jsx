@@ -415,6 +415,7 @@ function CCSwitchConfig() {
       });
       alert('保存成功，重启 CC-Switch 后生效');
       setEditProvider(null);
+      loadConfig(); // 重新加载配置以获取 availableModels 等最新数据
     } catch (err) { alert('保存失败: ' + err.message); }
     setSaving(false);
   };
