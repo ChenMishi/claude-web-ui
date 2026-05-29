@@ -123,6 +123,7 @@ export const saveCcswitchConfig = (data) => fetchJSON('/init/ccswitch-config', {
 export const getCcswitchStatus = () => fetchJSON('/init/ccswitch-status');
 export const restartCcswitch = () => fetchJSON('/init/ccswitch-restart', { method: 'POST' });
 export const initCcswitchProvider = () => fetchJSON('/init/ccswitch-init-provider', { method: 'POST' });
+export const fetchModels = (baseUrl, token) => fetchJSON('/init/fetch-models', { method: 'POST', body: JSON.stringify({ baseUrl, token }) });
 
 // File system (write / delete)
 export const writeFile = (filePath, content) => fetchJSON('/fs/write', { method: 'POST', body: JSON.stringify({ filePath, content }) });

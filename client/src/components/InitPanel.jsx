@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { authHeaders, getInitStatus, saveInitConfig, testProxy, checkClaudeUpdate,
-         getCcswitchConfig, saveCcswitchConfig, getCcswitchStatus, restartCcswitch, initCcswitchProvider } from '../api';
+         getCcswitchConfig, saveCcswitchConfig, getCcswitchStatus, restartCcswitch, initCcswitchProvider, fetchModels } from '../api';
 
 const BASE = '/api';
 
@@ -385,6 +385,9 @@ function CCSwitchConfig() {
   const [ccStatus, setCcStatus] = useState(null); // { running, portOpen }
   const [restarting, setRestarting] = useState(false);
   const [toast, setToast] = useState(null); // { type: 'success'|'error', msg: string }
+  const [initProvider, setInitProvider] = useState(false); // auto-init in progress
+  const [fetchingModels, setFetchingModels] = useState(false); // pulling model list
+  const [pulledModels, setPulledModels] = useState(null); // models from manual pull
 
   const ccRunning = ccStatus?.running;
   const ccPortOpen = ccStatus?.portOpen;
@@ -399,9 +402,10 @@ function CCSwitchConfig() {
     if (config.error) return; // DB read error, skip auto-init
     const hasDefault = config.providers.some(p => p.id === 'default');
     if (!hasDefault) {
+      setInitProvider(true);
       initCcswitchProvider()
         .then(() => setTimeout(loadConfig, 1500))
-        .catch(() => {});
+        .catch(() => setInitProvider(false));
     }
   }, [ccRunning, config, loading]);
 
@@ -478,11 +482,13 @@ function CCSwitchConfig() {
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           {!ccRunning
             ? '请先点击"启动 CC-Switch"，首次启动会自动创建数据库和默认 Provider'
-            : !ccPortOpen
-              ? 'CC-Switch 进程已运行但端口未监听，请查看日志排查'
-              : config?.error
-                ? config.error
-                : '未找到 Provider，请确认 CC-Switch 已正常启动'}
+            : initProvider
+              ? '⏳ 正在创建默认配置...'
+              : !ccPortOpen
+                ? 'CC-Switch 进程已运行但端口未监听，请查看日志排查'
+                : config?.error
+                  ? config.error
+                  : '未找到 Provider，请确认 CC-Switch 已正常启动'}
         </div>
         {toastOverlay}
       </div>
@@ -495,6 +501,29 @@ function CCSwitchConfig() {
 
   if (editProvider) {
     const edEnv = editProvider.config_json?.env || {};
+    const avail = (config.availableModels || []).concat(pulledModels || []);
+    const handlePullModels = async () => {
+      const baseUrl = edEnv.ANTHROPIC_BASE_URL || '';
+      const token = edEnv.ANTHROPIC_AUTH_TOKEN || '';
+      if (!baseUrl || !token) { setToast({ type: 'error', msg: '请先填写 API Key 和 Base URL' }); return; }
+      setFetchingModels(true);
+      try {
+        const d = await fetchModels(baseUrl, token);
+        if (d.ok) setPulledModels(d.models || []);
+        else setToast({ type: 'error', msg: d.error || '拉取失败' });
+      } catch (err) { setToast({ type: 'error', msg: '拉取失败: ' + err.message }); }
+      setFetchingModels(false);
+    };
+    const handleModelChange = (model) => {
+      const newEnv = {
+        ...edEnv,
+        ANTHROPIC_MODEL: model,
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+        ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+        ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+      };
+      setEditProvider({ ...editProvider, config_json: { ...editProvider.config_json, env: newEnv } });
+    };
     return (
       <div className="init-ccswitch-config">
         <h4>🔧 编辑 Provider: {editProvider.name}</h4>
@@ -514,24 +543,22 @@ function CCSwitchConfig() {
         </div>
         <div className="init-config-row">
           <label>默认模型</label>
-          {(() => {
-            const avail = config.availableModels || [];
-            return avail.length > 0 ? (
-              <select value={edEnv.ANTHROPIC_MODEL || ''} onChange={e => {
-                const newEnv = { ...edEnv, ANTHROPIC_MODEL: e.target.value };
-                setEditProvider({ ...editProvider, config_json: { ...editProvider.config_json, env: newEnv } });
-              }} style={{ flex: 1 }}>
+          <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+            {avail.length > 0 ? (
+              <select value={edEnv.ANTHROPIC_MODEL || ''} onChange={e => handleModelChange(e.target.value)} style={{ flex: 1 }}>
                 {avail.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             ) : (
-              <input type="text" value={edEnv.ANTHROPIC_MODEL || ''} onChange={e => {
-                const newEnv = { ...edEnv, ANTHROPIC_MODEL: e.target.value };
-                setEditProvider({ ...editProvider, config_json: { ...editProvider.config_json, env: newEnv } });
-              }} style={{ flex: 1 }} placeholder="手动输入模型名" />
-            );
-          })()}
+              <input type="text" value={edEnv.ANTHROPIC_MODEL || ''} onChange={e => handleModelChange(e.target.value)}
+                style={{ flex: 1 }} placeholder="手动输入模型名" />
+            )}
+            <button className="init-btn init-btn-test" onClick={handlePullModels} disabled={fetchingModels}
+              style={{ fontSize: 11, padding: '6px 10px', whiteSpace: 'nowrap' }}>
+              {fetchingModels ? '拉取中...' : '拉取模型'}
+            </button>
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>Haiku / Sonnet / Opus 均映射到此模型</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>选择模型后将同步更新 Haiku / Sonnet / Opus 四个字段</div>
         <div className="init-config-actions" style={{ marginTop: 12 }}>
           <button className="init-btn init-btn-save" onClick={handleSave} disabled={saving}>{saving ? '保存中...' : '保存配置'}</button>
           <button className="init-btn init-btn-test" onClick={() => setEditProvider(null)}>取消</button>

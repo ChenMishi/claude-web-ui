@@ -204,7 +204,7 @@ router.post('/init/install-env/:component', (req, res) => {
     buildtools: `apt install -y build-essential python3 2>&1`,
     curl: `apt install -y curl 2>&1`,
     sqlite3: `apt install -y sqlite3 2>&1`,
-    gtk: `apt-get update 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Progress-Fancy=0 libgtk-3-0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1 2>&1`,
+    gtk: `apt-get update 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Progress-Fancy=0 2>&1`,
   };
 
   const script = installScripts[component];
@@ -387,7 +387,7 @@ router.post('/init/ccswitch-restart', (req, res) => {
       try {
         execSync('pgrep -x cc-switch', { timeout: 2000 });
         fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} CC-Switch 启动成功\n`);
-        // Ensure Claude routing is enabled (otherwise port won't listen)
+        // Enable Claude routing in proxy_config, then restart so it takes effect
         const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
         if (fs.existsSync(dbPath)) {
           try {
@@ -397,6 +397,11 @@ router.post('/init/ccswitch-restart', (req, res) => {
             fs.writeFileSync(tmpFile, `INSERT OR REPLACE INTO proxy_config (app_type, proxy_enabled, listen_address, listen_port, enable_logging, enabled) VALUES ('claude', 1, '127.0.0.1', ${port}, 1, 1);`);
             execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
             try { fs.unlinkSync(tmpFile); } catch {}
+            // Restart CC-Switch so it picks up the routing config
+            try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
+            const outFd2 = fs.openSync(logFile, 'a');
+            const child2 = spawn('nohup', ['cc-switch'], { detached: true, stdio: ['ignore', outFd2, outFd2] });
+            child2.unref();
           } catch {}
         }
         res.json({ ok: true });
@@ -600,6 +605,28 @@ router.post('/init/ccswitch-init-provider', (req, res) => {
   } catch (err) {
     logCcswitch("Error in ccswitch route", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Fetch available models from provider API
+router.post('/init/fetch-models', async (req, res) => {
+  const { baseUrl, token } = req.body || {};
+  if (!baseUrl || !token) return res.status(400).json({ error: '缺少 baseUrl 或 token' });
+  try {
+    const url = `${baseUrl.replace(/\/$/, '')}/v1/models`;
+    const resp = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      return res.status(resp.status).json({ error: `请求失败 (${resp.status}): ${errText}`.slice(0, 200) });
+    }
+    const data = await resp.json();
+    const models = (data.data || []).map(m => m.id);
+    res.json({ ok: true, models });
+  } catch (err) {
+    res.status(500).json({ error: `无法连接: ${err.message}` });
   }
 });
 
