@@ -1,5 +1,5 @@
-import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import { getMe, getAuthStatus, setTokens, clearTokens, setOnTokenExpired, listModels, switchModel as apiSwitchModel } from '../api';
+import { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
+import { getMe, getAuthStatus, setTokens, clearTokens, setOnTokenExpired, listModels, switchModel as apiSwitchModel, restartServer } from '../api';
 
 const AppContext = createContext(null);
 
@@ -61,6 +61,8 @@ const initialState = {
   },
   tasks: [],  // { id, subject, description, status: 'pending'|'in_progress'|'completed' }
   mainTask: null,  // { subject: string, status: 'in_progress'|'completed' }
+  restartStatus: null,  // null | 'restarting' | 'done' | 'timeout' | 'error'
+  restartError: '',
 };
 
 function reducer(state, action) {
@@ -200,6 +202,8 @@ function reducer(state, action) {
     case 'UPDATE_MAIN_TASK':
       if (!state.mainTask) return state;
       next = { ...state, mainTask: { ...state.mainTask, subject: action.payload.subject } }; break;
+    case 'RESTART_STATUS':
+      next = { ...state, restartStatus: action.payload.status, restartError: action.payload.error || '' }; break;
     default:
       return state;
   }
@@ -252,6 +256,42 @@ export function AppContextProvider({ children }) {
     setSetting('currentModel', model);
     try { await apiSwitchModel(model); } catch {}
   }, [setSetting]);
+
+  // Shared restart handler — used by Sidebar dropdown and VersionCard upgrade completion
+  const restartRef = useRef(null);
+  const triggerRestart = useCallback(async () => {
+    dispatch({ type: 'RESTART_STATUS', payload: { status: 'restarting' } });
+    restartRef.current = 'restarting';
+    try {
+      await restartServer();
+      await new Promise(r => setTimeout(r, 4000));
+      const poll = setInterval(async () => {
+        try {
+          const res = await fetch('/api/auth/status');
+          if (res.ok) {
+            clearInterval(poll);
+            restartRef.current = 'done';
+            dispatch({ type: 'RESTART_STATUS', payload: { status: 'done' } });
+            setTimeout(() => window.location.reload(), 1000);
+          }
+        } catch {}
+      }, 2000);
+      setTimeout(() => {
+        clearInterval(poll);
+        if (restartRef.current === 'restarting') {
+          dispatch({ type: 'RESTART_STATUS', payload: { status: 'timeout' } });
+          restartRef.current = 'timeout';
+        }
+      }, 60000);
+    } catch (err) {
+      dispatch({ type: 'RESTART_STATUS', payload: { status: 'error', error: err.message } });
+      restartRef.current = 'error';
+    }
+  }, []);
+
+  const dismissRestart = useCallback(() => {
+    dispatch({ type: 'RESTART_STATUS', payload: { status: null } });
+  }, []);
 
   // Load models once on mount
   useEffect(() => { loadAvailableModels(); }, [loadAvailableModels]);
@@ -320,6 +360,7 @@ export function AppContextProvider({ children }) {
     addTask, updateTask, clearTasks, setMainTask, updateMainTask,
     setUpdateAvailable,
     loadAvailableModels, switchCurrentModel,
+    triggerRestart, dismissRestart,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

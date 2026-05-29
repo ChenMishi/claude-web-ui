@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo, restartServer } from '../api';
+import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo } from '../api';
 import ProjectSelector from './ProjectSelector';
 import SessionList from './SessionList';
 import ProfileModal from './ProfileModal';
@@ -19,14 +19,11 @@ export default function Sidebar() {
     currentSessionId, setMessages, chatMessages,
     setView, activeView, theme, setSetting,
     updateAvailable, user, logout, isStreaming,
+    restartStatus, restartError, triggerRestart, dismissRestart,
   } = useApp();
   const isAdmin = user?.role === 'admin';
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [restarting, setRestarting] = useState(false);
-  const [restartStatus, setRestartStatus] = useState(null); // null | 'restarting' | 'done' | 'timeout' | 'error'
-  const [restartError, setRestartError] = useState('');
-  const restartStatusRef = useRef(null);
   const [confirmRestart, setConfirmRestart] = useState(null); // { x, y } or null
   const userMenuRef = useRef(null);
 
@@ -147,40 +144,10 @@ export default function Sidebar() {
     });
   }, [currentSessionId, currentProjectId]);
 
-  const handleRestart = async () => {
+  const handleRestart = () => {
     setConfirmRestart(null);
-    setRestarting(true);
-    setRestartStatus('restarting');
-    restartStatusRef.current = 'restarting';
-    setRestartError('');
     setMenuOpen(false);
-    try {
-      await restartServer();
-      // Wait for old server to be killed (restart script sleeps 2s before kill)
-      await new Promise(r => setTimeout(r, 4000));
-      const poll = setInterval(async () => {
-        try {
-          const res = await fetch('/api/auth/status');
-          if (res.ok) {
-            clearInterval(poll);
-            restartStatusRef.current = 'done';
-            setRestartStatus('done');
-            setTimeout(() => window.location.reload(), 1000);
-          }
-        } catch {}
-      }, 2000);
-      setTimeout(() => {
-        clearInterval(poll);
-        if (restartStatusRef.current === 'restarting') {
-          setRestartStatus('timeout');
-          restartStatusRef.current = 'timeout';
-        }
-      }, 60000);
-    } catch (err) {
-      setRestartStatus('error');
-      restartStatusRef.current = 'error';
-      setRestartError(err.message);
-    }
+    triggerRestart();
   };
 
   return (
@@ -280,9 +247,9 @@ export default function Sidebar() {
                     const rect = e.currentTarget.getBoundingClientRect();
                     setConfirmRestart({ x: rect.left + rect.width / 2, y: rect.top });
                   }}
-                  disabled={restarting}
+                  disabled={restartStatus === 'restarting'}
                 >
-                  {restarting ? '⏳ 重启中...' : '🔄 重启服务'}
+                  {restartStatus === 'restarting' ? '⏳ 重启中...' : '🔄 重启服务'}
                 </button>
               )}
               <button onClick={logout}>
@@ -318,7 +285,7 @@ export default function Sidebar() {
               <>
                 <p style={{color:'var(--danger)'}}>重启失败</p>
                 <p style={{fontSize:13,color:'var(--text-muted)'}}>{restartError}</p>
-                <button className="restart-reload-btn" onClick={() => { setRestartStatus(null); setRestarting(false); }}>关闭</button>
+                <button className="restart-reload-btn" onClick={dismissRestart}>关闭</button>
               </>
             ) : (
               <>

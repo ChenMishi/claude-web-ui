@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeStatus } from '../api';
 
 export default function VersionCard() {
-  const { setUpdateAvailable } = useApp();
+  const { setUpdateAvailable, triggerRestart } = useApp();
   const [info, setInfo] = useState(null);
   const [remote, setRemote] = useState('');
   const [checkResult, setCheckResult] = useState(null);
@@ -116,7 +116,7 @@ export default function VersionCard() {
               <div style={{ height: '100%', width: `${upgradeProgress}%`, background: 'linear-gradient(90deg, var(--accent), #82b1ff)', borderRadius: 3, transition: 'width 0.3s' }} />
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              {upgradeDone ? (upgradeMsg.includes('失败') ? `100% — ${upgradeMsg}` : <>100% — 升级完成，请<a href="#" onClick={e => { e.preventDefault(); location.reload(); }} style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}>刷新</a></>) : `${upgradeProgress}% — ${upgradeMsg}`}
+              {upgradeDone ? (upgradeMsg.includes('失败') ? `100% — ${upgradeMsg}` : <>100% — 升级完成，请<a href="#" onClick={e => { e.preventDefault(); triggerRestart(); }} style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}>重启</a>服务!</>) : `${upgradeProgress}% — ${upgradeMsg}`}
             </div>
           </div>
         )}
