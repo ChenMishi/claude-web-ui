@@ -69,6 +69,16 @@ export default function VersionCard() {
             <span className="settings-info-value">v{info.version} ({info.commit?.slice(0,8)})</span>
           </div>
         )}
+        <div className="settings-row">
+          <label>Git 仓库地址</label>
+          <input
+            type="text"
+            value={remote}
+            onChange={e => setRemote(e.target.value)}
+            placeholder="https://github.com/user/repo.git"
+            style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 4, background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+          />
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="version-btn version-btn-check" onClick={handleCheck} disabled={checking}
             style={{ padding: '6px 14px', fontSize: 12, borderRadius: 6, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer' }}>

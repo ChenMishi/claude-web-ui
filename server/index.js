@@ -78,6 +78,7 @@ function createApp() {
   app.use('/api', require('./routes/version'));
   app.use('/api', require('./routes/init'));
   app.use('/api', require('./routes/skills'));
+  app.use('/api', require('./routes/fs'));
 
   // Swagger docs
   try {

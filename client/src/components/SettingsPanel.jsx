@@ -10,7 +10,7 @@ export default function SettingsPanel() {
     availableModels, currentModel, switchCurrentModel } = useApp();
   const isAdmin = user?.role === 'admin';
   const project = projects.find(p => p.id === currentProjectId);
-  const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'init' | 'logs'
+  const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'init' | 'logs' | 'upgrade'
 
   const [users, setUsers] = useState([]);
   const [newUsername, setNewUsername] = useState('');
@@ -44,6 +44,7 @@ export default function SettingsPanel() {
         <button className={settingsTab === 'general' ? 'active' : ''} onClick={() => setSettingsTab('general')}>常规设置</button>
         <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}>🔧 初始化</button>
         <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}>📋 日志</button>
+        <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => setSettingsTab('upgrade')}>🔄 升级</button>
       </div>
 
       {settingsTab === 'general' ? (
@@ -84,10 +85,7 @@ export default function SettingsPanel() {
             </div>
           )}
 
-          {/* Card 2: 版本升级 */}
-          <VersionCard />
-
-          {/* Card 3: 对话设置 */}
+          {/* Card 2: 对话设置 */}
           <div className="settings-card">
             <div className="settings-card-header">💬 对话设置</div>
             <div className="settings-card-body">
@@ -146,6 +144,8 @@ export default function SettingsPanel() {
         </>
       ) : settingsTab === 'init' ? (
         <InitPanel />
+      ) : settingsTab === 'upgrade' ? (
+        <VersionCard />
       ) : (
         <LogPanel />
       )}
