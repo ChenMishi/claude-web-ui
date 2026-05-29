@@ -392,7 +392,7 @@ function CCSwitchConfig() {
   // Auto-init provider if CC-Switch is running but DB is empty
   useEffect(() => {
     if (!ccRunning || !config || loading) return;
-    if (config.error || !(config.providers || []).length) return;
+    if (config.error) return; // DB read error, skip auto-init
     const hasDefault = config.providers.some(p => p.id === 'default');
     if (!hasDefault) {
       initCcswitchProvider()
