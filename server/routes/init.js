@@ -428,6 +428,11 @@ router.get('/init/ccswitch-config', async (req, res) => {
           }
         } catch { /* provider unreachable, return empty */ }
       }
+      // Fallback: at least include the currently configured model
+      const currentModel = env.ANTHROPIC_MODEL || '';
+      if (availableModels.length === 0 && currentModel) {
+        availableModels = [currentModel];
+      }
     }
 
     res.json({
