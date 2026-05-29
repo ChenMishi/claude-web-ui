@@ -357,9 +357,17 @@ router.post('/init/install-sdk', (req, res) => {
 router.get('/init/ccswitch-status', (req, res) => {
   try {
     const pid = execSync('pgrep -x cc-switch', { encoding: 'utf8', timeout: 3000 }).trim();
-    res.json({ running: true, pid });
+    // Also check if port is actually listening
+    let portOpen = false;
+    try {
+      const config = readConfig();
+      const port = config.proxyPort || 15721;
+      execSync(`ss -tlnp | grep -q ":${port} "`, { encoding: 'utf8', timeout: 2000 });
+      portOpen = true;
+    } catch {}
+    res.json({ running: true, pid, portOpen });
   } catch {
-    res.json({ running: false, pid: null });
+    res.json({ running: false, pid: null, portOpen: false });
   }
 });
 

@@ -382,8 +382,11 @@ function CCSwitchConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editProvider, setEditProvider] = useState(null);
-  const [ccRunning, setCcRunning] = useState(null);
+  const [ccStatus, setCcStatus] = useState(null); // { running, portOpen }
   const [restarting, setRestarting] = useState(false);
+
+  const ccRunning = ccStatus?.running;
+  const ccPortOpen = ccStatus?.portOpen;
 
   const loadConfig = () => {
     getCcswitchConfig().then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
@@ -403,7 +406,7 @@ function CCSwitchConfig() {
 
   useEffect(() => {
     loadConfig();
-    getCcswitchStatus().then(d => setCcRunning(d.running)).catch(() => {});
+    getCcswitchStatus().then(d => setCcStatus(d)).catch(() => {});
   }, []);
 
   const handleSave = async () => {
@@ -425,7 +428,7 @@ function CCSwitchConfig() {
     try {
       const d = await restartCcswitch();
       if (d.ok) {
-        setCcRunning(true);
+        setCcStatus({ running: true, portOpen: true });
         alert('CC-Switch 已启动，等待几秒后刷新配置');
         // Reload config after a delay (db may need time to be created)
         setTimeout(loadConfig, 3000);
@@ -438,10 +441,15 @@ function CCSwitchConfig() {
 
   // Always show run status + start/restart button
   const statusBar = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
       <span className={`init-status-badge ${ccRunning ? 'ok' : 'warn'}`} style={{ fontSize: 10 }}>
-        {ccRunning === null ? '检测中' : ccRunning ? '● 运行中' : '○ 未运行'}
+        {ccStatus === null ? '检测中' : ccRunning ? '● 进程运行中' : '○ 进程未运行'}
       </span>
+      {ccRunning && (
+        <span className={`init-status-badge ${ccPortOpen ? 'ok' : 'warn'}`} style={{ fontSize: 10 }}>
+          {ccPortOpen ? '● 端口已监听' : '○ 端口未监听'}
+        </span>
+      )}
       <button className="init-btn init-btn-install" onClick={handleRestartCCSwitch} disabled={restarting} style={{ fontSize: 11, padding: '5px 12px' }}>
         {restarting ? '启动中...' : ccRunning ? '重启 CC-Switch' : '启动 CC-Switch'}
       </button>
@@ -457,9 +465,11 @@ function CCSwitchConfig() {
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           {!ccRunning
             ? '请先点击"启动 CC-Switch"，首次启动会自动创建数据库和默认 Provider'
-            : config?.error
-              ? config.error
-              : '未找到 Provider，请确认 CC-Switch 已正常启动'}
+            : !ccPortOpen
+              ? 'CC-Switch 进程已运行但端口未监听，请查看日志排查'
+              : config?.error
+                ? config.error
+                : '未找到 Provider，请确认 CC-Switch 已正常启动'}
         </div>
       </div>
     );
