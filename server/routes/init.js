@@ -94,24 +94,20 @@ function checkEnvironment() {
 }
 
 function checkGTK() {
+  // Method 1: try ldconfig first (fast, covers all arch paths)
   try {
-    // Try using full path to ldconfig first (may not be in PATH on some systems)
-    const ldcfg = (() => {
-      try { execSync('command -v ldconfig', { encoding: 'utf8', timeout: 2000 }); return 'ldconfig'; } catch {}
-      if (fs.existsSync('/sbin/ldconfig')) return '/sbin/ldconfig';
-      if (fs.existsSync('/usr/sbin/ldconfig')) return '/usr/sbin/ldconfig';
-      return null;
-    })();
-    if (ldcfg) {
-      execSync(`${ldcfg} -p | grep -q libgtk-3`, { encoding: 'utf8', timeout: 2000 });
-      return true;
-    }
-    // Fallback: check for the actual .so file
-    try {
-      execSync('find /usr/lib -maxdepth 4 -name "libgtk-3.so*" 2>/dev/null | grep -q .', { encoding: 'utf8', timeout: 3000 });
-      return true;
-    } catch { return false; }
-  } catch { return false; }
+    const ldcfg = fs.existsSync('/sbin/ldconfig') ? '/sbin/ldconfig' : 'ldconfig';
+    execSync(`${ldcfg} -p 2>/dev/null | grep -q libgtk-3`, { encoding: 'utf8', timeout: 2000 });
+    return true;
+  } catch {}
+
+  // Method 2: find the .so file directly (fallback)
+  try {
+    execSync('find /usr/lib* -maxdepth 4 -name "libgtk-3.so*" 2>/dev/null | grep -q .', { encoding: 'utf8', timeout: 3000 });
+    return true;
+  } catch {}
+
+  return false;
 }
 
 function checkCCSwitch() {
