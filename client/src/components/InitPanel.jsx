@@ -384,6 +384,7 @@ function CCSwitchConfig() {
   const [editProvider, setEditProvider] = useState(null);
   const [ccStatus, setCcStatus] = useState(null); // { running, portOpen }
   const [restarting, setRestarting] = useState(false);
+  const [toast, setToast] = useState(null); // { type: 'success'|'error', msg: string }
 
   const ccRunning = ccStatus?.running;
   const ccPortOpen = ccStatus?.portOpen;
@@ -416,10 +417,10 @@ function CCSwitchConfig() {
         providerId: editProvider.id,
         config_json: editProvider.config_json,
       });
-      alert('保存成功，重启 CC-Switch 后生效');
+      setToast({ type: 'success', msg: '保存成功，重启 CC-Switch 后生效' });
       setEditProvider(null);
       loadConfig(); // 重新加载配置以获取 availableModels 等最新数据
-    } catch (err) { alert('保存失败: ' + err.message); }
+    } catch (err) { setToast({ type: 'error', msg: '保存失败: ' + err.message }); }
     setSaving(false);
   };
 
@@ -429,15 +430,27 @@ function CCSwitchConfig() {
       const d = await restartCcswitch();
       if (d.ok) {
         setCcStatus({ running: true, portOpen: true });
-        alert('CC-Switch 已启动，等待几秒后刷新配置');
+        setToast({ type: 'success', msg: 'CC-Switch 已启动，等待几秒后刷新配置' });
         // Reload config after a delay (db may need time to be created)
         setTimeout(loadConfig, 3000);
-      } else alert(d.error || '启动失败');
-    } catch (err) { alert('启动失败: ' + err.message); }
+      } else setToast({ type: 'error', msg: d.error || '启动失败' });
+    } catch (err) { setToast({ type: 'error', msg: '启动失败: ' + err.message }); }
     setRestarting(false);
   };
 
   if (loading) return <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>加载配置中...</div>;
+
+  // ── Toast overlay ──
+  const toastOverlay = toast && (
+    <div className="restart-overlay" style={{ zIndex: 200 }} onClick={() => setToast(null)}>
+      <div className="restart-toast" onClick={e => e.stopPropagation()} style={{ padding: '24px 32px', gap: 12 }}>
+        <p style={{ color: toast.type === 'error' ? 'var(--danger)' : 'var(--success)', fontSize: 15 }}>
+          {toast.type === 'error' ? '❌' : '✅'} {toast.msg}
+        </p>
+        <button className="restart-reload-btn" onClick={() => setToast(null)}>确定</button>
+      </div>
+    </div>
+  );
 
   // Always show run status + start/restart button
   const statusBar = (
@@ -471,6 +484,7 @@ function CCSwitchConfig() {
                 ? config.error
                 : '未找到 Provider，请确认 CC-Switch 已正常启动'}
         </div>
+        {toastOverlay}
       </div>
     );
   }
@@ -522,6 +536,7 @@ function CCSwitchConfig() {
           <button className="init-btn init-btn-save" onClick={handleSave} disabled={saving}>{saving ? '保存中...' : '保存配置'}</button>
           <button className="init-btn init-btn-test" onClick={() => setEditProvider(null)}>取消</button>
         </div>
+        {toastOverlay}
       </div>
     );
   }
@@ -537,6 +552,7 @@ function CCSwitchConfig() {
       <button className="init-btn init-btn-test" style={{ marginTop: 8 }} onClick={() => setEditProvider({ ...defaultProvider, config_json: cfg })}>
         编辑配置
       </button>
+      {toastOverlay}
     </div>
   );
 }
