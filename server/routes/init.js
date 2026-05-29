@@ -95,9 +95,22 @@ function checkEnvironment() {
 
 function checkGTK() {
   try {
-    // Check if libgtk-3.so.0 can be found by ldconfig
-    execSync('ldconfig -p | grep -q libgtk-3', { encoding: 'utf8', timeout: 2000 });
-    return true;
+    // Try using full path to ldconfig first (may not be in PATH on some systems)
+    const ldcfg = (() => {
+      try { execSync('command -v ldconfig', { encoding: 'utf8', timeout: 2000 }); return 'ldconfig'; } catch {}
+      if (fs.existsSync('/sbin/ldconfig')) return '/sbin/ldconfig';
+      if (fs.existsSync('/usr/sbin/ldconfig')) return '/usr/sbin/ldconfig';
+      return null;
+    })();
+    if (ldcfg) {
+      execSync(`${ldcfg} -p | grep -q libgtk-3`, { encoding: 'utf8', timeout: 2000 });
+      return true;
+    }
+    // Fallback: check for the actual .so file
+    try {
+      execSync('find /usr/lib -maxdepth 4 -name "libgtk-3.so*" 2>/dev/null | grep -q .', { encoding: 'utf8', timeout: 3000 });
+      return true;
+    } catch { return false; }
   } catch { return false; }
 }
 
@@ -195,7 +208,7 @@ router.post('/init/install-env/:component', (req, res) => {
     buildtools: `apt install -y build-essential python3 2>&1`,
     curl: `apt install -y curl 2>&1`,
     sqlite3: `apt install -y sqlite3 2>&1`,
-    gtk: `apt install -y libgtk-3-0 libgdk-pixbuf2.0-0 2>&1`,
+    gtk: `apt-get update 2>&1 && apt install -y libgtk-3-0 libgdk-pixbuf2.0-0 2>&1`,
   };
 
   const script = installScripts[component];

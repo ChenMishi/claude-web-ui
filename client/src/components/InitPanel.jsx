@@ -58,7 +58,7 @@ export default function InitPanel() {
     setProxyPort(port);
     setEnvChecked(true);
 
-    const items = ['node', 'npm', 'git', 'buildtools', 'sqlite3', 'curl', 'gtk', 'os'];
+    const items = ['node', 'npm', 'git', 'buildtools', 'sqlite3', 'gtk', 'curl', 'os'];
     for (let i = 0; i < items.length; i++) {
       await new Promise(r => setTimeout(r, 700));
       setEnvProgress(prev => ({ ...prev, [items[i]]: { checked: true } }));
