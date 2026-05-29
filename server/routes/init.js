@@ -367,10 +367,10 @@ router.post('/init/ccswitch-restart', (req, res) => {
 });
 
 // Get CC-Switch provider config from SQLite
-router.get('/init/ccswitch-config', (req, res) => {
+router.get('/init/ccswitch-config', async (req, res) => {
   try {
     const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
-    if (!fs.existsSync(dbPath)) return res.json({ providers: [], pricing: [] });
+    if (!fs.existsSync(dbPath)) return res.json({ providers: [], pricing: [], availableModels: [] });
 
     const query = (sql) => {
       const out = execSync(`sqlite3 -json "${dbPath}" "${sql}"`, { encoding: 'utf8', timeout: 5000 }).trim();
@@ -379,6 +379,30 @@ router.get('/init/ccswitch-config', (req, res) => {
 
     const providers = query("SELECT id, name, provider_type, settings_config FROM providers");
     const pricing = query("SELECT model_id, display_name, input_cost_per_million, output_cost_per_million, cache_read_cost_per_million, cache_creation_cost_per_million FROM model_pricing");
+
+    // Try to fetch available models from the provider API
+    let availableModels = [];
+    const defaultProv = providers.find(p => p.id === 'default');
+    if (defaultProv) {
+      const cfg = typeof defaultProv.settings_config === 'string'
+        ? JSON.parse(defaultProv.settings_config || '{}')
+        : (defaultProv.settings_config || {});
+      const env = cfg.env || {};
+      const baseUrl = env.ANTHROPIC_BASE_URL || '';
+      const token = env.ANTHROPIC_AUTH_TOKEN || '';
+      if (baseUrl && token && token !== 'sk-your-api-key') {
+        try {
+          const resp = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/models`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            availableModels = (data.data || []).map(m => m.id);
+          }
+        } catch { /* provider unreachable, return empty */ }
+      }
+    }
 
     res.json({
       providers: providers.map(p => ({
@@ -390,6 +414,7 @@ router.get('/init/ccswitch-config', (req, res) => {
         input_price: p.input_cost_per_million, output_price: p.output_cost_per_million,
         cache_read_price: p.cache_read_cost_per_million, cache_write_price: p.cache_creation_cost_per_million,
       })),
+      availableModels,
     });
   } catch (err) {
     logCcswitch("Error in ccswitch route", err);
