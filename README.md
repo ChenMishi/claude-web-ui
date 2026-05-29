@@ -27,46 +27,75 @@
 
 ### 环境要求
 
-- Node.js >= 18
-- Claude Code CLI（用于 Agent SDK 调用）
-- Git（用于版本升级功能）
+- Linux 服务器（Ubuntu/Debian/CentOS/Alpine/Arch）
+- 推荐 Node.js >= 20（脚本会自动安装）
+- Claude Code CLI + CC-Switch 代理（用于 Agent SDK 调用）
 
-### 安装
+### 一键部署
 
 ```bash
-git clone <仓库地址>
-cd claude-web-ui
-npm install
-cd client && npm install && npm run build && cd ..
+# 从 Git 仓库拉取并部署（首次安装）
+GIT_REPO=https://github.com/your-org/claude-web-ui.git ./deploy.sh
+
+# 指定端口
+./deploy.sh 8080
+
+# 指定管理员密码
+ADMIN_PASSWORD=mysecret ./deploy.sh
 ```
 
-### 启动
+部署脚本会自动完成：
+1. 安装系统工具（git、curl、lsof）
+2. 安装/升级 Node.js 22.x
+3. 安装编译工具（make、gcc、python3）
+4. 克隆项目代码
+5. 安装服务端和前端依赖
+6. 编译原生模块（node-pty、bcrypt）
+7. 检测 SDK 二进制兼容性并修复
+8. 构建前端
+9. 启动服务
+
+部署成功后终端会打印管理员的登录地址和自动生成的密码。
+
+### 登录后初始化
+
+1. 使用浏览器打开服务地址，以 `admin` 身份登录
+2. 进入 **设置 → 🔧 初始化**：
+   - 检测 Claude Code CLI 是否已安装
+   - 配置 CC-Switch 代理地址（默认 `http://127.0.0.1:15721`）
+   - 创建项目 CLAUDE.md 文档
+3. 进入 **设置 → 🔄 升级** 可配置 Git 仓库地址用于在线更新
+
+### 管理命令
 
 ```bash
-# 生产模式（端口 3000）
-npm start
+./stop.sh      # 停止服务
+./start.sh     # 启动服务（使用已保存的端口）
+./upgrade.sh   # 在线升级到最新版本
+```
 
-# 开发模式（前端热更新 :5173，后端 :3000）
+### 开发模式
+
+```bash
+# 前端热更新（:5173），后端（:3000）
 npm run dev
 ```
 
-### 环境变量
+### 配置参考
 
-| 变量 | 说明 | 默认值 |
+| 环境变量 | 说明 | 默认值 |
 |------|------|--------|
 | `PORT` | 服务端口 | `3000` |
 | `CLAUDE_PROXY` | Claude Agent 代理地址 | `http://127.0.0.1:15721` |
 | `AUTH_MODE` | 认证模式：`optional` / `required` / `disabled` | `optional` |
-| `ADMIN_PASSWORD` | 管理员密码（首次启动时设置） | — |
+| `ADMIN_PASSWORD` | 管理员密码（首次启动自动生成） | — |
 | `JWT_SECRET` | JWT 签名密钥（自动生成） | — |
+| `GIT_REPO` | Git 仓库地址（deploy.sh 使用） | — |
 
-### 认证模式
-
-- **optional**（默认）：不登录可浏览，操作时要求登录
-- **required**：必须登录才能访问
-- **disabled**：完全关闭认证
-
-首次启动时若未设置管理员密码，可通过 Web 界面初始化。
+**认证模式说明**：
+- `optional`（默认）：不登录可浏览页面，执行操作时要求登录
+- `required`：所有访问必须先登录
+- `disabled`：完全关闭认证（不推荐公网使用）
 
 ## 项目结构
 
