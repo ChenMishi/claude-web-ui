@@ -15,5 +15,6 @@ init-config.json
 # 日志目录
 logs/
 
-# 二进制包
+# 二进制包（CC-Switch 例外：离线初始化必需）
 packages/*.deb
+!packages/CC-Switch-*.deb
