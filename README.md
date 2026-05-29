@@ -33,29 +33,37 @@
 
 ### 一键部署
 
+**Step 1 — 克隆仓库**
+
 ```bash
-# 从 Git 仓库拉取并部署（首次安装）
-GIT_REPO=https://github.com/your-org/claude-web-ui.git ./deploy.sh
+git clone https://github.com/ChenMishi/claude-web-ui.git
+```
+
+**Step 2 — 进入目录，运行部署**
+
+```bash
+cd claude-web-ui
+
+# 基础部署（默认端口 3000，管理员密码自动生成）
+./deploy.sh
 
 # 指定端口
 ./deploy.sh 8080
-
-# 指定管理员密码
-ADMIN_PASSWORD=mysecret ./deploy.sh
 ```
+
+**Step 3 — 等待完成，按提示访问**
 
 部署脚本会自动完成：
 1. 安装系统工具（git、curl、lsof）
 2. 安装/升级 Node.js 22.x
 3. 安装编译工具（make、gcc、python3）
-4. 克隆项目代码
-5. 安装服务端和前端依赖
-6. 编译原生模块（node-pty、bcrypt）
-7. 检测 SDK 二进制兼容性并修复
-8. 构建前端
-9. 启动服务
+4. 安装服务端和前端依赖
+5. 编译原生模块（node-pty、bcrypt）
+6. 检测 SDK 二进制兼容性并修复
+7. 构建前端
+8. 启动服务
 
-部署成功后终端会打印管理员的登录地址和自动生成的密码。
+完成后终端打印访问地址和管理员账号密码，浏览器打开即可登录。
 
 ### 登录后初始化
 
