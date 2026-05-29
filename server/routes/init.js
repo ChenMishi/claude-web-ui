@@ -204,7 +204,7 @@ router.post('/init/install-env/:component', (req, res) => {
     buildtools: `apt install -y build-essential python3 2>&1`,
     curl: `apt install -y curl 2>&1`,
     sqlite3: `apt install -y sqlite3 2>&1`,
-    gtk: `apt-get update 2>&1 && apt install -y libgtk-3-0 libgdk-pixbuf2.0-0 2>&1`,
+    gtk: `apt-get update 2>&1 && apt-get install -f -y 2>&1`,
   };
 
   const script = installScripts[component];
