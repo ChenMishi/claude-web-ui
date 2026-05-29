@@ -204,7 +204,7 @@ router.post('/init/install-env/:component', (req, res) => {
     buildtools: `apt install -y build-essential python3 2>&1`,
     curl: `apt install -y curl 2>&1`,
     sqlite3: `apt install -y sqlite3 2>&1`,
-    gtk: `apt-get update 2>&1 && apt-get install -f -y 2>&1`,
+    gtk: `apt-get update 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Progress-Fancy=0 2>&1`,
   };
 
   const script = installScripts[component];
@@ -233,8 +233,11 @@ router.post('/init/install-env/:component', (req, res) => {
       lastPct = Math.min(lastPct + 5, 50);
     } else if (text.includes('Setting up') || text.includes('Processing')) {
       lastPct = Math.min(lastPct + 3, 80);
+    } else if (text.startsWith('Get:') || text.includes('Fetched')) {
+      // Download progress — climb slowly toward 95
+      lastPct = Math.min(lastPct + 2, 95);
     } else {
-      lastPct = Math.min(lastPct + 1, 90);
+      lastPct = Math.min(lastPct + 1, 92);
     }
     send('progress', { pct: lastPct, text: text.trim().slice(0, 80) });
   };
