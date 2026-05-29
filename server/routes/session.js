@@ -2,7 +2,7 @@ const { Router } = require('express');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR, getUserDataDir } = require('../config');
+const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR, getUserDataDir, PROXY_BASE } = require('../config');
 const { dirNameToCwd, parseTitleFromJsonl } = require('../utils');
 const { findUserById } = require('../auth/users');
 const {
@@ -262,6 +262,12 @@ function buildSDKOptions(runtime, body, authUser) {
     // Non-admin users: strip additionalDirectories (could be used to bypass sandbox)
     ...(sandbox ? {} : (agentOptions.additionalDirectories?.length ? { additionalDirectories: agentOptions.additionalDirectories } : {})),
     ...agentOptions.env !== undefined ? { env: agentOptions.env } : {},
+    // Always route SDK through CC-Switch proxy (avoid "Not logged in" error)
+    env: {
+      ANTHROPIC_BASE_URL: PROXY_BASE,
+      ANTHROPIC_API_KEY: 'proxy',
+      ...(agentOptions.env || {}),
+    },
     ...agentOptions.thinking !== undefined ? { thinking: agentOptions.thinking } : {},
     stream_options: { include_usage: true },
     ...runtime.abort ? { abortController: runtime.abort } : {},
