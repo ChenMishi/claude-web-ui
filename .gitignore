@@ -6,3 +6,14 @@ dist/
 .env.local
 .pid
 .port
+
+# 运行时敏感数据（首次启动自动生成）
+.jwt-secret
+users.json
+init-config.json
+
+# 日志目录
+logs/
+
+# 二进制包
+packages/*.deb

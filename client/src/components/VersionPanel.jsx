@@ -131,7 +131,7 @@ export default function VersionPanel() {
             type="text"
             value={remote}
             onChange={e => setRemote(e.target.value)}
-            placeholder="http://10.178.5.224:3000/gogs/claude-web-ui.git"
+            placeholder="https://github.com/user/repo.git"
             style={{ flex: 1 }}
           />
         </div>
