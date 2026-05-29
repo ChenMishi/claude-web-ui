@@ -103,7 +103,7 @@ function checkGTK() {
 
   // Method 2: find the .so file directly (fallback)
   try {
-    execSync('find /usr/lib* -maxdepth 4 -name "libgtk-3.so*" 2>/dev/null | grep -q .', { encoding: 'utf8', timeout: 3000 });
+    execSync('find /usr/lib* /lib* -maxdepth 5 -name "libgtk-3.so*" 2>/dev/null | grep -q .', { encoding: 'utf8', timeout: 3000 });
     return true;
   } catch {}
 
@@ -204,7 +204,7 @@ router.post('/init/install-env/:component', (req, res) => {
     buildtools: `apt install -y build-essential python3 2>&1`,
     curl: `apt install -y curl 2>&1`,
     sqlite3: `apt install -y sqlite3 2>&1`,
-    gtk: `apt-get update 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Progress-Fancy=0 2>&1`,
+    gtk: `apt-get update 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Progress-Fancy=0 libgtk-3-0 libwebkit2gtk-4.1-0 libayatana-appindicator3-1 2>&1`,
   };
 
   const script = installScripts[component];
