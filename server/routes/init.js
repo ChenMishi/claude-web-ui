@@ -165,7 +165,7 @@ router.post('/init/install-ccswitch', (req, res) => {
 
 function installDeb(debFile, send, res) {
   const proc = spawn('bash', ['-c',
-    `dpkg -i "${debFile}" 2>&1 && echo "INSTALL_DONE" && apt-get install -f -y 2>&1 && echo "DEPS_FIXED"`]);
+    `dpkg -i "${debFile}" 2>&1 && echo "INSTALL_DONE" && apt-get install -f -y 2>&1 && echo "DEPS_FIXED" && apt-get install -y libgtk-3-0 libgdk-pixbuf2.0-0 2>&1 && echo "GTK_DEPS_OK"`]);
   proc.stdout.on('data', (d) => send('log', { text: d.toString() }));
   proc.stderr.on('data', (d) => send('log', { text: d.toString() }));
   proc.on('close', (code) => {
@@ -344,19 +344,21 @@ router.post('/init/ccswitch-restart', (req, res) => {
   try {
     // Kill existing
     try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
+    // Ensure logs directory exists
+    if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
     // Start in background and capture output
-    const logFile = path.join(PROJECT_DIR, 'logs', 'ccswitch.log');
+    const logFile = path.join(LOG_DIR, 'ccswitch.log');
     const outFd = fs.openSync(logFile, 'a');
     const child = spawn('nohup', ['cc-switch'], { detached: true, stdio: ['ignore', outFd, outFd] });
     child.unref();
     setTimeout(() => {
       try {
         execSync('pgrep -x cc-switch', { timeout: 2000 });
-        fs.appendFileSync(path.join(PROJECT_DIR, 'logs', 'init.log'), `${new Date().toISOString()} CC-Switch 启动成功\n`);
+        fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} CC-Switch 启动成功\n`);
         res.json({ ok: true });
       } catch {
         const errLog = fs.readFileSync(logFile, 'utf8').slice(-500);
-        fs.appendFileSync(path.join(PROJECT_DIR, 'logs', 'init.log'), `${new Date().toISOString()} CC-Switch 启动失败\n${errLog}\n`);
+        fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} CC-Switch 启动失败\n${errLog}\n`);
         res.json({ ok: false, error: `启动失败，查看日志: ${logFile}` });
       }
     }, 2000);
