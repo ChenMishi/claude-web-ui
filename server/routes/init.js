@@ -264,21 +264,17 @@ router.post('/init/test-proxy', async (req, res) => {
 
 // ── Provider config (replaces CC-Switch SQLite) ──
 
-// Get provider config (API key masked)
+// Get provider config
 router.get('/init/provider-config', (_req, res) => {
   const cfg = readProviderConfig();
-  const apiKey = cfg.apiKey || '';
-  const masked = apiKey.length > 8
-    ? apiKey.slice(0, 4) + '***' + apiKey.slice(-4)
-    : apiKey;
   res.json({
-    apiKey: masked,
+    apiKey: cfg.apiKey || '',
     baseUrl: cfg.baseUrl || '',
     model: cfg.model || '',
     haikuModel: cfg.haikuModel || '',
     sonnetModel: cfg.sonnetModel || '',
     opusModel: cfg.opusModel || '',
-    hasApiKey: !!apiKey,
+    hasApiKey: !!(cfg.apiKey),
   });
 });
 

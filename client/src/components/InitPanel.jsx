@@ -51,7 +51,7 @@ export default function InitPanel() {
       setProviderConfig(d);
       setEditBaseUrl(d.baseUrl || 'https://api.anthropic.com');
       setEditModel(d.model || '');
-      setEditApiKey(''); // always reset for security
+      setEditApiKey(d.apiKey || '');
       setProviderLoading(false);
     }).catch(() => setProviderLoading(false));
   }, []);
