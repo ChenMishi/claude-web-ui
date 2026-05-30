@@ -39,23 +39,43 @@ export ADMIN_PASSWORD
 # ──────────────────────────────────────────────
 # 进度步骤包装器 — 隐藏正常输出，只在出错时显示
 # ──────────────────────────────────────────────
+TOTAL_STEPS=8
+CURRENT_STEP=0
+
 run_step() {
+  CURRENT_STEP=$((CURRENT_STEP + 1))
   local desc="$1"; shift
   local log_file
   log_file=$(mktemp /tmp/deploy-step.XXXXXX)
 
-  printf "${CYAN}  ⏳${NC} %s" "$desc"
+  local start_time
+  start_time=$(date +%s)
 
   # 在子 shell 中运行，全部输出重定向到日志文件
-  ("$@" >"$log_file" 2>&1)
+  ("$@" >"$log_file" 2>&1) &
+  local cmd_pid=$!
+
+  # 动画 spinner + 耗时
+  local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+  local i=0
+  while kill -0 $cmd_pid 2>/dev/null; do
+    local elapsed
+    elapsed=$(($(date +%s) - start_time))
+    printf "\r${CYAN}  [%d/%d]${NC} %s %s (${elapsed}s)" "$CURRENT_STEP" "$TOTAL_STEPS" "${spin:$i:1}" "$desc"
+    i=$(( (i+1) % ${#spin} ))
+    sleep 0.15
+  done
+  wait $cmd_pid
   local rc=$?
+  local elapsed
+  elapsed=$(($(date +%s) - start_time))
 
   if [ $rc -eq 0 ]; then
-    printf "\r${GREEN}  ✅${NC} %s — 完成\n" "$desc"
+    printf "\r${GREEN}  [%d/%d] ✅${NC} %s — 完成 (${elapsed}s)\n" "$CURRENT_STEP" "$TOTAL_STEPS" "$desc"
     rm -f "$log_file"
     return 0
   else
-    printf "\r${RED}  ❌${NC} %s — 失败\n\n" "$desc"
+    printf "\r${RED}  [%d/%d] ❌${NC} %s — 失败 (${elapsed}s)\n\n" "$CURRENT_STEP" "$TOTAL_STEPS" "$desc"
     echo -e "${RED}──── 错误日志 ────${NC}"
     cat "$log_file"
     echo -e "${RED}──────────────────${NC}"
