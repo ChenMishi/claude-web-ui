@@ -438,7 +438,7 @@ router.post('/init/ccswitch-restart', (req, res) => {
       startCCSwitch();
       fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 首次启动，等待 DB 创建\n`);
 
-      // 等待 DB 文件出现
+      // 等待 DB 文件出现 (最多等 30s，每秒检查进程是否存活)
       const waitForDB = (attempts) => {
         if (fs.existsSync(dbPath)) {
           writeRouting();
@@ -450,12 +450,23 @@ router.post('/init/ccswitch-restart', (req, res) => {
             res.json({ ok: true });
           }, 8000);
         } else if (attempts > 0) {
-          setTimeout(() => waitForDB(attempts - 1), 1000);
+          // 检查进程是否还活着
+          let alive = false;
+          try { execSync('pgrep -x cc-switch', { timeout: 1000 }); alive = true; } catch {}
+          if (!alive && attempts < 20) {
+            // 进程已死，读取日志诊断
+            let tail = '';
+            try { tail = fs.readFileSync(logFile, 'utf8').slice(-500); } catch {}
+            fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} CC-Switch 进程意外退出\n${tail}\n`);
+            return res.json({ ok: false, error: `CC-Switch 进程意外退出，可能是缺少依赖 (如 GTK3)。请检查系统环境检测。\n日志: ${tail.slice(0, 200)}` });
+          }
+          setTimeout(() => waitForDB(attempts - 1), 1500);
         } else {
-          res.json({ ok: false, error: 'CC-Switch 数据库创建超时' });
+          // 超时: 进程还在但 DB 未出现
+          res.json({ ok: false, error: 'CC-Switch 数据库创建超时，请检查系统环境 (可能需要安装 GTK3 / sqlite3)' });
         }
       };
-      setTimeout(() => waitForDB(10), 2000);
+      setTimeout(() => waitForDB(20), 3000);
     }
   } catch (err) {
     logCcswitch("Error in ccswitch route", err);
