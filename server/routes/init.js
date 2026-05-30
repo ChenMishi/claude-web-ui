@@ -376,13 +376,17 @@ router.post('/init/ccswitch-restart', (req, res) => {
   try {
     // Kill existing
     try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
-    // Ensure logs directory exists
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 
     const config = readConfig();
     const port = config.proxyPort || 15721;
     const logFile = path.join(LOG_DIR, 'ccswitch.log');
     const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
+    const initLog = path.join(LOG_DIR, 'init.log');
+
+    const log = (msg) => {
+      try { fs.appendFileSync(initLog, `${new Date().toISOString()} ${msg}\n`); } catch {}
+    };
 
     const writeRouting = () => {
       if (!fs.existsSync(dbPath)) return false;
@@ -392,7 +396,15 @@ router.post('/init/ccswitch-restart', (req, res) => {
         execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
         try { fs.unlinkSync(tmpFile); } catch {}
         return true;
-      } catch { return false; }
+      } catch (e) { log(`writeRouting 失败: ${e.message}`); return false; }
+    };
+
+    const readRouting = () => {
+      try {
+        const out = execSync(`sqlite3 "${dbPath}" "SELECT proxy_enabled, enabled FROM proxy_config WHERE app_type='claude'"`, { encoding: 'utf8', timeout: 3000 }).trim();
+        const parts = out.split('|').map(Number);
+        return { proxy_enabled: parts[0], enabled: parts[1] };
+      } catch { return null; }
     };
 
     const startCCSwitch = () => {
@@ -401,72 +413,128 @@ router.post('/init/ccswitch-restart', (req, res) => {
       child.unref();
     };
 
-    const waitForPort = (cb, maxWait) => {
+    const checkPort = () => {
+      try { execSync(`ss -tlnp | grep -q ":${port}\\b"`, { encoding: 'utf8', timeout: 2000 }); return true; }
+      catch { return false; }
+    };
+
+    const waitForPort = (cb, maxWaitMs, interval) => {
       const start = Date.now();
       const check = () => {
-        try { execSync(`ss -tlnp | grep -q ":${port}\\b"`, { encoding: 'utf8', timeout: 2000 }); return cb(true); } catch {}
-        if (Date.now() - start > maxWait) return cb(false);
-        setTimeout(check, 1000);
+        if (checkPort()) return cb(true);
+        if (Date.now() - start > maxWaitMs) return cb(false);
+        setTimeout(check, interval || 1000);
       };
       check();
     };
 
-    // ★ 关键: 如果有 DB，先写 routing 再启动，避免 CC-Switch 启动时覆盖为默认值
-    if (fs.existsSync(dbPath)) {
+    // 确保 routing 写入并验证（最多重试 3 次）
+    const ensureRouting = (retries, cb) => {
       writeRouting();
-      startCCSwitch();
-      fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 已写路由 → 启动 CC-Switch\n`);
+      const r = readRouting();
+      log(`确保路由: proxy_enabled=${r?.proxy_enabled} enabled=${r?.enabled}`);
+      if (r && r.proxy_enabled === 1 && r.enabled === 1) {
+        cb(true);
+      } else if (retries > 0) {
+        // CC-Switch 可能覆盖了，等一会再试
+        setTimeout(() => ensureRouting(retries - 1, cb), 2000);
+      } else {
+        cb(false);
+      }
+    };
 
-      waitForPort((portOpen) => {
-        if (portOpen) {
-          fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 端口已监听\n`);
-          res.json({ ok: true });
-        } else {
-          // 端口未监听，写路由再重启一次
-          fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 端口未监听，重试\n`);
-          writeRouting();
-          try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
-          startCCSwitch();
-          waitForPort((ok) => {
-            if (!ok) { writeRouting(); try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}; startCCSwitch(); }
-            res.json({ ok: true });
-          }, 8000);
-        }
-      }, 8000);
-    } else {
-      // 没有 DB (首次安装): 先启动创建 DB，再写路由，再重启
-      startCCSwitch();
-      fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 首次启动，等待 DB 创建\n`);
+    // ── 主流程 ──
+    const doRestart = () => {
+      // 1. 写路由
+      ensureRouting(2, (routingOk) => {
+        if (!routingOk) log('警告: 路由写入验证失败');
 
-      // 等待 DB 文件出现 (最多等 30s，每秒检查进程是否存活)
+        // 2. 启动 CC-Switch
+        startCCSwitch();
+        log('启动 CC-Switch');
+
+        // 3. 等 CC-Switch 完全初始化后再验证路由是否被覆盖
+        setTimeout(() => {
+          const r = readRouting();
+          log(`启动后验证: proxy_enabled=${r?.proxy_enabled} enabled=${r?.enabled}`);
+
+          if (r && (r.proxy_enabled !== 1 || r.enabled !== 1)) {
+            // 被覆盖了！立即重写
+            log('路由被覆盖，重新写入');
+            writeRouting();
+          }
+
+          // 4. 等待端口
+          waitForPort((portOpen) => {
+            if (portOpen) {
+              log('端口已监听');
+              // 最后确认一次路由
+              const r2 = readRouting();
+              if (r2 && (r2.proxy_enabled !== 1 || r2.enabled !== 1)) {
+                writeRouting();
+              }
+              return res.json({ ok: true });
+            }
+
+            // 端口未开：写路由 + 重启再试
+            log('端口未监听，写路由并重启');
+            writeRouting();
+            try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
+            startCCSwitch();
+
+            setTimeout(() => {
+              const r3 = readRouting();
+              if (r3 && (r3.proxy_enabled !== 1 || r3.enabled !== 1)) {
+                writeRouting();
+              }
+            }, 3000);
+
+            waitForPort((ok) => {
+              if (!ok) {
+                writeRouting();
+                try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
+                startCCSwitch();
+              }
+              res.json({ ok: true });
+            }, 10000);
+          }, 10000);
+        }, 5000);
+      });
+    };
+
+    // ── 首次安装（无 DB）──
+    if (!fs.existsSync(dbPath)) {
+      log('首次启动: DB 不存在');
+      startCCSwitch();
+
       const waitForDB = (attempts) => {
         if (fs.existsSync(dbPath)) {
-          writeRouting();
-          fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} DB 已创建，写路由 → 重启\n`);
-          try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
-          startCCSwitch();
-          waitForPort((portOpen) => {
-            if (!portOpen) { writeRouting(); try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}; startCCSwitch(); }
-            res.json({ ok: true });
-          }, 8000);
+          log(`DB 已创建 (尝试 ${20 - attempts + 1}/20)`);
+          // 等 5s 让 CC-Switch 完成初始化，再写路由
+          setTimeout(() => {
+            writeRouting();
+            log('DB 创建后写路由 → 重启');
+            try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
+            // 执行标准重启流程
+            doRestart();
+          }, 5000);
         } else if (attempts > 0) {
-          // 检查进程是否还活着
           let alive = false;
           try { execSync('pgrep -x cc-switch', { timeout: 1000 }); alive = true; } catch {}
-          if (!alive && attempts < 20) {
-            // 进程已死，读取日志诊断
+          if (!alive && attempts < 15) {
             let tail = '';
             try { tail = fs.readFileSync(logFile, 'utf8').slice(-500); } catch {}
-            fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} CC-Switch 进程意外退出\n${tail}\n`);
-            return res.json({ ok: false, error: `CC-Switch 进程意外退出，可能是缺少依赖 (如 GTK3)。请检查系统环境检测。\n日志: ${tail.slice(0, 200)}` });
+            log(`进程意外退出: ${tail}`);
+            return res.json({ ok: false, error: `CC-Switch 进程意外退出，可能是缺少依赖 (如 GTK3)\n日志: ${tail.slice(0, 200)}` });
           }
-          setTimeout(() => waitForDB(attempts - 1), 1500);
+          setTimeout(() => waitForDB(attempts - 1), 2000);
         } else {
-          // 超时: 进程还在但 DB 未出现
-          res.json({ ok: false, error: 'CC-Switch 数据库创建超时，请检查系统环境 (可能需要安装 GTK3 / sqlite3)' });
+          res.json({ ok: false, error: 'CC-Switch 数据库创建超时 (40s)，请检查是否缺少 GTK3 / sqlite3 依赖' });
         }
       };
       setTimeout(() => waitForDB(20), 3000);
+    } else {
+      doRestart();
     }
   } catch (err) {
     logCcswitch("Error in ccswitch route", err);
