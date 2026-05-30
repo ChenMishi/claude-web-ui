@@ -1475,6 +1475,10 @@ html, body, #root {
   font-size: 13px;
   color: #eee;
 }
+[data-theme="dark"] .input-select option {
+  background: #1a1a2e;
+  color: #eee;
+}
 
 /* Slash command dropdown */
 .slash-commands {
