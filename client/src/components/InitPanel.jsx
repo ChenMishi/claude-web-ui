@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { authHeaders, getInitStatus, saveInitConfig, testProxy, checkClaudeUpdate,
          getCcswitchConfig, saveCcswitchConfig, getCcswitchStatus, restartCcswitch, initCcswitchProvider, fetchModels } from '../api';
+import { useApp } from '../context/AppContext';
 
 const BASE = '/api';
 
@@ -389,6 +390,8 @@ function CCSwitchConfig() {
   const [fetchingModels, setFetchingModels] = useState(false); // pulling model list
   const [pulledModels, setPulledModels] = useState(null); // models from manual pull
 
+  const { loadAvailableModels } = useApp();
+
   const ccRunning = ccStatus?.running;
   const ccPortOpen = ccStatus?.portOpen;
 
@@ -424,6 +427,7 @@ function CCSwitchConfig() {
       setToast({ type: 'success', msg: '保存成功，重启 CC-Switch 后生效' });
       setEditProvider(null);
       loadConfig(); // 重新加载配置以获取 availableModels 等最新数据
+      loadAvailableModels(); // 更新聊天模型选择列表
     } catch (err) { setToast({ type: 'error', msg: '保存失败: ' + err.message }); }
     setSaving(false);
   };
@@ -509,7 +513,10 @@ function CCSwitchConfig() {
       setFetchingModels(true);
       try {
         const d = await fetchModels(baseUrl, token);
-        if (d.ok) setPulledModels(d.models || []);
+        if (d.ok) {
+          setPulledModels(d.models || []);
+          loadAvailableModels(); // 更新聊天模型选择列表
+        }
         else setToast({ type: 'error', msg: d.error || '拉取失败' });
       } catch (err) { setToast({ type: 'error', msg: '拉取失败: ' + err.message }); }
       setFetchingModels(false);
