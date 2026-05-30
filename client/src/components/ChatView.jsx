@@ -209,7 +209,9 @@ export default function ChatView() {
 
   // Reconnect to running session after page refresh
   useEffect(() => {
-    if (!currentSessionId || chatMessages.length > 0) return;
+    if (!currentSessionId) return;
+    // Already streaming (e.g. handleSend), don't reconnect
+    if (isStreaming) return;
     let cancelled = false;
 
     getSessionInfo(currentSessionId).then(info => {

@@ -245,7 +245,11 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
     } else {
       try {
         const err = await response.json();
-        onError?.(new Error(err.error || `HTTP ${response.status}`));
+        if (response.status === 409 && err.canReconnect) {
+          onError?.(new Error('会话正在执行中，请等待当前任务完成或刷新页面重连'));
+        } else {
+          onError?.(new Error(err.error || `HTTP ${response.status}`));
+        }
       } catch {
         onError?.(new Error(`HTTP ${response.status}`));
       }
