@@ -261,6 +261,8 @@ function buildSDKOptions(runtime, body, authUser) {
     }
   }
 
+  const proxyUrl = getProxyUrl();
+
   const options = {
     cwd: sandbox ? sandbox.homeDir : runtime.cwd,
     permissionMode: 'acceptEdits',
@@ -275,7 +277,6 @@ function buildSDKOptions(runtime, body, authUser) {
     ...(sandbox ? {} : (agentOptions.additionalDirectories?.length ? { additionalDirectories: agentOptions.additionalDirectories } : {})),
     ...agentOptions.env !== undefined ? { env: agentOptions.env } : {},
     // Always route SDK through built-in proxy
-    const proxyUrl = getProxyUrl();
     env: {
       ANTHROPIC_BASE_URL: proxyUrl,
       ANTHROPIC_API_KEY: 'proxy',
