@@ -34,6 +34,7 @@ export default function InitPanel() {
   const [pulledModels, setPulledModels] = useState(null);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [providerToast, setProviderToast] = useState(null);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const { loadAvailableModels } = useApp();
 
@@ -345,28 +346,18 @@ export default function InitPanel() {
         </div>
       )}
 
-      {/* ── 内置代理 & Provider 配置 ── */}
+      {/* ── Provider 配置 ── */}
       {status && (
         <div className="init-section">
           <div className="init-section-header">
-            <h3>🔄 API 代理 (Provider 配置)</h3>
-            <span className={`init-status-badge ${proxyRunning ? 'ok' : 'warn'}`}>
-              {proxyRunning ? '● 代理运行中' : '○ 代理未运行'}
+            <h3>🔧 Provider 配置</h3>
+            <span className={`init-status-badge ${status.providerConfigured ? 'ok' : 'warn'}`}>
+              {status.providerConfigured ? '已配置' : '未配置'}
             </span>
           </div>
           <div className="init-info-grid">
-            <div className="init-info-item"><span className="init-info-label">代理地址</span><span className="init-info-value mono">http://127.0.0.1:{proxyPort}</span></div>
-            <div className="init-info-item"><span className="init-info-label">Provider</span><span className="init-info-value">{status.providerConfigured ? '已配置' : '未配置'}</span></div>
             <div className="init-info-item"><span className="init-info-label">默认模型</span><span className="init-info-value mono">{status.providerModel || '未配置'}</span></div>
           </div>
-
-          {/* Test + Save row */}
-          <div className="init-config-actions" style={{ marginTop: 8 }}>
-            <button className="init-btn init-btn-test" onClick={handleTestProxy}>测试连接</button>
-            <button className="init-btn init-btn-save" onClick={handleSaveConfig}>保存端口</button>
-          </div>
-          {testResult && <div className={`init-test-result ${testResult}`}>{testResult === 'success' ? '✅ 连接成功' : '❌ 连接失败'}</div>}
-          {saveMsg && <div className="init-test-result" style={{ color: saveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{saveMsg}</div>}
 
           {/* Provider config editor */}
           {!editingProvider ? (
@@ -377,12 +368,19 @@ export default function InitPanel() {
             </div>
           ) : (
             <div className="init-ccswitch-config" style={{ marginTop: 12 }}>
-              <h4>🔧 编辑 Provider 配置</h4>
+              <h4>编辑 Provider 配置</h4>
               <div className="init-config-row">
                 <label>API Key</label>
-                <input type="password" value={editApiKey} onChange={e => setEditApiKey(e.target.value)}
-                  placeholder={providerConfig?.hasApiKey ? '已保存 (不修改则留空)' : 'sk-...'}
-                  style={{ flex: 1 }} />
+                <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+                  <input type={showApiKey ? 'text' : 'password'} value={editApiKey} onChange={e => setEditApiKey(e.target.value)}
+                    placeholder={providerConfig?.hasApiKey ? '已保存 (不修改则留空)' : 'sk-...'}
+                    style={{ flex: 1 }} />
+                  <button className="init-btn init-btn-test" onClick={() => setShowApiKey(!showApiKey)}
+                    style={{ fontSize: 11, padding: '6px 10px', whiteSpace: 'nowrap' }}
+                    title={showApiKey ? '隐藏 API Key' : '显示 API Key'}>
+                    {showApiKey ? '🙈 隐藏' : '👁 显示'}
+                  </button>
+                </div>
               </div>
               <div className="init-config-row">
                 <label>Base URL</label>
@@ -413,7 +411,7 @@ export default function InitPanel() {
               </div>
               <div className="init-config-actions" style={{ marginTop: 12 }}>
                 <button className="init-btn init-btn-save" onClick={handleSaveProvider}>保存配置</button>
-                <button className="init-btn init-btn-test" onClick={() => setEditingProvider(false)}>取消</button>
+                <button className="init-btn init-btn-test" onClick={() => { setEditingProvider(false); setShowApiKey(false); }}>取消</button>
               </div>
             </div>
           )}
@@ -429,6 +427,37 @@ export default function InitPanel() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── 代理地址 ── */}
+      {status && (
+        <div className="init-section">
+          <div className="init-section-header">
+            <h3>🔄 代理地址</h3>
+            <span className={`init-status-badge ${proxyRunning ? 'ok' : 'warn'}`}>
+              {proxyRunning ? '● 运行中' : '○ 未运行'}
+            </span>
+          </div>
+          <div className="init-info-grid">
+            <div className="init-info-item">
+              <span className="init-info-label">监听地址</span>
+              <span className="init-info-value mono">http://127.0.0.1</span>
+            </div>
+            <div className="init-info-item">
+              <span className="init-info-label">端口</span>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="number" value={proxyPort} onChange={e => setProxyPort(e.target.value)}
+                  style={{ width: 80, fontSize: 13 }} min="1024" max="65535" />
+              </div>
+            </div>
+          </div>
+          <div className="init-config-actions" style={{ marginTop: 8 }}>
+            <button className="init-btn init-btn-test" onClick={handleTestProxy}>测试连接</button>
+            <button className="init-btn init-btn-save" onClick={handleSaveConfig}>保存端口</button>
+          </div>
+          {testResult && <div className={`init-test-result ${testResult}`}>{testResult === 'success' ? '✅ 连接成功' : '❌ 连接失败'}</div>}
+          {saveMsg && <div className="init-test-result" style={{ color: saveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{saveMsg}</div>}
         </div>
       )}
 

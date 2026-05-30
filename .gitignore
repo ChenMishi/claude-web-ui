@@ -11,10 +11,10 @@ dist/
 .jwt-secret
 users.json
 init-config.json
+provider-config.json
 
 # 日志目录
 logs/
 
-# 二进制包（CC-Switch 例外：离线初始化必需）
+# 二进制包
 packages/*.deb
-!packages/CC-Switch-*.deb
