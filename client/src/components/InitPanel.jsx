@@ -17,6 +17,7 @@ export default function InitPanel() {
   const [installingSDK, setInstallingSDK] = useState(false);
   const [sdkInstallLog, setSdkInstallLog] = useState('');
   const [claudeInstallLog, setClaudeInstallLog] = useState('');
+  const [claudeInstallPct, setClaudeInstallPct] = useState(0);
   const [installLog, setInstallLog] = useState('');
   const [proxyUrl, setProxyUrl] = useState('');
   const [proxyPort, setProxyPort] = useState('15721');
@@ -25,6 +26,7 @@ export default function InitPanel() {
   const [envProgress, setEnvProgress] = useState({});
   const [saveMsg, setSaveMsg] = useState('');
   const [ccSwitchVersion, setCcSwitchVersion] = useState('3.14.1');
+  const envQueueRef = useRef([]); // 环境组件安装排队
 
   // Parse a URL string like "http://127.0.0.1:15721" into host and port
   const parseProxyUrl = (urlStr) => {
@@ -114,7 +116,7 @@ export default function InitPanel() {
   }, [loadStatus]);
 
   const handleInstallClaude = useCallback(async () => {
-    setInstallingClaude(true); setClaudeInstallLog('');
+    setInstallingClaude(true); setClaudeInstallLog(''); setClaudeInstallPct(0);
     try {
       const res = await fetch(`${BASE}/init/install-claude`, {
         method: 'POST', headers: authHeaders({ Accept: 'text/event-stream' }),
@@ -126,7 +128,7 @@ export default function InitPanel() {
           buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
           for (const line of lines) {
             if (line.startsWith('data: ')) {
-              try { const data = JSON.parse(line.slice(6)); if (data.text) setClaudeInstallLog(prev => prev + data.text); } catch {}
+              try { const d = JSON.parse(line.slice(6)); if (d.pct !== undefined) setClaudeInstallPct(d.pct); if (d.text) setClaudeInstallLog(prev => prev + d.text); } catch {}
             }
           }
         }
@@ -160,7 +162,7 @@ export default function InitPanel() {
     setTimeout(() => loadStatus(), 1000);
   }, [loadStatus, ccSwitchVersion]);
 
-  const handleInstallEnv = useCallback(async (component) => {
+  const runEnvInstall = useCallback(async (component) => {
     setInstallingEnv(component);
     setEnvProgress(prev => ({ ...prev, [component]: { pct: 5, text: '准备中...', checked: true } }));
     try {
@@ -199,8 +201,23 @@ export default function InitPanel() {
         : true;
       setEnvProgress(prev => ({ ...prev, [component]: { checked: true, ok: envOk, pct: 100 } }));
       setInstallingEnv(null);
+      // 处理队列中的下一个
+      if (envQueueRef.current.length > 0) {
+        const next = envQueueRef.current.shift();
+        setTimeout(() => runEnvInstall(next), 300);
+      }
     }, 500);
   }, []);
+
+  const handleInstallEnv = useCallback((component) => {
+    if (installingEnv) {
+      // 已有安装进行中，排队
+      envQueueRef.current.push(component);
+      setEnvProgress(prev => ({ ...prev, [component]: { checked: true, queued: true } }));
+      return;
+    }
+    runEnvInstall(component);
+  }, [installingEnv, runEnvInstall]);
 
   const handleSaveConfig = useCallback(async () => {
     setSaveMsg('');
@@ -252,7 +269,7 @@ export default function InitPanel() {
         </div>
         <div className="init-env-grid">
           {envItems.map(item => (
-            <EnvCard key={item.key} item={item} checked={envChecked} installing={installingEnv === item.key} progress={envProgress[item.key]} onInstall={() => handleInstallEnv(item.key)} />
+            <EnvCard key={item.key} item={item} checked={envChecked} installing={installingEnv === item.key} queued={envProgress[item.key]?.queued} progress={envProgress[item.key]} onInstall={() => handleInstallEnv(item.key)} />
           ))}
         </div>
       </div>
@@ -293,8 +310,13 @@ export default function InitPanel() {
           {!status.claudeInstalled ? (
             <div className="init-deploy-area">
               <button className="init-btn init-btn-install" onClick={handleInstallClaude} disabled={installingClaude}>
-                {installingClaude ? '安装中...' : '安装 Claude Code'}
+                {installingClaude ? `安装中 ${claudeInstallPct}%...` : '安装 Claude Code'}
               </button>
+              {installingClaude && (
+                <div className="init-progress-bar" style={{ marginTop: 8, height: 6, borderRadius: 3, background: 'var(--input-bg)', overflow: 'hidden' }}>
+                  <div style={{ width: `${claudeInstallPct}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.3s' }} />
+                </div>
+              )}
               {claudeInstallLog && <div className="init-install-log"><pre>{claudeInstallLog}</pre></div>}
             </div>
           ) : (
@@ -389,6 +411,7 @@ function CCSwitchConfig() {
   const [initProvider, setInitProvider] = useState(false); // auto-init in progress
   const [fetchingModels, setFetchingModels] = useState(false); // pulling model list
   const [pulledModels, setPulledModels] = useState(null); // models from manual pull
+  const initAttemptedRef = useRef(false); // 防止重复自动初始化
 
   const { loadAvailableModels } = useApp();
 
@@ -399,16 +422,18 @@ function CCSwitchConfig() {
     getCcswitchConfig().then(d => { setConfig(d); setLoading(false); }).catch(() => setLoading(false));
   };
 
-  // Auto-init provider if CC-Switch is running but DB is empty
+  // Auto-init provider if CC-Switch is running but DB has no default provider
   useEffect(() => {
     if (!ccRunning || !config || loading) return;
-    if (config.error) return; // DB read error, skip auto-init
+    if (config.error) return;
+    if (initAttemptedRef.current) return;
     const hasDefault = config.providers.some(p => p.id === 'default');
     if (!hasDefault) {
+      initAttemptedRef.current = true;
       setInitProvider(true);
       initCcswitchProvider()
         .then(() => setTimeout(loadConfig, 1500))
-        .catch(() => setInitProvider(false));
+        .catch(() => { setInitProvider(false); initAttemptedRef.current = false; });
     }
   }, [ccRunning, config, loading]);
 
@@ -479,6 +504,7 @@ function CCSwitchConfig() {
 
   // No DB or no provider: just show start hint
   if (!config || config.error || !(config.providers || []).find(p => p.id === 'default')) {
+    const needsInit = !loading && ccRunning && config && !config.error && !initAttemptedRef.current;
     return (
       <div className="init-ccswitch-config">
         <h4>🔧 Provider 配置</h4>
@@ -486,8 +512,8 @@ function CCSwitchConfig() {
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           {!ccRunning
             ? '请先点击"启动 CC-Switch"，首次启动会自动创建数据库和默认 Provider'
-            : initProvider
-              ? '⏳ 正在创建默认配置...'
+            : (initProvider || needsInit)
+              ? '⏳ 正在创建初始化 Provider 配置...'
               : !ccPortOpen
                 ? 'CC-Switch 进程已运行但端口未监听，请查看日志排查'
                 : config?.error
@@ -591,15 +617,16 @@ function CCSwitchConfig() {
   );
 }
 
-function EnvCard({ item, checked, installing, progress, onInstall }) {
+function EnvCard({ item, checked, installing, queued, progress, onInstall }) {
   const pct = progress?.pct || 0;
   const itemChecked = checked && (progress?.checked || installing);
   const itemOk = progress?.ok !== undefined ? progress.ok : item.ok;
-  const showPending = !itemChecked && !installing;
-  const showInstalling = installing;
-  const showOk = itemChecked && itemOk && !installing;
-  const showWarn = itemChecked && !itemOk && !installing;
-  const showChecking = checked && !itemChecked && !installing;
+  const showPending = !itemChecked && !installing && !queued;
+  const showInstalling = installing && !queued;
+  const showQueued = queued && !installing;
+  const showOk = itemChecked && itemOk && !installing && !queued;
+  const showWarn = itemChecked && !itemOk && !installing && !queued;
+  const showChecking = checked && !itemChecked && !installing && !queued;
 
   return (
     <div className={`init-env-card ${showInstalling ? 'installing' : ''} ${showPending ? 'pending' : ''}`}>
@@ -611,6 +638,8 @@ function EnvCard({ item, checked, installing, progress, onInstall }) {
           <span className="init-env-checking-text">检测中...</span>
         ) : showInstalling ? (
           <span className="init-env-pct">{pct}%</span>
+        ) : showQueued ? (
+          <span className="init-env-pending" style={{ color: 'var(--accent)' }}>等待中...</span>
         ) : showPending ? (
           <span className="init-env-pending">待检测</span>
         ) : showOk ? (
