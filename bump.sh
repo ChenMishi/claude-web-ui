@@ -19,25 +19,25 @@ echo "$NEW" > "$VERSION_FILE"
 
 # Update all version references
 SED="sed"
-[ "$(uname)" = "Darwin" ] && SED="gsed"  # macOS needs gnu-sed
+[ "$(uname)" = "Darwin" ] && SED="gsed"
 
-# 1. Sidebar UI display
-SIDEBAR="$PROJECT_DIR/client/src/components/Sidebar.jsx"
-[ -f "$SIDEBAR" ] && $SED -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/v$NEW/g" "$SIDEBAR"
+VPAT="[0-9]\+\.[0-9]\+\.[0-9]\+"
 
-# 2. package.json
-PKG="$PROJECT_DIR/package.json"
-[ -f "$PKG" ] && $SED -i "s/\"version\": \"[0-9]\+\.[0-9]\+\.[0-9]\+\"/\"version\": \"$NEW\"/" "$PKG"
+# 1-3. Frontend version display (Sidebar / Login / Settings)
+for f in \
+    client/src/components/Sidebar.jsx \
+    client/src/components/LoginPage.jsx \
+    client/src/components/SettingsPanel.jsx; do
+    $SED -i "s/v$VPAT/v$NEW/g" "$PROJECT_DIR/$f"
+done
 
-# 3. server/index.js (Swagger)
-INDEX="$PROJECT_DIR/server/index.js"
-[ -f "$INDEX" ] && $SED -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '$NEW'/" "$INDEX"
+# 4. Root package.json
+$SED -i "s/\"version\": \"$VPAT\"/\"version\": \"$NEW\"/" "$PROJECT_DIR/package.json"
 
-# 4. server/routes/health.js
-HEALTH="$PROJECT_DIR/server/routes/health.js"
-[ -f "$HEALTH" ] && $SED -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '$NEW'/" "$HEALTH"
+# 5. server/routes/health.js
+$SED -i "s/version: '$VPAT'/version: '$NEW'/" "$PROJECT_DIR/server/routes/health.js"
 
-# 5. Rebuild frontend
+# 6. Rebuild frontend (also updates server/index.js which reads from package.json)
 echo "构建前端..."
 cd "$PROJECT_DIR/client" && npm run build
 
