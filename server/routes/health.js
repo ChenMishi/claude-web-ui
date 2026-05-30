@@ -21,7 +21,7 @@ router.get('/health', async (_req, res) => {
   } catch {
     proxyOk = false;
   }
-  res.json({ healthy: proxyOk, version: '1.1.8', proxy: PROXY_URL });
+  res.json({ healthy: proxyOk, version: '1.1.9', proxy: PROXY_URL });
 });
 
 module.exports = router;
