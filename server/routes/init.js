@@ -66,11 +66,17 @@ router.get('/init/status', (_req, res) => {
   const configured = !!(providerConfig.apiKey && providerConfig.baseUrl);
 
   // Check if built-in proxy is running
+  const proxyPort = config.proxyPort || 15721;
+  const proxyUrl = config.proxyUrl || `http://127.0.0.1:${proxyPort}`;
   let proxyRunning = false;
   try {
-    execSync('ss -tlnp | grep -q ":15721\\b"', { encoding: 'utf8', timeout: 2000 });
+    execSync(`ss -tlnp | grep -q ":${proxyPort}\\b"`, { encoding: 'utf8', timeout: 2000 });
     proxyRunning = true;
   } catch {}
+
+  // Parse host from proxyUrl
+  let proxyHost = '127.0.0.1';
+  try { const u = new URL(proxyUrl); proxyHost = u.hostname; } catch {}
 
   res.json({
     sdkInstalled: fs.existsSync(SDK_BIN) && fs.statSync(SDK_BIN).size > 10000,
@@ -80,8 +86,9 @@ router.get('/init/status', (_req, res) => {
     claudePath: claudeCodePath || '未安装',
     claudeVersion: claudeCodeVersion,
     proxyRunning,
-    proxyPort: config.proxyPort || 15721,
-    claudeProxyUrl: process.env.CLAUDE_PROXY || 'http://127.0.0.1:15721',
+    proxyHost,
+    proxyPort,
+    claudeProxyUrl: proxyUrl,
     saved: !!fs.existsSync(CONFIG_FILE),
     providerConfigured: configured,
     providerModel: providerConfig.model || '',
@@ -199,11 +206,40 @@ router.post('/init/install-env/:component', (req, res) => {
 
 // Save proxy config (port)
 router.post('/init/config', (req, res) => {
-  const { proxyUrl, proxyPort } = req.body || {};
+  const { proxyUrl, proxyHost, proxyPort } = req.body || {};
   const config = readConfig();
-  if (proxyUrl) config.proxyUrl = proxyUrl;
+
+  if (proxyUrl) {
+    config.proxyUrl = proxyUrl;
+    // Also extract host/port from URL
+    try {
+      const u = new URL(proxyUrl);
+      config.proxyHost = u.hostname;
+      config.proxyPort = parseInt(u.port) || 15721;
+    } catch {}
+  }
+  if (proxyHost) config.proxyHost = proxyHost;
   if (proxyPort) config.proxyPort = parseInt(proxyPort) || 15721;
+
+  // Rebuild proxyUrl if host/port changed without a full URL
+  if (!proxyUrl && (proxyHost || proxyPort)) {
+    const host = config.proxyHost || '127.0.0.1';
+    const port = config.proxyPort || 15721;
+    config.proxyUrl = `http://${host}:${port}`;
+  }
+
   writeConfig(config);
+
+  // Restart proxy on new address
+  try {
+    const { startProxy } = require('../proxy');
+    const host = config.proxyHost || '127.0.0.1';
+    const port = config.proxyPort || 15721;
+    startProxy(host, port).then(() => {
+      logProxy(`代理已重启 ${host}:${port}`);
+    }).catch(() => {});
+  } catch {}
+
   res.json({ ok: true, config });
 });
 

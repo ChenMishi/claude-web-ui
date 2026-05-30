@@ -3,6 +3,18 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR, getUserDataDir } = require('../config');
+
+// 从 init-config.json 读取代理地址，默认 127.0.0.1:15721
+function getProxyUrl() {
+  try {
+    const configFile = path.join(path.resolve(__dirname, '..', '..'), 'init-config.json');
+    if (fs.existsSync(configFile)) {
+      const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+      if (cfg.proxyUrl) return cfg.proxyUrl;
+    }
+  } catch {}
+  return 'http://127.0.0.1:15721';
+}
 const { dirNameToCwd, parseTitleFromJsonl } = require('../utils');
 const { findUserById } = require('../auth/users');
 const {
@@ -262,9 +274,10 @@ function buildSDKOptions(runtime, body, authUser) {
     // Non-admin users: strip additionalDirectories (could be used to bypass sandbox)
     ...(sandbox ? {} : (agentOptions.additionalDirectories?.length ? { additionalDirectories: agentOptions.additionalDirectories } : {})),
     ...agentOptions.env !== undefined ? { env: agentOptions.env } : {},
-    // Always route SDK through built-in proxy on localhost
+    // Always route SDK through built-in proxy
+    const proxyUrl = getProxyUrl();
     env: {
-      ANTHROPIC_BASE_URL: 'http://127.0.0.1:15721',
+      ANTHROPIC_BASE_URL: proxyUrl,
       ANTHROPIC_API_KEY: 'proxy',
       ...(agentOptions.env || {}),
     },
@@ -422,7 +435,7 @@ async function generateSessionTitle(sessionId, prompt, cwd, authUser) {
 
 // Lightweight: just call Haiku API, return title text (no disk I/O)
 async function generateTitleText(prompt) {
-  const proxyBase = 'http://127.0.0.1:15721';
+  const proxyBase = getProxyUrl();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
   try {

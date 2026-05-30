@@ -2687,6 +2687,9 @@ html, body, #root {
 .init-config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .init-config-row label { font-size: 12px; color: var(--text-muted); white-space: nowrap; min-width: 60px; }
 .init-config-inputs { display: flex; align-items: center; gap: 6px; }
+
+/* Sub-header inside init sections */
+.init-sub-header { font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
 .init-config-inputs input { padding: 8px 10px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none; font-family: var(--font-mono); }
 .init-config-inputs input:focus { border-color: var(--accent); }
 .init-config-actions { display: flex; gap: 8px; }

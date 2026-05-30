@@ -173,21 +173,27 @@ function readBody(req) {
   });
 }
 
-function startProxy(port = 15721) {
+function startProxy(host = '127.0.0.1', port = 15721) {
   return new Promise((resolve, reject) => {
+    // 先关闭旧代理（如果有的话）
+    if (startProxy._server) {
+      startProxy._server.close();
+      startProxy._server = null;
+    }
+
     const server = createProxy();
 
-    // 强制只监听本地回环地址
-    server.listen(port, '127.0.0.1', () => {
-      console.log(`[proxy] 内置代理已启动 http://127.0.0.1:${port}`);
-      proxyLog(`代理启动成功 端口=${port}`);
+    server.listen(port, host, () => {
+      console.log(`[proxy] 内置代理已启动 http://${host}:${port}`);
+      proxyLog(`代理启动成功 ${host}:${port}`);
+      startProxy._server = server;
       resolve(server);
     });
 
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.warn(`[proxy] 端口 ${port} 已被占用，跳过启动`);
-        proxyLog(`端口 ${port} 已被占用`);
+        proxyLog(`端口 ${host}:${port} 已被占用`);
         resolve(null);
       } else {
         reject(err);

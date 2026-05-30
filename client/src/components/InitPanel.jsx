@@ -17,7 +17,8 @@ export default function InitPanel() {
   const [sdkInstallLog, setSdkInstallLog] = useState('');
   const [claudeInstallLog, setClaudeInstallLog] = useState('');
   const [claudeInstallPct, setClaudeInstallPct] = useState(0);
-  const [proxyPort, setProxyPort] = useState('15721');
+  const [editProxyHost, setEditProxyHost] = useState('127.0.0.1');
+  const [editProxyPort, setEditProxyPort] = useState('15721');
   const [testResult, setTestResult] = useState(null);
   const [installingEnv, setInstallingEnv] = useState(null);
   const [envProgress, setEnvProgress] = useState({});
@@ -27,7 +28,6 @@ export default function InitPanel() {
   // Provider config state
   const [providerConfig, setProviderConfig] = useState(null);
   const [providerLoading, setProviderLoading] = useState(true);
-  const [editingProvider, setEditingProvider] = useState(false);
   const [editApiKey, setEditApiKey] = useState('');
   const [editBaseUrl, setEditBaseUrl] = useState('');
   const [editModel, setEditModel] = useState('');
@@ -41,13 +41,20 @@ export default function InitPanel() {
   const loadStatus = useCallback(() => {
     getInitStatus().then(d => {
       setStatus(d);
-      setProxyPort(String(d.proxyPort || '15721'));
+      setEditProxyHost(d.proxyHost || '127.0.0.1');
+      setEditProxyPort(String(d.proxyPort || '15721'));
     }).catch(() => {});
   }, []);
 
   const loadProviderConfig = useCallback(() => {
     setProviderLoading(true);
-    getProviderConfig().then(d => { setProviderConfig(d); setProviderLoading(false); }).catch(() => setProviderLoading(false));
+    getProviderConfig().then(d => {
+      setProviderConfig(d);
+      setEditBaseUrl(d.baseUrl || 'https://api.anthropic.com');
+      setEditModel(d.model || '');
+      setEditApiKey(''); // always reset for security
+      setProviderLoading(false);
+    }).catch(() => setProviderLoading(false));
   }, []);
 
   const handleStartCheck = useCallback(async () => {
@@ -55,7 +62,8 @@ export default function InitPanel() {
     setEnvProgress({});
     const res = await getInitStatus();
     setStatus(res);
-    setProxyPort(String(res.proxyPort || '15721'));
+    setEditProxyHost(res.proxyHost || '127.0.0.1');
+    setEditProxyPort(String(res.proxyPort || '15721'));
     setEnvChecked(true);
 
     const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
@@ -187,39 +195,46 @@ export default function InitPanel() {
     runEnvInstall(component);
   }, [installingEnv, runEnvInstall]);
 
-  const handleSaveConfig = useCallback(async () => {
+  // ── Unified save: Provider config + Proxy config ──
+  const handleSaveAll = async () => {
     setSaveMsg('');
+
+    // 1. Save provider config (API Key, Base URL, Model)
     try {
-      const d = await saveInitConfig({ proxyPort });
+      const body = { baseUrl: editBaseUrl, model: editModel };
+      if (editApiKey) body.apiKey = editApiKey;
+      await saveProviderConfig(body);
+    } catch {}
+
+    // 2. Save proxy address
+    const proxyUrl = `http://${editProxyHost}:${editProxyPort}`;
+    try {
+      const d = await saveInitConfig({ proxyUrl, proxyHost: editProxyHost, proxyPort: parseInt(editProxyPort) || 15721 });
       if (d.ok) {
         setStatus(prev => ({ ...prev, saved: true }));
-        setSaveMsg('✅ 配置已保存');
-        setTimeout(() => setSaveMsg(''), 2000);
+        setSaveMsg('✅ 全部配置已保存，代理已重启');
       }
     } catch (err) {
       setSaveMsg(`❌ 保存失败: ${err.message}`);
+      return;
     }
-  }, [proxyPort]);
+
+    // Refresh
+    loadProviderConfig();
+    loadAvailableModels();
+    setTimeout(() => loadStatus(), 1500);
+    setTimeout(() => setSaveMsg(''), 3000);
+  };
 
   const handleTestProxy = useCallback(async () => {
     setTestResult(null);
     try {
-      const d = await testProxy({ url: `http://127.0.0.1:${proxyPort}` });
+      const d = await testProxy({ url: `http://${editProxyHost}:${editProxyPort}` });
       setTestResult(d.ok ? 'success' : 'fail');
     } catch { setTestResult('fail'); }
-  }, [proxyPort]);
+  }, [editProxyHost, editProxyPort]);
 
-  // ── Provider config handlers ──
-
-  const handleEditProvider = () => {
-    const cfg = providerConfig || {};
-    setEditApiKey(cfg.hasApiKey ? '' : ''); // always start empty for security
-    setEditBaseUrl(cfg.baseUrl || 'https://api.anthropic.com');
-    setEditModel(cfg.model || '');
-    setPulledModels(null);
-    setEditingProvider(true);
-  };
-
+  // ── Pull models ──
   const handlePullModels = async () => {
     const baseUrl = editBaseUrl || providerConfig?.baseUrl || '';
     let apiKey = editApiKey;
@@ -236,18 +251,6 @@ export default function InitPanel() {
       }
     } catch (err) { setProviderToast({ type: 'error', msg: '拉取失败: ' + err.message }); }
     setFetchingModels(false);
-  };
-
-  const handleSaveProvider = async () => {
-    try {
-      const body = { baseUrl: editBaseUrl, model: editModel };
-      if (editApiKey) body.apiKey = editApiKey; // only send if changed
-      await saveProviderConfig(body);
-      setProviderToast({ type: 'success', msg: 'Provider 配置已保存' });
-      setEditingProvider(false);
-      loadProviderConfig();
-      loadAvailableModels();
-    } catch (err) { setProviderToast({ type: 'error', msg: '保存失败: ' + err.message }); }
   };
 
   const env = status?.env || {};
@@ -346,75 +349,78 @@ export default function InitPanel() {
         </div>
       )}
 
-      {/* ── Provider 配置 ── */}
+      {/* ── API 代理配置 ── */}
       {status && (
         <div className="init-section">
           <div className="init-section-header">
-            <h3>🔧 Provider 配置</h3>
-            <span className={`init-status-badge ${status.providerConfigured ? 'ok' : 'warn'}`}>
-              {status.providerConfigured ? '已配置' : '未配置'}
+            <h3>🔄 API 代理配置</h3>
+            <span className={`init-status-badge ${proxyRunning ? 'ok' : 'warn'}`}>
+              {proxyRunning ? '● 代理运行中' : '○ 代理未运行'}
             </span>
           </div>
-          <div className="init-info-grid">
-            <div className="init-info-item"><span className="init-info-label">默认模型</span><span className="init-info-value mono">{status.providerModel || '未配置'}</span></div>
-          </div>
 
-          {/* Provider config editor */}
-          {!editingProvider ? (
-            <div style={{ marginTop: 12 }}>
-              <button className="init-btn init-btn-test" onClick={handleEditProvider}>
-                编辑 Provider 配置
+          {/* ── Provider 配置 ── */}
+          <div className="init-sub-header">🔧 Provider 配置</div>
+          <div className="init-config-row">
+            <label>API Key</label>
+            <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+              <input type={showApiKey ? 'text' : 'password'} value={editApiKey} onChange={e => setEditApiKey(e.target.value)}
+                placeholder={providerConfig?.hasApiKey ? '已保存 (不修改则留空)' : 'sk-...'}
+                style={{ flex: 1, fontSize: 13 }} />
+              <button className="init-btn init-btn-test" onClick={() => setShowApiKey(!showApiKey)}
+                style={{ fontSize: 14, padding: '6px 10px', lineHeight: 1, minWidth: 36 }}
+                title={showApiKey ? '隐藏' : '显示'}>
+                {showApiKey ? '🙈' : '👁'}
               </button>
             </div>
-          ) : (
-            <div className="init-ccswitch-config" style={{ marginTop: 12 }}>
-              <h4>编辑 Provider 配置</h4>
-              <div className="init-config-row">
-                <label>API Key</label>
-                <div style={{ display: 'flex', gap: 6, flex: 1 }}>
-                  <input type={showApiKey ? 'text' : 'password'} value={editApiKey} onChange={e => setEditApiKey(e.target.value)}
-                    placeholder={providerConfig?.hasApiKey ? '已保存 (不修改则留空)' : 'sk-...'}
-                    style={{ flex: 1 }} />
-                  <button className="init-btn init-btn-test" onClick={() => setShowApiKey(!showApiKey)}
-                    style={{ fontSize: 11, padding: '6px 10px', whiteSpace: 'nowrap' }}
-                    title={showApiKey ? '隐藏 API Key' : '显示 API Key'}>
-                    {showApiKey ? '🙈 隐藏' : '👁 显示'}
-                  </button>
-                </div>
-              </div>
-              <div className="init-config-row">
-                <label>Base URL</label>
-                <input type="text" value={editBaseUrl} onChange={e => setEditBaseUrl(e.target.value)}
-                  placeholder="https://api.anthropic.com"
-                  style={{ flex: 1 }} />
-              </div>
-              <div className="init-config-row">
-                <label>默认模型</label>
-                <div style={{ display: 'flex', gap: 6, flex: 1 }}>
-                  {pulledModels && pulledModels.length > 0 ? (
-                    <select value={editModel} onChange={e => setEditModel(e.target.value)} style={{ flex: 1 }}>
-                      <option value="">— 选择模型 —</option>
-                      {pulledModels.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  ) : (
-                    <input type="text" value={editModel} onChange={e => setEditModel(e.target.value)}
-                      style={{ flex: 1 }} placeholder="手动输入模型名" />
-                  )}
-                  <button className="init-btn init-btn-test" onClick={handlePullModels} disabled={fetchingModels}
-                    style={{ fontSize: 11, padding: '6px 10px', whiteSpace: 'nowrap' }}>
-                    {fetchingModels ? '拉取中...' : '拉取模型'}
-                  </button>
-                </div>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>
-                代理会将 SDK 请求转发到上游 API，自动注入 API Key。修改配置即时生效，无需重启。
-              </div>
-              <div className="init-config-actions" style={{ marginTop: 12 }}>
-                <button className="init-btn init-btn-save" onClick={handleSaveProvider}>保存配置</button>
-                <button className="init-btn init-btn-test" onClick={() => { setEditingProvider(false); setShowApiKey(false); }}>取消</button>
-              </div>
+          </div>
+          <div className="init-config-row">
+            <label>Base URL</label>
+            <input type="text" value={editBaseUrl} onChange={e => setEditBaseUrl(e.target.value)}
+              placeholder="https://api.anthropic.com"
+              style={{ flex: 1, fontSize: 13 }} />
+          </div>
+          <div className="init-config-row">
+            <label>默认模型</label>
+            <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+              {pulledModels && pulledModels.length > 0 ? (
+                <select value={editModel} onChange={e => setEditModel(e.target.value)} style={{ flex: 1, fontSize: 13 }}>
+                  <option value="">— 选择模型 —</option>
+                  {pulledModels.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              ) : (
+                <input type="text" value={editModel} onChange={e => setEditModel(e.target.value)}
+                  style={{ flex: 1, fontSize: 13 }} placeholder="手动输入模型名" />
+              )}
+              <button className="init-btn init-btn-test" onClick={handlePullModels} disabled={fetchingModels}
+                style={{ fontSize: 11, padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                {fetchingModels ? '拉取中...' : '拉取模型'}
+              </button>
             </div>
-          )}
+          </div>
+
+          {/* ── 代理地址 ── */}
+          <div className="init-sub-header" style={{ marginTop: 16 }}>🌐 代理地址</div>
+          <div className="init-config-row">
+            <label>IP</label>
+            <input type="text" value={editProxyHost} onChange={e => setEditProxyHost(e.target.value)}
+              placeholder="127.0.0.1" style={{ flex: 1, fontSize: 13 }} />
+          </div>
+          <div className="init-config-row">
+            <label>端口</label>
+            <input type="text" value={editProxyPort} onChange={e => setEditProxyPort(e.target.value.replace(/\D/g, ''))}
+              placeholder="15721" style={{ width: 100, fontSize: 13 }} maxLength={5} />
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>
+            代理将 SDK 请求转发到上游 API 并自动注入 Key。修改代理地址后会自动重启，Provider 配置始终生效。
+          </div>
+
+          <div className="init-config-actions" style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="init-btn init-btn-save" onClick={handleSaveAll}>保存全部配置</button>
+            <button className="init-btn init-btn-test" onClick={handleTestProxy}>测试连接</button>
+          </div>
+          {testResult && <div className={`init-test-result ${testResult}`} style={{ marginTop: 8 }}>{testResult === 'success' ? '✅ 代理连接成功' : '❌ 代理连接失败'}</div>}
+          {saveMsg && <div className="init-test-result" style={{ color: saveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)', marginTop: 8 }}>{saveMsg}</div>}
 
           {/* Toast */}
           {providerToast && (
@@ -427,37 +433,6 @@ export default function InitPanel() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── 代理地址 ── */}
-      {status && (
-        <div className="init-section">
-          <div className="init-section-header">
-            <h3>🔄 代理地址</h3>
-            <span className={`init-status-badge ${proxyRunning ? 'ok' : 'warn'}`}>
-              {proxyRunning ? '● 运行中' : '○ 未运行'}
-            </span>
-          </div>
-          <div className="init-info-grid">
-            <div className="init-info-item">
-              <span className="init-info-label">监听地址</span>
-              <span className="init-info-value mono">http://127.0.0.1</span>
-            </div>
-            <div className="init-info-item">
-              <span className="init-info-label">端口</span>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input type="number" value={proxyPort} onChange={e => setProxyPort(e.target.value)}
-                  style={{ width: 80, fontSize: 13 }} min="1024" max="65535" />
-              </div>
-            </div>
-          </div>
-          <div className="init-config-actions" style={{ marginTop: 8 }}>
-            <button className="init-btn init-btn-test" onClick={handleTestProxy}>测试连接</button>
-            <button className="init-btn init-btn-save" onClick={handleSaveConfig}>保存端口</button>
-          </div>
-          {testResult && <div className={`init-test-result ${testResult}`}>{testResult === 'success' ? '✅ 连接成功' : '❌ 连接失败'}</div>}
-          {saveMsg && <div className="init-test-result" style={{ color: saveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{saveMsg}</div>}
         </div>
       )}
 

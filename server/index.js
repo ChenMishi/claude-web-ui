@@ -282,12 +282,30 @@ function startServer(opts = {}) {
     console.log(`Claude Web UI v2 running at http://0.0.0.0:${port}`);
     console.log(`API docs at http://localhost:${port}/docs`);
 
-    // Start built-in proxy on 127.0.0.1:15721
+    // Start built-in proxy — read address from saved config
     try {
       const { startProxy } = require('./proxy');
-      startProxy(15721).then((proxyServer) => {
+      const fs = require('fs');
+      const path = require('path');
+      const configFile = path.join(__dirname, '..', 'init-config.json');
+      let proxyHost = '127.0.0.1';
+      let proxyPort = 15721;
+      try {
+        if (fs.existsSync(configFile)) {
+          const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+          if (cfg.proxyUrl) {
+            const u = new URL(cfg.proxyUrl);
+            proxyHost = u.hostname || '127.0.0.1';
+            proxyPort = parseInt(u.port) || 15721;
+          } else if (cfg.proxyPort) {
+            proxyPort = cfg.proxyPort;
+          }
+        }
+      } catch {}
+
+      startProxy(proxyHost, proxyPort).then((proxyServer) => {
         if (proxyServer) {
-          console.log(`[proxy] 内置代理已启动 http://127.0.0.1:15721`);
+          console.log(`[proxy] 内置代理已启动 http://${proxyHost}:${proxyPort}`);
         }
       }).catch(err => {
         console.warn('[proxy] 代理启动失败:', err.message);
