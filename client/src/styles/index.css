@@ -1466,6 +1466,16 @@ html, body, #root {
 
 .input-select-group:focus-within { border-color: var(--accent); }
 
+/* 深色主题下拉框增强可见性 */
+[data-theme="dark"] .input-select-group {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+[data-theme="dark"] .input-select {
+  font-size: 13px;
+  color: #eee;
+}
+
 /* Slash command dropdown */
 .slash-commands {
   background: var(--glass-bg);
