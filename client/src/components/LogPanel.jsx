@@ -4,7 +4,7 @@ import { authHeaders } from '../api';
 const BASE = '/api';
 
 export default function LogPanel() {
-  const [logs, setLogs] = useState({ frontend: [], server: [], init: [], ccswitch: [], syslog: [] });
+  const [logs, setLogs] = useState({ frontend: [], server: [], init: [], proxy: [], syslog: [] });
   const [tab, setTab] = useState('server');
 
   const load = () => {
@@ -21,7 +21,7 @@ export default function LogPanel() {
     { key: 'server', label: '服务端' },
     { key: 'frontend', label: '前端' },
     { key: 'init', label: '初始化' },
-    { key: 'ccswitch', label: 'CC-Switch' },
+    { key: 'proxy', label: '代理' },
     { key: 'syslog', label: '系统' },
   ];
 

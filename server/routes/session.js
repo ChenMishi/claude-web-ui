@@ -2,7 +2,7 @@ const { Router } = require('express');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR, getUserDataDir, PROXY_BASE } = require('../config');
+const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR, getUserDataDir } = require('../config');
 const { dirNameToCwd, parseTitleFromJsonl } = require('../utils');
 const { findUserById } = require('../auth/users');
 const {
@@ -262,9 +262,9 @@ function buildSDKOptions(runtime, body, authUser) {
     // Non-admin users: strip additionalDirectories (could be used to bypass sandbox)
     ...(sandbox ? {} : (agentOptions.additionalDirectories?.length ? { additionalDirectories: agentOptions.additionalDirectories } : {})),
     ...agentOptions.env !== undefined ? { env: agentOptions.env } : {},
-    // Always route SDK through CC-Switch proxy (avoid "Not logged in" error)
+    // Always route SDK through built-in proxy on localhost
     env: {
-      ANTHROPIC_BASE_URL: PROXY_BASE,
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:15721',
       ANTHROPIC_API_KEY: 'proxy',
       ...(agentOptions.env || {}),
     },
@@ -422,7 +422,7 @@ async function generateSessionTitle(sessionId, prompt, cwd, authUser) {
 
 // Lightweight: just call Haiku API, return title text (no disk I/O)
 async function generateTitleText(prompt) {
-  const { PROXY_BASE: proxyBase } = require('../config');
+  const proxyBase = 'http://127.0.0.1:15721';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
   try {

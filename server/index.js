@@ -281,6 +281,20 @@ function startServer(opts = {}) {
   server.listen(port, '0.0.0.0', () => {
     console.log(`Claude Web UI v2 running at http://0.0.0.0:${port}`);
     console.log(`API docs at http://localhost:${port}/docs`);
+
+    // Start built-in proxy on 127.0.0.1:15721
+    try {
+      const { startProxy } = require('./proxy');
+      startProxy(15721).then((proxyServer) => {
+        if (proxyServer) {
+          console.log(`[proxy] 内置代理已启动 http://127.0.0.1:15721`);
+        }
+      }).catch(err => {
+        console.warn('[proxy] 代理启动失败:', err.message);
+      });
+    } catch (err) {
+      console.warn('[proxy] 代理模块加载失败:', err.message);
+    }
   });
 
   return server;

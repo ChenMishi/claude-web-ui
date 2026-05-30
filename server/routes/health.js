@@ -1,5 +1,6 @@
 const { Router } = require('express');
-const { PROXY_BASE } = require('../config');
+
+const PROXY_URL = 'http://127.0.0.1:15721';
 
 const router = Router();
 
@@ -7,7 +8,7 @@ router.get('/health', async (_req, res) => {
   // Lightweight check: try to connect to the proxy's TCP port (no API call)
   let proxyOk = false;
   try {
-    const url = new URL(PROXY_BASE);
+    const url = new URL(PROXY_URL);
     const net = require('net');
     proxyOk = await new Promise((resolve) => {
       const sock = new net.Socket();
@@ -20,7 +21,7 @@ router.get('/health', async (_req, res) => {
   } catch {
     proxyOk = false;
   }
-  res.json({ healthy: proxyOk, version: '2.0.0', proxy: PROXY_BASE });
+  res.json({ healthy: proxyOk, version: '2.0.0', proxy: PROXY_URL });
 });
 
 module.exports = router;

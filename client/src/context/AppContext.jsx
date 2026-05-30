@@ -244,7 +244,7 @@ export function AppContextProvider({ children }) {
   const setMainTask = useCallback((subject) => dispatch({ type: 'SET_MAIN_TASK', payload: { subject } }), []);
   const updateMainTask = useCallback((subject) => dispatch({ type: 'UPDATE_MAIN_TASK', payload: { subject } }), []);
 
-  // Load available models from CC-Switch on mount
+  // Load available models from built-in proxy provider on mount
   const loadAvailableModels = useCallback(async () => {
     try {
       const data = await listModels();

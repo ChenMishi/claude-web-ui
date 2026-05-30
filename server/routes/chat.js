@@ -1,5 +1,6 @@
 const { Router } = require('express');
-const { PROXY_BASE } = require('../config');
+
+const PROXY_URL = 'http://127.0.0.1:15721';
 
 const router = Router();
 
@@ -9,7 +10,7 @@ router.post('/chat', async (req, res) => {
   if (system) body.system = system;
 
   try {
-    const proxyRes = await fetch(`${PROXY_BASE}/v1/messages`, {
+    const proxyRes = await fetch(`${PROXY_URL}/v1/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
       body: JSON.stringify(body),
@@ -51,7 +52,7 @@ router.post('/chat', async (req, res) => {
     res.end();
   } catch (err) {
     console.error('Proxy error:', err);
-    res.status(500).json({ error: `无法连接到本地 Claude 代理 (${PROXY_BASE})。${err.message}` });
+    res.status(500).json({ error: `无法连接到本地 Claude 代理 (${PROXY_URL})。${err.message}` });
   }
 });
 

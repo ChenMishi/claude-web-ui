@@ -118,11 +118,8 @@ export const getInitStatus = () => fetchJSON('/init/status');
 export const saveInitConfig = (data) => fetchJSON('/init/config', { method: 'POST', body: JSON.stringify(data) });
 export const testProxy = (data) => fetchJSON('/init/test-proxy', { method: 'POST', body: JSON.stringify(data) });
 export const checkClaudeUpdate = () => fetchJSON('/init/check-claude-update', { method: 'POST' });
-export const getCcswitchConfig = () => fetchJSON('/init/ccswitch-config');
-export const saveCcswitchConfig = (data) => fetchJSON('/init/ccswitch-config', { method: 'POST', body: JSON.stringify(data) });
-export const getCcswitchStatus = () => fetchJSON('/init/ccswitch-status');
-export const restartCcswitch = () => fetchJSON('/init/ccswitch-restart', { method: 'POST' });
-export const initCcswitchProvider = () => fetchJSON('/init/ccswitch-init-provider', { method: 'POST' });
+export const getProviderConfig = () => fetchJSON('/init/provider-config');
+export const saveProviderConfig = (data) => fetchJSON('/init/provider-config', { method: 'POST', body: JSON.stringify(data) });
 export const fetchModels = (baseUrl, token) => fetchJSON('/init/fetch-models', { method: 'POST', body: JSON.stringify({ baseUrl, token }) });
 
 // File system (write / delete)
@@ -397,7 +394,7 @@ export async function installMarketplaceSkill({ url, targetScope, skillName }) {
   });
 }
 
-// ── Model API (CC-Switch default provider) ──
+// ── Model API (built-in proxy provider) ──
 
 export async function listModels() {
   return fetchJSON('/models');
