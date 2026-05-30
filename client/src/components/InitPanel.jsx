@@ -34,7 +34,6 @@ export default function InitPanel() {
   const [pulledModels, setPulledModels] = useState(null);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [providerToast, setProviderToast] = useState(null);
-  const [showApiKey, setShowApiKey] = useState(false);
 
   const { loadAvailableModels } = useApp();
 
@@ -363,16 +362,9 @@ export default function InitPanel() {
           <div className="init-sub-header">🔧 Provider 配置</div>
           <div className="init-config-row">
             <label>API Key</label>
-            <div style={{ display: 'flex', gap: 4, flex: 1 }}>
-              <input type={showApiKey ? 'text' : 'password'} value={editApiKey} onChange={e => setEditApiKey(e.target.value)}
-                placeholder={providerConfig?.hasApiKey ? '已保存 (不修改则留空)' : 'sk-...'}
-                style={{ flex: 1, fontSize: 13 }} />
-              <button className="init-btn init-btn-test" onClick={() => setShowApiKey(!showApiKey)}
-                style={{ fontSize: 14, padding: '6px 10px', lineHeight: 1, minWidth: 36 }}
-                title={showApiKey ? '隐藏' : '显示'}>
-                {showApiKey ? '🙈' : '👁'}
-              </button>
-            </div>
+            <input type="text" value={editApiKey} onChange={e => setEditApiKey(e.target.value)}
+              placeholder={providerConfig?.hasApiKey ? '已保存 (不修改则留空)' : 'sk-...'}
+              style={{ flex: 1, fontSize: 13 }} />
           </div>
           <div className="init-config-row">
             <label>Base URL</label>
@@ -402,14 +394,14 @@ export default function InitPanel() {
           {/* ── 代理地址 ── */}
           <div className="init-sub-header" style={{ marginTop: 16 }}>🌐 代理地址</div>
           <div className="init-config-row">
-            <label>IP</label>
-            <input type="text" value={editProxyHost} onChange={e => setEditProxyHost(e.target.value)}
-              placeholder="127.0.0.1" style={{ flex: 1, fontSize: 13 }} />
-          </div>
-          <div className="init-config-row">
-            <label>端口</label>
-            <input type="text" value={editProxyPort} onChange={e => setEditProxyPort(e.target.value.replace(/\D/g, ''))}
-              placeholder="15721" style={{ width: 100, fontSize: 13 }} maxLength={5} />
+            <label>代理地址</label>
+            <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+              <input type="text" value={editProxyHost} onChange={e => setEditProxyHost(e.target.value)}
+                placeholder="127.0.0.1" style={{ flex: 1, fontSize: 13 }} />
+              <span style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center' }}>:</span>
+              <input type="text" value={editProxyPort} onChange={e => setEditProxyPort(e.target.value.replace(/\D/g, ''))}
+                placeholder="15721" style={{ width: 80, fontSize: 13 }} maxLength={5} />
+            </div>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>
             代理将 SDK 请求转发到上游 API 并自动注入 Key。修改代理地址后会自动重启，Provider 配置始终生效。
