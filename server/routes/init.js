@@ -378,71 +378,85 @@ router.post('/init/ccswitch-restart', (req, res) => {
     try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
     // Ensure logs directory exists
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
-    // Start in background
+
+    const config = readConfig();
+    const port = config.proxyPort || 15721;
     const logFile = path.join(LOG_DIR, 'ccswitch.log');
-    const outFd = fs.openSync(logFile, 'a');
-    const child = spawn('nohup', ['cc-switch'], { detached: true, stdio: ['ignore', outFd, outFd] });
-    child.unref();
+    const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
 
-    // Wait for CC-Switch to create DB and initialize (3s)
-    setTimeout(() => {
+    const writeRouting = () => {
+      if (!fs.existsSync(dbPath)) return false;
       try {
-        execSync('pgrep -x cc-switch', { timeout: 2000 });
-        fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} CC-Switch 启动成功，写入路由配置\n`);
+        const tmpFile = `/tmp/ccswitch-routing-${Date.now()}.sql`;
+        fs.writeFileSync(tmpFile, `INSERT OR REPLACE INTO proxy_config (app_type, proxy_enabled, listen_address, listen_port, enable_logging, enabled) VALUES ('claude', 1, '127.0.0.1', ${port}, 1, 1);`);
+        execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
+        try { fs.unlinkSync(tmpFile); } catch {}
+        return true;
+      } catch { return false; }
+    };
 
-        // Write routing config to proxy_config (enable Routing Master Switch + Claude Routing Enabled)
-        const config = readConfig();
-        const port = config.proxyPort || 15721;
-        const writeRouting = () => {
-          const dbPath = path.join(os.homedir(), '.cc-switch', 'cc-switch.db');
-          if (!fs.existsSync(dbPath)) return false;
-          try {
-            const tmpFile = `/tmp/ccswitch-routing-${Date.now()}.sql`;
-            fs.writeFileSync(tmpFile, `INSERT OR REPLACE INTO proxy_config (app_type, proxy_enabled, listen_address, listen_port, enable_logging, enabled) VALUES ('claude', 1, '127.0.0.1', ${port}, 1, 1);`);
-            execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
-            try { fs.unlinkSync(tmpFile); } catch {}
-            return true;
-          } catch { return false; }
-        };
+    const startCCSwitch = () => {
+      const fd = fs.openSync(logFile, 'a');
+      const child = spawn('nohup', ['cc-switch'], { detached: true, stdio: ['ignore', fd, fd] });
+      child.unref();
+    };
 
-        writeRouting();
+    const waitForPort = (cb, maxWait) => {
+      const start = Date.now();
+      const check = () => {
+        try { execSync(`ss -tlnp | grep -q ":${port}\\b"`, { encoding: 'utf8', timeout: 2000 }); return cb(true); } catch {}
+        if (Date.now() - start > maxWait) return cb(false);
+        setTimeout(check, 1000);
+      };
+      check();
+    };
 
-        // Kill and restart so CC-Switch picks up the routing config
-        try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
-        const outFd2 = fs.openSync(logFile, 'a');
-        const child2 = spawn('nohup', ['cc-switch'], { detached: true, stdio: ['ignore', outFd2, outFd2] });
-        child2.unref();
+    // ★ 关键: 如果有 DB，先写 routing 再启动，避免 CC-Switch 启动时覆盖为默认值
+    if (fs.existsSync(dbPath)) {
+      writeRouting();
+      startCCSwitch();
+      fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 已写路由 → 启动 CC-Switch\n`);
 
-        // Wait 3s, then write routing again (CC-Switch may overwrite proxy_config on init)
-        setTimeout(() => {
-          const wrote = writeRouting();
-          fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 第二次写入路由: ${wrote ? '成功' : '失败'}\n`);
-
-          // Verify port is open, if not, one more restart cycle
-          let portOpen = false;
-          try { execSync(`ss -tlnp | grep -q ":${port} "`, { encoding: 'utf8', timeout: 2000 }); portOpen = true; } catch {}
-
-          if (!portOpen) {
-            fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 端口未监听，再次重启\n`);
-            try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
-            const outFd3 = fs.openSync(logFile, 'a');
-            const child3 = spawn('nohup', ['cc-switch'], { detached: true, stdio: ['ignore', outFd3, outFd3] });
-            child3.unref();
-            // One last routing write after 2s
-            setTimeout(() => {
-              writeRouting();
-              res.json({ ok: true });
-            }, 2000);
-          } else {
+      waitForPort((portOpen) => {
+        if (portOpen) {
+          fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 端口已监听\n`);
+          res.json({ ok: true });
+        } else {
+          // 端口未监听，写路由再重启一次
+          fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 端口未监听，重试\n`);
+          writeRouting();
+          try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
+          startCCSwitch();
+          waitForPort((ok) => {
+            if (!ok) { writeRouting(); try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}; startCCSwitch(); }
             res.json({ ok: true });
-          }
-        }, 3000);
-      } catch {
-        const errLog = (() => { try { return fs.readFileSync(logFile, 'utf8').slice(-500); } catch { return ''; } })();
-        fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} CC-Switch 启动失败\n${errLog}\n`);
-        res.json({ ok: false, error: `启动失败，查看日志: ${logFile}` });
-      }
-    }, 3000);
+          }, 8000);
+        }
+      }, 8000);
+    } else {
+      // 没有 DB (首次安装): 先启动创建 DB，再写路由，再重启
+      startCCSwitch();
+      fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} 首次启动，等待 DB 创建\n`);
+
+      // 等待 DB 文件出现
+      const waitForDB = (attempts) => {
+        if (fs.existsSync(dbPath)) {
+          writeRouting();
+          fs.appendFileSync(path.join(LOG_DIR, 'init.log'), `${new Date().toISOString()} DB 已创建，写路由 → 重启\n`);
+          try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}
+          startCCSwitch();
+          waitForPort((portOpen) => {
+            if (!portOpen) { writeRouting(); try { execSync('pkill -x cc-switch', { timeout: 3000 }); } catch {}; startCCSwitch(); }
+            res.json({ ok: true });
+          }, 8000);
+        } else if (attempts > 0) {
+          setTimeout(() => waitForDB(attempts - 1), 1000);
+        } else {
+          res.json({ ok: false, error: 'CC-Switch 数据库创建超时' });
+        }
+      };
+      setTimeout(() => waitForDB(10), 2000);
+    }
   } catch (err) {
     logCcswitch("Error in ccswitch route", err);
     res.status(500).json({ error: err.message });
@@ -548,6 +562,8 @@ router.post('/init/ccswitch-config', (req, res) => {
     logCcswitch("Error in ccswitch route", err);
     res.status(500).json({ error: err.message });
   }
+  // Bust models cache so chat selector refreshes
+  modelsCache = null;
 });
 
 // Check Claude Code update
@@ -800,11 +816,19 @@ router.post('/models/switch', async (req, res) => {
     const json = JSON.stringify(cfg).replace(/'/g, "''");
     run(`UPDATE providers SET settings_config = '${json}' WHERE id = 'default'`);
 
-    // Restart CC-Switch
+    // Restart CC-Switch (write routing first so proxy_config isn't overwritten)
     try {
       execSync('pkill -x cc-switch 2>/dev/null || true', { timeout: 3000 });
     } catch {}
-    // CC-Switch will be auto-restarted by its own service manager or we start it
+    // Write routing before starting
+    try {
+      const config = readConfig();
+      const port = config.proxyPort || 15721;
+      const tmpFile = `/tmp/ccswitch-routing-${Date.now()}.sql`;
+      fs.writeFileSync(tmpFile, `INSERT OR REPLACE INTO proxy_config (app_type, proxy_enabled, listen_address, listen_port, enable_logging, enabled) VALUES ('claude', 1, '127.0.0.1', ${port}, 1, 1);`);
+      execSync(`sqlite3 "${dbPath}" < "${tmpFile}"`, { encoding: 'utf8', timeout: 5000 });
+      try { fs.unlinkSync(tmpFile); } catch {}
+    } catch {}
     try {
       const ccPath = checkCCSwitch();
       if (ccPath) {
