@@ -5,6 +5,7 @@ import VersionCard from './VersionCard';
 import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
 import StatsPanel from './StatsPanel';
+import BackupCard from './BackupCard';
 
 export default function SettingsPanel() {
   const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId, user,
@@ -83,6 +84,9 @@ export default function SettingsPanel() {
         <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}>📋 日志</button>
         <button className={settingsTab === 'stats' ? 'active' : ''} onClick={() => setSettingsTab('stats')}>📊 统计</button>
         <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => setSettingsTab('upgrade')}>🔄 升级</button>
+        {isAdmin && (
+          <button className={settingsTab === 'backup' ? 'active' : ''} onClick={() => setSettingsTab('backup')}>💾 备份</button>
+        )}
       </div>
 
       {settingsTab === 'general' ? (
@@ -243,6 +247,8 @@ export default function SettingsPanel() {
         <VersionCard />
       ) : settingsTab === 'stats' ? (
         <StatsPanel />
+      ) : settingsTab === 'backup' ? (
+        <BackupCard />
       ) : (
         <LogPanel />
       )}

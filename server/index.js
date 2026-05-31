@@ -62,7 +62,7 @@ function createApp() {
 
   // Admin-only routes (must come before general routes)
   app.use('/api', (req, res, next) => {
-    const adminPaths = ['/version', '/init'];
+    const adminPaths = ['/version', '/init', '/backup'];
     const isAdminPath = adminPaths.some(p => req.path === p || req.path.startsWith(p + '/'));
     if (isAdminPath) {
       return requireRole('admin')(req, res, next);
@@ -80,6 +80,7 @@ function createApp() {
   app.use('/api', require('./routes/skills'));
   app.use('/api', require('./routes/fs'));
   app.use('/api', require('./routes/stats'));
+app.use('/api', require('./routes/backup'));
 
   // Swagger docs
   try {
@@ -316,6 +317,29 @@ function startServer(opts = {}) {
       console.warn('[proxy] 代理模块加载失败:', err.message);
     }
   });
+
+  // Auto-backup scheduler
+  try {
+    const backup = require('./routes/backup');
+    let lastHour = -1, lastDay = -1, lastWeek = -1;
+    setInterval(() => {
+      try {
+        const cfg = backup.readBackupConfig();
+        if (!cfg.frequency || cfg.frequency === 'manual') return;
+        const now = new Date();
+        let shouldBackup = false;
+        if (cfg.frequency === 'hourly' && now.getHours() !== lastHour) { lastHour = now.getHours(); shouldBackup = true; }
+        else if (cfg.frequency === 'daily' && now.getDate() !== lastDay) { lastDay = now.getDate(); shouldBackup = true; }
+        else if (cfg.frequency === 'weekly' && now.getDay() !== lastWeek) { lastWeek = now.getDay(); shouldBackup = true; }
+        if (shouldBackup) {
+          backup.createBackup();
+          console.log(`[backup] 自动备份完成 (${cfg.frequency})`);
+        }
+      } catch (err) {
+        console.warn('[backup] 自动备份失败:', err.message);
+      }
+    }, 60000); // check every minute
+  } catch {}
 
   return server;
 }

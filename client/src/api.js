@@ -418,6 +418,35 @@ export async function restartServer() {
   return fetchJSON('/restart', { method: 'POST' });
 }
 
+// Backup
+export async function getBackupList() { return fetchJSON('/backup/list'); }
+export async function createBackup() { return fetchJSON('/backup/create', { method: 'POST' }); }
+export async function deleteBackup(filename) { return fetchJSON(`/backup/${filename}`, { method: 'DELETE' }); }
+export async function getBackupConfig() { return fetchJSON('/backup/config'); }
+export async function saveBackupConfig(cfg) { return fetchJSON('/backup/config', { method: 'POST', body: JSON.stringify(cfg) }); }
+export async function restoreBackup(file) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}/backup/restore`);
+    const headers = authHeaders({});
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else reject(new Error(data.error || `HTTP ${xhr.status}`));
+      } catch { reject(new Error('解析响应失败')); }
+    };
+    xhr.onerror = () => reject(new Error('上传失败'));
+    xhr.send(formData);
+  });
+}
+export function getBackupDownloadUrl(filename) {
+  return `${BASE}/backup/download/${encodeURIComponent(filename)}`;
+}
+
 // Stats
 export async function getStatsSummary(params = {}) {
   const qs = new URLSearchParams(params).toString();

@@ -3348,3 +3348,16 @@ html, body, #root {
 /* Chart grid line color — use CSS variable set by theme */
 :root { --chart-grid: rgba(128, 128, 128, 0.15); }
 [data-theme="dark"] { --chart-grid: rgba(255, 255, 255, 0.08); }
+
+/* ── Backup Card ── */
+.backup-card .settings-card { margin-bottom: 16px; }
+.backup-name-cell {
+  font-size: 12px; font-family: var(--font-mono); color: var(--text-primary);
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.backup-msg { font-size: 12px; }
+.backup-hint {
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+  font-size: 11px; color: var(--text-muted); line-height: 1.5;
+}
