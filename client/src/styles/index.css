@@ -547,6 +547,25 @@ html, body, #root {
   white-space: nowrap;
 }
 
+/* Init hint badge */
+.nav-init-badge {
+  display: inline-block;
+  width: 8px; height: 8px;
+  background: #ff9800;
+  border-radius: 50%;
+  animation: pulse-badge 1.5s infinite;
+}
+.nav-init-tag {
+  font-size: 9px;
+  font-weight: 600;
+  color: #fff;
+  background: #ff9800;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 2px;
+  white-space: nowrap;
+}
+
 /* Sidebar theme slider with animated bottom bar */
 .sidebar-theme-row {
   padding: 6px 0 4px;

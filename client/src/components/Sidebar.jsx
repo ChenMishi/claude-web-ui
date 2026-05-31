@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo } from '../api';
+import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo, getInitStatus } from '../api';
 import ProjectSelector from './ProjectSelector';
 import SessionList from './SessionList';
 import ProfileModal from './ProfileModal';
@@ -20,6 +20,7 @@ export default function Sidebar() {
     setView, activeView, theme, setSetting,
     updateAvailable, user, logout, isStreaming,
     restartStatus, restartError, triggerRestart, dismissRestart,
+    needInit, setNeedInit,
   } = useApp();
   const isAdmin = user?.role === 'admin';
   const [menuOpen, setMenuOpen] = useState(false);
@@ -144,6 +145,14 @@ export default function Sidebar() {
     });
   }, [currentSessionId, currentProjectId]);
 
+  // Check init status on mount for admin users — show hint if not yet configured
+  useEffect(() => {
+    if (!isAdmin) return;
+    getInitStatus().then(d => {
+      setNeedInit(!d.providerConfigured);
+    }).catch(() => {});
+  }, [isAdmin]);
+
   const handleRestart = () => {
     setConfirmRestart(null);
     setMenuOpen(false);
@@ -188,11 +197,21 @@ export default function Sidebar() {
         {isAdmin && (
           <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
             🔧 设置
-            {updateAvailable && (
-              <>
-                <span className="nav-badge" />
-                <span className="nav-update-tag">新版本!</span>
-              </>
+            {(needInit || updateAvailable) && (
+              <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
+                {needInit && (
+                  <>
+                    <span className="nav-init-badge" />
+                    <span className="nav-init-tag">点击初始化</span>
+                  </>
+                )}
+                {updateAvailable && (
+                  <>
+                    <span className="nav-badge" style={{ marginLeft: needInit ? 4 : 0 }} />
+                    <span className="nav-update-tag">新版本!</span>
+                  </>
+                )}
+              </span>
             )}
           </button>
         )}

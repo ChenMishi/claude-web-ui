@@ -35,7 +35,7 @@ export default function InitPanel() {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [providerToast, setProviderToast] = useState(null);
 
-  const { loadAvailableModels } = useApp();
+  const { loadAvailableModels, setNeedInit } = useApp();
 
   const loadStatus = useCallback(() => {
     getInitStatus().then(d => {
@@ -212,6 +212,7 @@ export default function InitPanel() {
       if (d.ok) {
         setStatus(prev => ({ ...prev, saved: true }));
         setSaveMsg('✅ 全部配置已保存，代理已重启');
+        setNeedInit(false);
       }
     } catch (err) {
       setSaveMsg(`❌ 保存失败: ${err.message}`);

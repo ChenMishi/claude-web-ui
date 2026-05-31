@@ -63,6 +63,7 @@ const initialState = {
   mainTask: null,  // { subject: string, status: 'in_progress'|'completed' }
   restartStatus: null,  // null | 'restarting' | 'done' | 'timeout' | 'error'
   restartError: '',
+  needInit: true,  // assume needs init until proven otherwise
 };
 
 function reducer(state, action) {
@@ -204,6 +205,8 @@ function reducer(state, action) {
       next = { ...state, mainTask: { ...state.mainTask, subject: action.payload.subject } }; break;
     case 'RESTART_STATUS':
       next = { ...state, restartStatus: action.payload.status, restartError: action.payload.error || '' }; break;
+    case 'SET_NEED_INIT':
+      next = { ...state, needInit: action.payload }; break;
     default:
       return state;
   }
@@ -293,6 +296,8 @@ export function AppContextProvider({ children }) {
     dispatch({ type: 'RESTART_STATUS', payload: { status: null } });
   }, []);
 
+  const setNeedInit = useCallback((v) => dispatch({ type: 'SET_NEED_INIT', payload: v }), []);
+
   // Load models once on mount
   useEffect(() => { loadAvailableModels(); }, [loadAvailableModels]);
 
@@ -361,6 +366,7 @@ export function AppContextProvider({ children }) {
     setUpdateAvailable,
     loadAvailableModels, switchCurrentModel,
     triggerRestart, dismissRestart,
+    setNeedInit,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
