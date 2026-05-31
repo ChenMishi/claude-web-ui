@@ -3,7 +3,6 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { STATS_DIR } = require('../config');
-const { authMiddleware } = require('../middleware/auth');
 
 // Ensure stats directory exists
 if (!fs.existsSync(STATS_DIR)) {
@@ -87,7 +86,7 @@ function aggregate(records, granularity) {
 }
 
 // GET /api/stats/summary — summary for a user
-router.get('/stats/summary', authMiddleware, (req, res) => {
+router.get('/stats/summary', (req, res) => {
   try {
     let userId = req.user.id;
     if (req.user.role === 'admin' && req.query.userId) {
@@ -133,7 +132,7 @@ router.get('/stats/summary', authMiddleware, (req, res) => {
 });
 
 // GET /api/stats/usage — time series + model breakdown
-router.get('/stats/usage', authMiddleware, (req, res) => {
+router.get('/stats/usage', (req, res) => {
   try {
     let userId = req.user.id;
     if (req.user.role === 'admin' && req.query.userId) {
