@@ -120,6 +120,9 @@ export const testProxy = (data) => fetchJSON('/init/test-proxy', { method: 'POST
 export const checkClaudeUpdate = () => fetchJSON('/init/check-claude-update', { method: 'POST' });
 export const getProviderConfig = () => fetchJSON('/init/provider-config');
 export const saveProviderConfig = (data) => fetchJSON('/init/provider-config', { method: 'POST', body: JSON.stringify(data) });
+
+export const getPricing = () => fetchJSON('/init/pricing');
+export const savePricing = (models) => fetchJSON('/init/pricing', { method: 'POST', body: JSON.stringify({ models }) });
 export const fetchModels = (baseUrl, token) => fetchJSON('/init/fetch-models', { method: 'POST', body: JSON.stringify({ baseUrl, token }) });
 
 // File system (write / delete)

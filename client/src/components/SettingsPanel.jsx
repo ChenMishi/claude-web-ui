@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getUsers, createUser, deleteUser } from '../api';
+import { getUsers, createUser, deleteUser, getPricing, savePricing } from '../api';
 import VersionCard from './VersionCard';
 import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
@@ -21,6 +21,39 @@ export default function SettingsPanel() {
 
   const loadUsers = () => { getUsers().then(d => setUsers(d.users)).catch(() => {}); };
   useEffect(() => { if (isAdmin) loadUsers(); }, [isAdmin]);
+
+  // Pricing config
+  const [pricingModels, setPricingModels] = useState({});
+  const [pricingSaveMsg, setPricingSaveMsg] = useState('');
+  useEffect(() => { getPricing().then(d => setPricingModels(d.models || {})).catch(() => {}); }, []);
+
+  const handlePricingChange = (model, field, value) => {
+    setPricingModels(prev => ({
+      ...prev,
+      [model]: { ...(prev[model] || {}), [field]: value === '' ? '' : parseFloat(value) || 0 },
+    }));
+  };
+
+  const handleSavePricing = async () => {
+    setPricingSaveMsg('');
+    try {
+      // Clean empty values
+      const cleaned = {};
+      for (const [model, prices] of Object.entries(pricingModels)) {
+        const p = {};
+        if (prices.input || prices.input === 0) p.input = prices.input;
+        if (prices.output || prices.output === 0) p.output = prices.output;
+        if (prices.cacheRead || prices.cacheRead === 0) p.cacheRead = prices.cacheRead;
+        if (prices.cacheWrite || prices.cacheWrite === 0) p.cacheWrite = prices.cacheWrite;
+        if (Object.keys(p).length > 0) cleaned[model] = p;
+      }
+      await savePricing(cleaned);
+      setPricingSaveMsg('✅ 定价已保存');
+      setTimeout(() => setPricingSaveMsg(''), 3000);
+    } catch (err) {
+      setPricingSaveMsg(`❌ 保存失败: ${err.message}`);
+    }
+  };
 
   const handleCreateUser = async () => {
     if (!newUsername.trim() || !newPassword.trim()) { setMgmtError('用户名和密码不能为空'); return; }
@@ -82,6 +115,66 @@ export default function SettingsPanel() {
                 <label>System Prompt</label>
                 <textarea value={systemPrompt} onChange={e => setSetting('systemPrompt', e.target.value)}
                   placeholder="自定义 system prompt（留空使用默认）" />
+              </div>
+            </div>
+          </div>
+
+          {/* Card: Token 定价 */}
+          <div className="settings-card">
+            <div className="settings-card-header">💰 Token 定价</div>
+            <div className="settings-card-body">
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>单位：元 / 百万 tokens</div>
+              {availableModels.length > 0 ? (
+                <table className="pricing-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '35%' }}>模型</th>
+                      <th>输入价格</th>
+                      <th>输出价格</th>
+                      <th>缓存读取</th>
+                      <th>缓存写入</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {availableModels.map(m => (
+                      <tr key={m}>
+                        <td className="pricing-model-name" title={m}>{m}</td>
+                        <td>
+                          <input type="number" step="0.01" min="0" placeholder="—"
+                            value={pricingModels[m]?.input ?? ''}
+                            onChange={e => handlePricingChange(m, 'input', e.target.value)}
+                            className="pricing-input" />
+                        </td>
+                        <td>
+                          <input type="number" step="0.01" min="0" placeholder="—"
+                            value={pricingModels[m]?.output ?? ''}
+                            onChange={e => handlePricingChange(m, 'output', e.target.value)}
+                            className="pricing-input" />
+                        </td>
+                        <td>
+                          <input type="number" step="0.01" min="0" placeholder="—"
+                            value={pricingModels[m]?.cacheRead ?? ''}
+                            onChange={e => handlePricingChange(m, 'cacheRead', e.target.value)}
+                            className="pricing-input" />
+                        </td>
+                        <td>
+                          <input type="number" step="0.01" min="0" placeholder="—"
+                            value={pricingModels[m]?.cacheWrite ?? ''}
+                            onChange={e => handlePricingChange(m, 'cacheWrite', e.target.value)}
+                            className="pricing-input" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>暂无可用模型，请先在 🔧 初始化中配置 Provider 并拉取模型列表</div>
+              )}
+              <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button className="init-btn init-btn-save" onClick={handleSavePricing}>保存定价</button>
+                {pricingSaveMsg && (
+                  <span style={{ fontSize: 12, color: pricingSaveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{pricingSaveMsg}</span>
+                )}
               </div>
             </div>
           </div>

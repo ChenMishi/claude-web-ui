@@ -566,6 +566,47 @@ html, body, #root {
   white-space: nowrap;
 }
 
+/* Pricing table */
+.pricing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.pricing-table th {
+  text-align: left;
+  padding: 6px 8px;
+  color: var(--text-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+.pricing-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pricing-model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.pricing-input {
+  width: 80px;
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  text-align: right;
+}
+.pricing-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 /* Sidebar theme slider with animated bottom bar */
 .sidebar-theme-row {
   padding: 6px 0 4px;

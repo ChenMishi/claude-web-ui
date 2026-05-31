@@ -58,6 +58,7 @@ const initialState = {
     elapsed: 0,
     tokens: null,  // { input, output, cacheRead, cacheWrite }
     cost: null,
+    currency: null,
   },
   tasks: [],  // { id, subject, description, status: 'pending'|'in_progress'|'completed' }
   mainTask: null,  // { subject: string, status: 'in_progress'|'completed' }
@@ -176,7 +177,7 @@ function reducer(state, action) {
       break;
     }
     case 'EXEC_DONE':
-      next = { ...state, mainTask: state.mainTask ? { ...state.mainTask, status: 'completed' } : null, execStatus: { ...state.execStatus, phase: 'done', tokens: action.payload.tokens, cost: action.payload.cost, elapsed: Math.floor((Date.now() - state.execStatus.startTime) / 1000) } }; break;
+      next = { ...state, mainTask: state.mainTask ? { ...state.mainTask, status: 'completed' } : null, execStatus: { ...state.execStatus, phase: 'done', tokens: action.payload.tokens, cost: action.payload.cost, currency: action.payload.currency, elapsed: Math.floor((Date.now() - state.execStatus.startTime) / 1000) } }; break;
     case 'EXEC_RESET':
       next = { ...state, execStatus: initialState.execStatus }; break;
     case 'TASK_CREATE': {

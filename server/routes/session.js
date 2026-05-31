@@ -125,14 +125,33 @@ function handleSDKMessage(message, runtime, isStreaming) {
   if (message.type === 'result') {
     if (message.subtype === 'success') {
       const usage = message.usage || {};
-      return {
-        cost: message.total_cost_usd,
-        tokens: {
-          input: usage.input_tokens || 0,
-          output: usage.output_tokens || 0,
-          cache: { read: usage.cache_read_input_tokens || 0, write: usage.cache_creation_input_tokens || 0 },
-        },
+      const sdkCost = message.total_cost_usd;
+      const sdkTokens = {
+        input: usage.input_tokens || 0,
+        output: usage.output_tokens || 0,
+        cache: { read: usage.cache_read_input_tokens || 0, write: usage.cache_creation_input_tokens || 0 },
       };
+
+      // Apply custom pricing if configured for this model
+      let cost = sdkCost;
+      let currency;
+      try {
+        const pricingFile = path.join(path.resolve(__dirname, '..', '..'), 'pricing-config.json');
+        if (fs.existsSync(pricingFile)) {
+          const pricing = JSON.parse(fs.readFileSync(pricingFile, 'utf8'));
+          const modelPricing = pricing.models?.[runtime.model];
+          if (modelPricing) {
+            const { input: ip, output: op, cacheRead: crp, cacheWrite: cwp } = modelPricing;
+            cost = ((sdkTokens.input * (ip || 0))
+                  + (sdkTokens.output * (op || 0))
+                  + (sdkTokens.cache.read * (crp || 0))
+                  + (sdkTokens.cache.write * (cwp || 0))) / 1_000_000;
+            currency = '¥';
+          }
+        }
+      } catch {}
+
+      return { cost, currency, tokens: sdkTokens };
     }
     return;
   }
@@ -705,6 +724,7 @@ router.post('/session/:id/message', async (req, res) => {
   runtime.status = 'busy';
   runtime.abort = new AbortController();
   runtime.buffer = []; // clear buffer from any previous run
+  runtime.model = body.options?.model || 'unknown';
 
   try {
     const options = buildSDKOptions(runtime, body, req.user);
@@ -784,17 +804,20 @@ router.post('/session/:id/message', async (req, res) => {
         sessionId: runtime.sessionId,
         cost: result?.cost,
         tokens: result?.tokens,
+        currency: result?.currency,
       });
       broadcastDone(runtime, {
         sessionId: runtime.sessionId,
         cost: result?.cost,
         tokens: result?.tokens,
+        currency: result?.currency,
       });
     } else {
       // Blocking mode — return all messages
       res.json({
         sessionId: runtime.sessionId,
         cost: result?.cost,
+        currency: result?.currency,
         tokens: result?.tokens,
         messages: allMessages,
       });

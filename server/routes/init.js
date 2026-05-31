@@ -547,4 +547,35 @@ router.post('/models/switch', async (req, res) => {
   }
 });
 
+// ── Custom token pricing ──
+
+const PRICING_FILE = path.join(PROJECT_DIR, 'pricing-config.json');
+
+function readPricing() {
+  try {
+    if (fs.existsSync(PRICING_FILE)) {
+      return JSON.parse(fs.readFileSync(PRICING_FILE, 'utf8'));
+    }
+  } catch {}
+  return { models: {} };
+}
+
+function writePricing(data) {
+  fs.writeFileSync(PRICING_FILE, JSON.stringify(data, null, 2));
+}
+
+router.get('/init/pricing', (_req, res) => {
+  res.json(readPricing());
+});
+
+router.post('/init/pricing', (req, res) => {
+  const { models } = req.body || {};
+  if (!models || typeof models !== 'object') {
+    return res.status(400).json({ error: 'models is required' });
+  }
+  writePricing({ models });
+  logProxy('Pricing config saved');
+  res.json({ ok: true });
+});
+
 module.exports = router;

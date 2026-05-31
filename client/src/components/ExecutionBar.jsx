@@ -25,7 +25,7 @@ function fmtTok(n) {
 
 export default function ExecutionBar() {
   const { execStatus } = useApp();
-  const { phase, detail, elapsed, tokens, cost } = execStatus;
+  const { phase, detail, elapsed, tokens, cost, currency } = execStatus;
 
   if (phase === 'idle') return null;
 
@@ -78,7 +78,7 @@ export default function ExecutionBar() {
         <span className="exec-bar-summary">{tokStr}</span>
       )}
       {cost != null && (
-        <span className="exec-bar-cost">${cost.toFixed(4)}</span>
+        <span className="exec-bar-cost">{currency || '$'}{cost.toFixed(4)}</span>
       )}
     </div>
   );

@@ -301,7 +301,7 @@ export default function ChatView() {
                       bUpdate(null);
                       setStreaming(false);
                       stopTimer();
-                      execDone({ tokens: parsed.tokens, cost: parsed.cost });
+                      execDone({ tokens: parsed.tokens, cost: parsed.cost, currency: parsed.currency });
                       setTimeout(() => execReset(), 5000);
                       return; // stop pumping
                     } else if (currentEvent === 'error') {
@@ -446,11 +446,11 @@ export default function ChatView() {
       onAskUser: ({ questions }) => {
         setAskUser({ questions });
       },
-      onDone: ({ sessionId: newId, tokens: doneTokens, cost }) => {
+      onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency }) => {
         bUpdate(null);
         setStreaming(false);
         stopTimer();
-        execDone({ tokens: doneTokens, cost });
+        execDone({ tokens: doneTokens, cost, currency });
         setTimeout(() => execReset(), 5000);
 
         if (newId && !currentSessionId) {
