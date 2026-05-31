@@ -3350,7 +3350,6 @@ html, body, #root {
 [data-theme="dark"] { --chart-grid: rgba(255, 255, 255, 0.08); }
 
 /* ── Backup Card ── */
-.backup-card .settings-card { margin-bottom: 16px; }
 .backup-name-cell {
   font-size: 12px; font-family: var(--font-mono); color: var(--text-primary);
   max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

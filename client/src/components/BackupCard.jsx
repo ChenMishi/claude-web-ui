@@ -109,7 +109,7 @@ export default function BackupCard() {
   };
 
   return (
-    <div className="backup-card">
+    <>
       <div className="settings-card">
         <div className="settings-card-header">💾 备份配置</div>
         <div className="settings-card-body">
@@ -200,6 +200,6 @@ export default function BackupCard() {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

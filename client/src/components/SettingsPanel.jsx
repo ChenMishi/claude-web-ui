@@ -84,9 +84,6 @@ export default function SettingsPanel() {
         <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}>📋 日志</button>
         <button className={settingsTab === 'stats' ? 'active' : ''} onClick={() => setSettingsTab('stats')}>📊 统计</button>
         <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => setSettingsTab('upgrade')}>🔄 升级</button>
-        {isAdmin && (
-          <button className={settingsTab === 'backup' ? 'active' : ''} onClick={() => setSettingsTab('backup')}>💾 备份</button>
-        )}
       </div>
 
       {settingsTab === 'general' ? (
@@ -185,6 +182,9 @@ export default function SettingsPanel() {
             </div>
           </div>
 
+          {/* Card: 备份还原 (admin only) */}
+          {isAdmin && <BackupCard />}
+
           {/* Card: 系统信息 */}
           <div className="settings-card">
             <div className="settings-card-header">📊 系统信息</div>
@@ -247,8 +247,6 @@ export default function SettingsPanel() {
         <VersionCard />
       ) : settingsTab === 'stats' ? (
         <StatsPanel />
-      ) : settingsTab === 'backup' ? (
-        <BackupCard />
       ) : (
         <LogPanel />
       )}
