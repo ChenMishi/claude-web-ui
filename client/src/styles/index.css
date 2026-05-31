@@ -1849,6 +1849,14 @@ html, body, #root {
 .settings-row select:focus, .settings-row input:focus, .settings-row textarea:focus { border-color: var(--accent); }
 .settings-row textarea { min-height: 70px; resize: vertical; }
 
+[data-theme="dark"] .settings-row select {
+  color: #eee;
+}
+[data-theme="dark"] .settings-row select option {
+  background: #1a1a2e;
+  color: #eee;
+}
+
 /* Settings tabs */
 .settings-tabs {
   display: flex; gap: 4px; margin-bottom: 0;
