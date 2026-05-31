@@ -29,7 +29,7 @@
 
 - Linux 服务器（Ubuntu/Debian/CentOS/Alpine/Arch）
 - 推荐 Node.js >= 20（脚本会自动安装）
-- Claude Code CLI + CC-Switch 代理（用于 Agent SDK 调用）
+- Claude Code CLI（Agent SDK 通过内置代理连接 API）
 
 ### 一键部署
 
@@ -70,7 +70,7 @@ cd claude-web-ui
 1. 使用浏览器打开服务地址，以 `admin` 身份登录
 2. 进入 **设置 → 🔧 初始化**：
    - 检测 Claude Code CLI 是否已安装
-   - 配置 CC-Switch 代理地址（默认 `http://127.0.0.1:15721`）
+   - 配置 API Provider（API Key、Base URL、默认模型）和代理监听地址
    - 创建项目 CLAUDE.md 文档
 3. 进入 **设置 → 🔄 升级** 可配置 Git 仓库地址用于在线更新
 
@@ -94,7 +94,6 @@ npm run dev
 | 环境变量 | 说明 | 默认值 |
 |------|------|--------|
 | `PORT` | 服务端口 | `3000` |
-| `CLAUDE_PROXY` | Claude Agent 代理地址 | `http://127.0.0.1:15721` |
 | `AUTH_MODE` | 认证模式：`optional` / `required` / `disabled` | `optional` |
 | `ADMIN_PASSWORD` | 管理员密码（首次启动自动生成） | — |
 | `JWT_SECRET` | JWT 签名密钥（自动生成） | — |
@@ -113,6 +112,7 @@ claude-web-ui/
 ├── server/
 │   ├── index.js           # Express 主文件
 │   ├── config.js          # 配置
+│   ├── proxy.js           # 内置 API 代理
 │   ├── routes/            # API 路由
 │   │   ├── auth.js        # 认证、用户管理
 │   │   ├── chat.js        # Agent 对话（SSE）
@@ -122,7 +122,7 @@ claude-web-ui/
 │   │   ├── skills.js      # 技能 CRUD
 │   │   ├── terminal.js    # WebSocket 终端
 │   │   ├── version.js     # 版本检测/升级
-│   │   ├── init.js        # 项目初始化
+│   │   ├── init.js        # 项目初始化 & Provider 配置
 │   │   └── health.js      # 健康检查
 │   ├── auth/              # JWT、用户存储
 │   ├── skills/            # 技能存储层
@@ -137,8 +137,7 @@ claude-web-ui/
 │       ├── api.js         # API 封装
 │       └── styles/        # CSS
 ├── public/                # 前端构建产物（Vite 输出）
-├── skills/                # 用户自定义技能
-└── packages/              # CC-Switch 等工具包
+└── skills/                # 用户自定义技能
 ```
 
 ## API 概览
@@ -149,8 +148,9 @@ claude-web-ui/
 | `/api/auth/status` | GET | 认证状态 |
 | `/api/auth/users` | GET/POST | 用户管理（管理员） |
 | `/api/auth/restart` | POST | 重启服务（管理员） |
-| `/api/chat/stream` | POST | Agent SSE 流式对话 |
-| `/api/chat/abort` | POST | 中止对话 |
+| `/api/session/:id/message` | POST | Agent SSE 流式对话 |
+| `/api/session/:id/abort` | POST | 中止对话 |
+| `/api/session/:id/stream` | GET | 重连 SSE 流 |
 | `/api/fs/list` | GET | 列出目录 |
 | `/api/fs/upload` | POST | 上传文件 |
 | `/api/fs/download` | GET | 下载文件 |
