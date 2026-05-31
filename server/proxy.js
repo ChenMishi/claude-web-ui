@@ -57,7 +57,8 @@ function createProxy() {
       return;
     }
 
-    const upstreamUrl = config.baseUrl.replace(/\/$/, '') + req.url;
+    const upstreamBase = config.chatUrl || config.baseUrl;
+    const upstreamUrl = upstreamBase.replace(/\/$/, '') + req.url;
     const headers = { ...req.headers };
 
     // 清除代理相关头
@@ -78,7 +79,7 @@ function createProxy() {
       delete headers['content-length'];
     }
 
-    proxyLog(`${req.method} ${req.url} → ${config.baseUrl.replace(/\/\/.*@/, '//***@')}`);
+    proxyLog(`${req.method} ${req.url} → ${upstreamBase.replace(/\/\/.*@/, '//***@')}`);
 
     try {
       const fetchOptions = {

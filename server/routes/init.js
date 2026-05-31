@@ -46,9 +46,9 @@ function writeConfig(cfg) {
 
 function readProviderConfig() {
   try {
-    if (!fs.existsSync(PROVIDER_CONFIG_FILE)) return { apiKey: '', baseUrl: '', model: '', haikuModel: '', sonnetModel: '', opusModel: '' };
+    if (!fs.existsSync(PROVIDER_CONFIG_FILE)) return { apiKey: '', baseUrl: '', chatUrl: '', model: '', haikuModel: '', sonnetModel: '', opusModel: '' };
     return JSON.parse(fs.readFileSync(PROVIDER_CONFIG_FILE, 'utf8'));
-  } catch { return { apiKey: '', baseUrl: '', model: '', haikuModel: '', sonnetModel: '', opusModel: '' }; }
+  } catch { return { apiKey: '', baseUrl: '', chatUrl: '', model: '', haikuModel: '', sonnetModel: '', opusModel: '' }; }
 }
 
 function writeProviderConfig(cfg) {
@@ -270,6 +270,7 @@ router.get('/init/provider-config', (_req, res) => {
   res.json({
     apiKey: cfg.apiKey || '',
     baseUrl: cfg.baseUrl || '',
+    chatUrl: cfg.chatUrl || '',
     model: cfg.model || '',
     haikuModel: cfg.haikuModel || '',
     sonnetModel: cfg.sonnetModel || '',
@@ -280,12 +281,13 @@ router.get('/init/provider-config', (_req, res) => {
 
 // Save provider config
 router.post('/init/provider-config', (req, res) => {
-  const { apiKey, baseUrl, model, haikuModel, sonnetModel, opusModel } = req.body || {};
+  const { apiKey, baseUrl, chatUrl, model, haikuModel, sonnetModel, opusModel } = req.body || {};
   const cfg = readProviderConfig();
 
   // Only update provided fields (allows partial updates)
   if (apiKey !== undefined) cfg.apiKey = apiKey;
   if (baseUrl !== undefined) cfg.baseUrl = baseUrl;
+  if (chatUrl !== undefined) cfg.chatUrl = chatUrl;
   if (model !== undefined) cfg.model = model;
   if (haikuModel !== undefined) cfg.haikuModel = haikuModel;
   if (sonnetModel !== undefined) cfg.sonnetModel = sonnetModel;

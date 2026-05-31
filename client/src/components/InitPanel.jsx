@@ -30,6 +30,7 @@ export default function InitPanel() {
   const [providerLoading, setProviderLoading] = useState(true);
   const [editApiKey, setEditApiKey] = useState('');
   const [editBaseUrl, setEditBaseUrl] = useState('');
+  const [editChatUrl, setEditChatUrl] = useState('');
   const [editModel, setEditModel] = useState('');
   const [pulledModels, setPulledModels] = useState(null);
   const [fetchingModels, setFetchingModels] = useState(false);
@@ -50,6 +51,7 @@ export default function InitPanel() {
     getProviderConfig().then(d => {
       setProviderConfig(d);
       setEditBaseUrl(d.baseUrl || 'https://api.anthropic.com');
+      setEditChatUrl(d.chatUrl || '');
       setEditModel(d.model || '');
       setEditApiKey(d.apiKey || '');
       setProviderLoading(false);
@@ -200,7 +202,7 @@ export default function InitPanel() {
 
     // 1. Save provider config (API Key, Base URL, Model)
     try {
-      const body = { baseUrl: editBaseUrl, model: editModel };
+      const body = { baseUrl: editBaseUrl, chatUrl: editChatUrl, model: editModel };
       if (editApiKey) body.apiKey = editApiKey;
       await saveProviderConfig(body);
     } catch {}
@@ -373,6 +375,20 @@ export default function InitPanel() {
               placeholder="https://api.anthropic.com"
               style={{ flex: 1, fontSize: 13 }} />
           </div>
+          <details className="init-advanced" style={{ marginBottom: 10 }}>
+            <summary style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>
+              ▶ 高级选项 {editChatUrl ? '(已配置)' : ''}
+            </summary>
+            <div className="init-config-row" style={{ marginTop: 8 }}>
+              <label>Anthropic 聊天地址</label>
+              <input type="text" value={editChatUrl} onChange={e => setEditChatUrl(e.target.value)}
+                placeholder="留空则跟随 Base URL"
+                style={{ flex: 1, fontSize: 13 }} />
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+              部分厂商（如 DeepSeek）模型列表和聊天 API 路径不同，聊天使用 Anthropic 兼容格式需在此填写完整地址
+            </div>
+          </details>
           <div className="init-config-row">
             <label>默认模型</label>
             <div style={{ display: 'flex', gap: 6, flex: 1 }}>
