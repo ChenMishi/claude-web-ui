@@ -417,3 +417,13 @@ export async function switchModel(model) {
 export async function restartServer() {
   return fetchJSON('/restart', { method: 'POST' });
 }
+
+// Stats
+export async function getStatsSummary(params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  return fetchJSON(`/stats/summary${qs ? '?' + qs : ''}`);
+}
+export async function getStatsUsage(params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  return fetchJSON(`/stats/usage${qs ? '?' + qs : ''}`);
+}

@@ -4,6 +4,7 @@ import { getUsers, createUser, deleteUser, getPricing, savePricing } from '../ap
 import VersionCard from './VersionCard';
 import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
+import StatsPanel from './StatsPanel';
 
 export default function SettingsPanel() {
   const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId, user,
@@ -80,6 +81,7 @@ export default function SettingsPanel() {
         )}
         <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}>🔧 初始化</button>
         <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}>📋 日志</button>
+        <button className={settingsTab === 'stats' ? 'active' : ''} onClick={() => setSettingsTab('stats')}>📊 统计</button>
         <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => setSettingsTab('upgrade')}>🔄 升级</button>
       </div>
 
@@ -239,6 +241,8 @@ export default function SettingsPanel() {
         <InitPanel />
       ) : settingsTab === 'upgrade' ? (
         <VersionCard />
+      ) : settingsTab === 'stats' ? (
+        <StatsPanel />
       ) : (
         <LogPanel />
       )}

@@ -1,0 +1,21 @@
+{
+  "models": {
+    "deepseek-v4-pro": {
+      "input": 3,
+      "output": 6,
+      "cacheInput": 0.025
+    },
+    "Qwen3.5-35B-A3B": {
+      "input": 0,
+      "output": 0,
+      "cacheInput": 0,
+      "cacheOutput": 0
+    },
+    "Qwen3.6-35B-A3B": {
+      "input": 0,
+      "output": 0,
+      "cacheInput": 0,
+      "cacheOutput": 0
+    }
+  }
+}

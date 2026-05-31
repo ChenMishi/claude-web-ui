@@ -2,7 +2,7 @@ const { Router } = require('express');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR, getUserDataDir } = require('../config');
+const { CLAUDE_PROJECTS_DIR, SESSIONS_DIR, STATS_DIR, getUserDataDir } = require('../config');
 
 // 从 init-config.json 读取代理地址，默认 127.0.0.1:15721
 function getProxyUrl() {
@@ -812,6 +812,31 @@ router.post('/session/:id/message', async (req, res) => {
         tokens: result?.tokens,
         currency: result?.currency,
       });
+
+      // Write stats record
+      try {
+        if (result?.tokens && result?.cost != null && runtime.sessionId) {
+          if (!fs.existsSync(STATS_DIR)) fs.mkdirSync(STATS_DIR, { recursive: true });
+          const now = new Date();
+          const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+          const statsFile = path.join(STATS_DIR, `${ym}.jsonl`);
+          const record = JSON.stringify({
+            t: now.toISOString(),
+            userId: req.user?.id,
+            username: req.user?.username || 'anonymous',
+            model: runtime.model || 'unknown',
+            sessionId: runtime.sessionId,
+            input: result.tokens.input || 0,
+            output: result.tokens.output || 0,
+            cacheRead: result.tokens.cache?.read || 0,
+            cacheWrite: result.tokens.cache?.write || 0,
+            cost: result.cost,
+            currency: result.currency || '$',
+          }) + '\n';
+          fs.appendFileSync(statsFile, record);
+        }
+      } catch {}
+
     } else {
       // Blocking mode — return all messages
       res.json({
