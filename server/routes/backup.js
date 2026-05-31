@@ -3,7 +3,14 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
-const multer = require('multer');
+
+// multer is lazy-loaded in the restore route — avoids crashing startup
+// if the dependency is missing (user forgot npm install after upgrade)
+let _multer = null;
+function getMulter() {
+  if (!_multer) _multer = require('multer');
+  return _multer;
+}
 
 const router = Router();
 const PROJECT_DIR = path.resolve(__dirname, '..', '..');
@@ -150,8 +157,27 @@ router.delete('/backup/:filename', (req, res) => {
 });
 
 // POST /api/backup/restore — multipart upload
-const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 500 * 1024 * 1024 } });
-router.post('/backup/restore', upload.single('file'), (req, res) => {
+let _restoreHandler = null;
+function getRestoreHandler() {
+  if (!_restoreHandler) {
+    const multer = getMulter();
+    const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 500 * 1024 * 1024 } });
+    _restoreHandler = upload.single('file');
+  }
+  return _restoreHandler;
+}
+
+router.post('/backup/restore', (req, res, next) => {
+  try {
+    // multer may fail if dependency not installed
+    getRestoreHandler()(req, res, err => {
+      if (err) return res.status(500).json({ error: `上传处理失败: ${err.message}` });
+      next();
+    });
+  } catch (err) {
+    return res.status(500).json({ error: `缺少依赖(multer)，请运行 npm install 或使用 deploy.sh 部署` });
+  }
+}, (req, res) => {
   if (!req.file) return res.status(400).json({ error: '请上传备份文件' });
 
   const tmpDir = path.join(os.tmpdir(), `claude-restore-${Date.now()}`);
