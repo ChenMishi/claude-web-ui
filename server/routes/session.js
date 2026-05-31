@@ -140,14 +140,16 @@ function handleSDKMessage(message, runtime, isStreaming) {
         if (fs.existsSync(pricingFile)) {
           const pricing = JSON.parse(fs.readFileSync(pricingFile, 'utf8'));
           const modelPricing = pricing.models?.[runtime.model];
-          if (modelPricing) {
-            const { input: ip, output: op, cacheInput: crp, cacheOutput: cwp } = modelPricing;
-            cost = ((sdkTokens.input * (ip || 0))
-                  + (sdkTokens.output * (op || 0))
-                  + (sdkTokens.cache.read * (crp || 0))
-                  + (sdkTokens.cache.write * (cwp || 0))) / 1_000_000;
-            currency = '¥';
-          }
+          // Always use custom pricing if config exists — unconfigured models default to 0
+          const ip = modelPricing?.input || 0;
+          const op = modelPricing?.output || 0;
+          const crp = modelPricing?.cacheInput || 0;
+          const cwp = modelPricing?.cacheOutput || 0;
+          cost = ((sdkTokens.input * ip)
+                + (sdkTokens.output * op)
+                + (sdkTokens.cache.read * crp)
+                + (sdkTokens.cache.write * cwp)) / 1_000_000;
+          currency = '¥';
         }
       } catch {}
 
