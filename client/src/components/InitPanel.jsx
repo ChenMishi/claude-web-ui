@@ -395,12 +395,18 @@ export default function InitPanel() {
           <div className="init-sub-header" style={{ marginTop: 16 }}>🌐 代理地址</div>
           <div className="init-config-row">
             <label>代理地址</label>
-            <div style={{ display: 'flex', gap: 6, flex: 1 }}>
-              <input type="text" value={editProxyHost} onChange={e => setEditProxyHost(e.target.value)}
-                placeholder="127.0.0.1" style={{ flex: 1, fontSize: 13 }} />
-              <span style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center' }}>:</span>
-              <input type="text" value={editProxyPort} onChange={e => setEditProxyPort(e.target.value.replace(/\D/g, ''))}
-                placeholder="15721" style={{ width: 80, fontSize: 13 }} maxLength={5} />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>IP地址</span>
+                <input type="text" value={editProxyHost} onChange={e => setEditProxyHost(e.target.value)}
+                  placeholder="127.0.0.1" style={{ width: 140, fontSize: 13 }} />
+              </div>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)', paddingBottom: 4 }}>:</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>端口</span>
+                <input type="text" value={editProxyPort} onChange={e => setEditProxyPort(e.target.value.replace(/\D/g, ''))}
+                  placeholder="15721" style={{ width: 80, fontSize: 13 }} maxLength={5} />
+              </div>
             </div>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0' }}>
