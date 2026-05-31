@@ -10,7 +10,7 @@ export default function SettingsPanel() {
     availableModels, currentModel, switchCurrentModel } = useApp();
   const isAdmin = user?.role === 'admin';
   const project = projects.find(p => p.id === currentProjectId);
-  const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'init' | 'logs' | 'upgrade'
+  const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'users' | 'init' | 'logs' | 'upgrade'
 
   const [users, setUsers] = useState([]);
   const [newUsername, setNewUsername] = useState('');
@@ -41,7 +41,10 @@ export default function SettingsPanel() {
       <h2>⚙ 设置</h2>
 
       <div className="settings-tabs">
-        <button className={settingsTab === 'general' ? 'active' : ''} onClick={() => setSettingsTab('general')}>常规设置</button>
+        <button className={settingsTab === 'general' ? 'active' : ''} onClick={() => setSettingsTab('general')}>⚙ 常规设置</button>
+        {isAdmin && (
+          <button className={settingsTab === 'users' ? 'active' : ''} onClick={() => setSettingsTab('users')}>👥 用户管理</button>
+        )}
         <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}>🔧 初始化</button>
         <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}>📋 日志</button>
         <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => setSettingsTab('upgrade')}>🔄 升级</button>
@@ -49,43 +52,7 @@ export default function SettingsPanel() {
 
       {settingsTab === 'general' ? (
         <>
-          {/* Card 1: 用户管理 */}
-          {isAdmin && (
-            <div className="settings-card">
-              <div className="settings-card-header">👥 用户管理</div>
-              <div className="settings-card-body">
-                {users.length > 0 && (
-                  <table className="settings-table">
-                    <thead><tr><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
-                    <tbody>
-                      {users.map(u => (
-                        <tr key={u.id}>
-                          <td>{u.username}</td>
-                          <td>{u.role === 'admin' ? '管理员' : '用户'}</td>
-                          <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString('zh-CN') : '-'}</td>
-                          <td>{u.id !== user?.id && <button className="user-mgmt-del-btn" onClick={() => handleDeleteUser(u.id)}>删除</button>}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                <div className="settings-add-user">
-                  <input type="text" placeholder="用户名" value={newUsername} onChange={e => setNewUsername(e.target.value)} />
-                  <input type="password" placeholder="密码" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
-                  <select value={newRole} onChange={e => setNewRole(e.target.value)}>
-                    <option value="user">普通用户</option>
-                    <option value="admin">管理员</option>
-                  </select>
-                  <button className="user-mgmt-add-btn" onClick={handleCreateUser} disabled={mgmtLoading}>
-                    {mgmtLoading ? '创建中...' : '创建用户'}
-                  </button>
-                </div>
-                {mgmtError && <div className="user-mgmt-error">{mgmtError}</div>}
-              </div>
-            </div>
-          )}
-
-          {/* Card 2: 对话设置 */}
+          {/* Card: 对话设置 */}
           <div className="settings-card">
             <div className="settings-card-header">💬 对话设置</div>
             <div className="settings-card-body">
@@ -119,7 +86,7 @@ export default function SettingsPanel() {
             </div>
           </div>
 
-          {/* Card 4: 系统信息 */}
+          {/* Card: 系统信息 */}
           <div className="settings-card">
             <div className="settings-card-header">📊 系统信息</div>
             <div className="settings-card-body">
@@ -142,6 +109,39 @@ export default function SettingsPanel() {
             </div>
           </div>
         </>
+      ) : settingsTab === 'users' ? (
+        <div className="settings-card">
+          <div className="settings-card-header">👥 用户管理</div>
+          <div className="settings-card-body">
+            {users.length > 0 && (
+              <table className="settings-table">
+                <thead><tr><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
+                <tbody>
+                  {users.map(u => (
+                    <tr key={u.id}>
+                      <td>{u.username}</td>
+                      <td>{u.role === 'admin' ? '管理员' : '用户'}</td>
+                      <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString('zh-CN') : '-'}</td>
+                      <td>{u.id !== user?.id && <button className="user-mgmt-del-btn" onClick={() => handleDeleteUser(u.id)}>删除</button>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="settings-add-user">
+              <input type="text" placeholder="用户名" value={newUsername} onChange={e => setNewUsername(e.target.value)} />
+              <input type="password" placeholder="密码" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
+              <select value={newRole} onChange={e => setNewRole(e.target.value)}>
+                <option value="user">普通用户</option>
+                <option value="admin">管理员</option>
+              </select>
+              <button className="user-mgmt-add-btn" onClick={handleCreateUser} disabled={mgmtLoading}>
+                {mgmtLoading ? '创建中...' : '创建用户'}
+              </button>
+            </div>
+            {mgmtError && <div className="user-mgmt-error">{mgmtError}</div>}
+          </div>
+        </div>
       ) : settingsTab === 'init' ? (
         <InitPanel />
       ) : settingsTab === 'upgrade' ? (
