@@ -393,8 +393,7 @@ export default function InitPanel() {
 
           {/* ── 代理地址 ── */}
           <div className="init-sub-header" style={{ marginTop: 16 }}>🌐 代理地址</div>
-          <div className="init-config-row">
-            <label>代理地址</label>
+          <div style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>IP地址</span>
