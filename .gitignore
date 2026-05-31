@@ -18,3 +18,4 @@ logs/
 
 # 二进制包
 packages/*.deb
+stats/
