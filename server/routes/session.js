@@ -141,7 +141,7 @@ function handleSDKMessage(message, runtime, isStreaming) {
           const pricing = JSON.parse(fs.readFileSync(pricingFile, 'utf8'));
           const modelPricing = pricing.models?.[runtime.model];
           if (modelPricing) {
-            const { input: ip, output: op, cacheRead: crp, cacheWrite: cwp } = modelPricing;
+            const { input: ip, output: op, cacheInput: crp, cacheOutput: cwp } = modelPricing;
             cost = ((sdkTokens.input * (ip || 0))
                   + (sdkTokens.output * (op || 0))
                   + (sdkTokens.cache.read * (crp || 0))

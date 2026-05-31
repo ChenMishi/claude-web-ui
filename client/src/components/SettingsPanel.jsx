@@ -43,8 +43,8 @@ export default function SettingsPanel() {
         const p = {};
         if (prices.input || prices.input === 0) p.input = prices.input;
         if (prices.output || prices.output === 0) p.output = prices.output;
-        if (prices.cacheRead || prices.cacheRead === 0) p.cacheRead = prices.cacheRead;
-        if (prices.cacheWrite || prices.cacheWrite === 0) p.cacheWrite = prices.cacheWrite;
+        if (prices.cacheInput || prices.cacheInput === 0) p.cacheInput = prices.cacheInput;
+        if (prices.cacheOutput || prices.cacheOutput === 0) p.cacheOutput = prices.cacheOutput;
         if (Object.keys(p).length > 0) cleaned[model] = p;
       }
       await savePricing(cleaned);
@@ -131,8 +131,8 @@ export default function SettingsPanel() {
                       <th style={{ width: '35%' }}>模型</th>
                       <th>输入价格</th>
                       <th>输出价格</th>
-                      <th>缓存读取</th>
-                      <th>缓存写入</th>
+                      <th>缓存输入</th>
+                      <th>缓存输出</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -140,27 +140,27 @@ export default function SettingsPanel() {
                       <tr key={m}>
                         <td className="pricing-model-name" title={m}>{m}</td>
                         <td>
-                          <input type="number" step="0.01" min="0" placeholder="—"
+                          <input type="number" step="0.00001" min="0" placeholder="—"
                             value={pricingModels[m]?.input ?? ''}
                             onChange={e => handlePricingChange(m, 'input', e.target.value)}
                             className="pricing-input" />
                         </td>
                         <td>
-                          <input type="number" step="0.01" min="0" placeholder="—"
+                          <input type="number" step="0.00001" min="0" placeholder="—"
                             value={pricingModels[m]?.output ?? ''}
                             onChange={e => handlePricingChange(m, 'output', e.target.value)}
                             className="pricing-input" />
                         </td>
                         <td>
-                          <input type="number" step="0.01" min="0" placeholder="—"
-                            value={pricingModels[m]?.cacheRead ?? ''}
-                            onChange={e => handlePricingChange(m, 'cacheRead', e.target.value)}
+                          <input type="number" step="0.00001" min="0" placeholder="—"
+                            value={pricingModels[m]?.cacheInput ?? ''}
+                            onChange={e => handlePricingChange(m, 'cacheInput', e.target.value)}
                             className="pricing-input" />
                         </td>
                         <td>
-                          <input type="number" step="0.01" min="0" placeholder="—"
-                            value={pricingModels[m]?.cacheWrite ?? ''}
-                            onChange={e => handlePricingChange(m, 'cacheWrite', e.target.value)}
+                          <input type="number" step="0.00001" min="0" placeholder="—"
+                            value={pricingModels[m]?.cacheOutput ?? ''}
+                            onChange={e => handlePricingChange(m, 'cacheOutput', e.target.value)}
                             className="pricing-input" />
                         </td>
                       </tr>
