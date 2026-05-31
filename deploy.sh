@@ -249,9 +249,9 @@ install_node() {
 # ---------- 安装项目依赖 ----------
 install_deps() {
     cd "$PROJECT_DIR"
-    npm install --production
-    npm rebuild node-pty bcrypt || echo "注意: 部分原生模块编译失败，终端功能可能不可用"
-    cd client && npm install
+    npm install --production --registry=https://registry.npmmirror.com
+    npm rebuild node-pty bcrypt --registry=https://registry.npmmirror.com || echo "注意: 部分原生模块编译失败，终端功能可能不可用"
+    cd client && npm install --registry=https://registry.npmmirror.com
     cd "$PROJECT_DIR"
 }
 
