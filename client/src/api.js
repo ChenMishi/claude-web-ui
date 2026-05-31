@@ -88,6 +88,7 @@ export async function fetchJSON(url, opts = {}) {
 // Projects
 export const getProjects = () => fetchJSON('/project');
 export const getDirs = (path) => fetchJSON(`/fs/dirs?path=${encodeURIComponent(path)}`);
+export const listDir = (p) => fetchJSON(`/fs/list?path=${encodeURIComponent(p || '/')}`);
 export const mkdir = (path, name) => fetchJSON('/fs/mkdir', { method: 'POST', body: JSON.stringify({ path, name }) });
 export const linkProject = (cwd) => fetchJSON('/project/link', { method: 'POST', body: JSON.stringify({ cwd }) });
 export const unlinkProject = (id) => fetchJSON(`/project/${id}`, { method: 'DELETE' });

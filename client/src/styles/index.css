@@ -3350,13 +3350,75 @@ html, body, #root {
 [data-theme="dark"] { --chart-grid: rgba(255, 255, 255, 0.08); }
 
 /* ── Backup Card ── */
+.backup-path-row { display: flex; gap: 8px; flex: 1; }
+.backup-path-input { flex: 1; }
 .backup-name-cell {
   font-size: 12px; font-family: var(--font-mono); color: var(--text-primary);
   max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .backup-msg { font-size: 12px; }
+.backup-divider {
+  margin: 18px 0 14px;
+  border-top: 1px solid var(--glass-border);
+}
 .backup-hint {
   margin-top: 14px; padding-top: 12px;
   border-top: 1px solid var(--glass-border);
   font-size: 11px; color: var(--text-muted); line-height: 1.5;
+}
+
+/* ── Directory Picker Modal ── */
+.dir-picker-backdrop {
+  position: fixed; inset: 0; z-index: 400;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.dir-picker-modal {
+  width: 480px; max-width: 90vw; max-height: 70vh;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.dir-picker-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px;
+  font-size: 15px; font-weight: 500; color: var(--text-primary);
+}
+.dir-picker-path {
+  padding: 8px 20px;
+  font-size: 12px; color: var(--text-muted);
+  display: flex; gap: 6px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.dir-picker-path-label { flex-shrink: 0; }
+.dir-picker-path-value {
+  font-family: var(--font-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dir-picker-list {
+  flex: 1; overflow-y: auto; padding: 8px;
+  min-height: 120px; max-height: 300px;
+}
+.dir-picker-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 8px;
+  cursor: pointer; transition: background 0.15s;
+  font-size: 13px; color: var(--text-primary);
+}
+.dir-picker-item:hover { background: var(--accent-light); }
+.dir-picker-parent { color: var(--text-muted); font-style: italic; }
+.dir-picker-icon { flex-shrink: 0; font-size: 16px; }
+.dir-picker-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dir-picker-loading, .dir-picker-error, .dir-picker-empty {
+  text-align: center; padding: 32px 0;
+  font-size: 13px; color: var(--text-muted);
+}
+.dir-picker-error { color: var(--danger); }
+.dir-picker-actions {
+  display: flex; gap: 8px; justify-content: flex-end;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--glass-border);
 }

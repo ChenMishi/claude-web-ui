@@ -1,11 +1,77 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getBackupList, createBackup, deleteBackup, getBackupConfig, saveBackupConfig, restoreBackup, getBackupDownloadUrl } from '../api';
+import { listDir } from '../api';
 
 function formatSize(bytes) {
   if (!bytes) return '—';
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function DirPicker({ value, onSelect, onClose }) {
+  const [cwd, setCwd] = useState(value || '/');
+  const [dirs, setDirs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadDir = useCallback(async (p) => {
+    setLoading(true); setError('');
+    try {
+      const data = await listDir(p);
+      setCwd(data.path);
+      setDirs(data.dirs || []);
+      // Also allow navigating up
+      if (data.path !== '/') {
+        const parent = data.path.split('/').slice(0, -1).join('/') || '/';
+        setDirs(prev => [{ name: '..', path: parent, isParent: true }, ...prev]);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadDir(cwd); }, [cwd, loadDir]);
+
+  return (
+    <div className="dir-picker-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="dir-picker-modal">
+        <div className="dir-picker-header">
+          <span>📁 选择备份目录</span>
+          <button className="profile-close-btn" onClick={onClose}>✕</button>
+        </div>
+        <div className="dir-picker-path">
+          <span className="dir-picker-path-label">当前路径:</span>
+          <span className="dir-picker-path-value">{cwd}</span>
+        </div>
+        <div className="dir-picker-list">
+          {loading ? (
+            <div className="dir-picker-loading">加载中...</div>
+          ) : error ? (
+            <div className="dir-picker-error">{error}</div>
+          ) : dirs.length === 0 ? (
+            <div className="dir-picker-empty">此目录为空</div>
+          ) : (
+            dirs.map(d => (
+              <div
+                key={d.path}
+                className={`dir-picker-item ${d.isParent ? 'dir-picker-parent' : ''}`}
+                onClick={() => setCwd(d.path)}
+              >
+                <span className="dir-picker-icon">{d.isParent ? '📂 ..' : '📁'}</span>
+                <span className="dir-picker-name">{d.name}</span>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="dir-picker-actions">
+          <button className="init-btn" onClick={onClose}>取消</button>
+          <button className="init-btn init-btn-save" onClick={() => { onSelect(cwd); onClose(); }}>选择此目录</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function BackupCard() {
@@ -17,6 +83,7 @@ export default function BackupCard() {
   const [saveMsg, setSaveMsg] = useState('');
   const [restoreMsg, setRestoreMsg] = useState('');
   const [restoring, setRestoring] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const fileInputRef = useRef(null);
 
   const loadData = async () => {
@@ -60,7 +127,6 @@ export default function BackupCard() {
     const headers = {};
     const token = localStorage.getItem('claude-ui:accessToken');
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    // Use fetch to get blob with auth headers, then trigger download
     fetch(url, { headers })
       .then(res => {
         if (!res.ok) throw new Error('下载失败');
@@ -86,6 +152,7 @@ export default function BackupCard() {
     try {
       await saveBackupConfig(config);
       setSaveMsg('✅ 配置已保存');
+      loadData();
       setTimeout(() => setSaveMsg(''), 3000);
     } catch (err) {
       setSaveMsg(`❌ 保存失败: ${err.message}`);
@@ -109,97 +176,103 @@ export default function BackupCard() {
   };
 
   return (
-    <>
-      <div className="settings-card">
-        <div className="settings-card-header">💾 备份配置</div>
-        <div className="settings-card-body">
-          <div className="settings-row">
-            <label>备份目录</label>
+    <div className="settings-card">
+      <div className="settings-card-header">💾 备份 & 还原</div>
+      <div className="settings-card-body">
+        {/* Config row */}
+        <div className="settings-row">
+          <label>备份目录</label>
+          <div className="backup-path-row">
             <input type="text" value={config.path || ''} onChange={e => setConfig({ ...config, path: e.target.value })}
-              placeholder={backupPath || '默认: ~/.claude-web-ui/backups'} />
-          </div>
-          <div className="settings-row">
-            <label>自动备份</label>
-            <select value={config.frequency || 'manual'} onChange={e => setConfig({ ...config, frequency: e.target.value })}>
-              <option value="manual">手动</option>
-              <option value="hourly">每小时</option>
-              <option value="daily">每天</option>
-              <option value="weekly">每周</option>
-            </select>
-          </div>
-          <div className="settings-row">
-            <label>最大备份数</label>
-            <input type="number" min="1" max="100" value={config.maxBackups || 3}
-              onChange={e => setConfig({ ...config, maxBackups: parseInt(e.target.value) || 3 })} />
-          </div>
-          <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="init-btn init-btn-save" onClick={handleConfigSave}>保存配置</button>
-            {saveMsg && (
-              <span className="backup-msg" style={{ color: saveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{saveMsg}</span>
-            )}
+              placeholder={backupPath || '默认: ~/.claude-web-ui/backups'} className="backup-path-input" />
+            <button className="init-btn" onClick={() => setShowPicker(true)}>📂 选择</button>
           </div>
         </div>
-      </div>
-
-      <div className="settings-card">
-        <div className="settings-card-header">📦 备份管理</div>
-        <div className="settings-card-body">
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-            <button className="init-btn init-btn-save" onClick={handleCreate} disabled={loading}>
-              {loading ? '创建中...' : '➕ 创建备份'}
-            </button>
-            <button className="init-btn" onClick={() => fileInputRef.current?.click()} disabled={restoring} style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
-              {restoring ? '还原中...' : '📥 还原备份'}
-            </button>
-            <input ref={fileInputRef} type="file" accept=".tar.gz" style={{ display: 'none' }} onChange={handleRestore} />
-            {msg && (
-              <span className="backup-msg" style={{ color: msg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{msg}</span>
-            )}
-          </div>
-          {restoreMsg && (
-            <div className="backup-msg" style={{
-              marginBottom: 12, padding: '8px 12px', borderRadius: 6, fontSize: 12,
-              color: restoreMsg.includes('✅') ? 'var(--success)' : 'var(--danger)',
-              background: restoreMsg.includes('✅') ? 'rgba(76,175,80,0.1)' : 'var(--danger-bg)',
-            }}>{restoreMsg}</div>
+        {showPicker && (
+          <DirPicker
+            value={config.path || backupPath || '/'}
+            onSelect={(p) => setConfig({ ...config, path: p })}
+            onClose={() => setShowPicker(false)}
+          />
+        )}
+        <div className="settings-row">
+          <label>自动备份</label>
+          <select value={config.frequency || 'manual'} onChange={e => setConfig({ ...config, frequency: e.target.value })}>
+            <option value="manual">手动</option>
+            <option value="hourly">每小时</option>
+            <option value="daily">每天</option>
+            <option value="weekly">每周</option>
+          </select>
+        </div>
+        <div className="settings-row">
+          <label>最大备份数</label>
+          <input type="number" min="1" max="100" value={config.maxBackups || 3} style={{ width: 100 }}
+            onChange={e => setConfig({ ...config, maxBackups: parseInt(e.target.value) || 3 })} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="init-btn init-btn-save" onClick={handleConfigSave}>保存配置</button>
+          {saveMsg && (
+            <span className="backup-msg" style={{ color: saveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{saveMsg}</span>
           )}
+        </div>
 
-          {backups.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '16px 0', textAlign: 'center' }}>
-              暂无备份文件，点击「创建备份」生成第一个备份
-            </div>
-          ) : (
-            <table className="settings-table">
-              <thead>
-                <tr>
-                  <th>文件名</th>
-                  <th>大小</th>
-                  <th>操作</th>
+        {/* Divider */}
+        <div className="backup-divider" />
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="init-btn init-btn-save" onClick={handleCreate} disabled={loading}>
+            {loading ? '创建中...' : '➕ 创建备份'}
+          </button>
+          <button className="init-btn" onClick={() => fileInputRef.current?.click()} disabled={restoring}
+            style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
+            {restoring ? '还原中...' : '📥 还原备份'}
+          </button>
+          <input ref={fileInputRef} type="file" accept=".tar.gz" style={{ display: 'none' }} onChange={handleRestore} />
+          {msg && (
+            <span className="backup-msg" style={{ color: msg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{msg}</span>
+          )}
+        </div>
+        {restoreMsg && (
+          <div style={{
+            marginTop: 8, padding: '8px 12px', borderRadius: 6, fontSize: 12,
+            color: restoreMsg.includes('✅') ? 'var(--success)' : 'var(--danger)',
+            background: restoreMsg.includes('✅') ? 'rgba(76,175,80,0.1)' : 'var(--danger-bg)',
+          }}>{restoreMsg}</div>
+        )}
+
+        {/* Backup list */}
+        {backups.length > 0 && (
+          <table className="settings-table" style={{ marginTop: 16 }}>
+            <thead>
+              <tr>
+                <th>文件名</th>
+                <th>大小</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {backups.map(b => (
+                <tr key={b.name}>
+                  <td className="backup-name-cell" title={b.name}>{b.name}</td>
+                  <td>{formatSize(b.size)}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="user-mgmt-del-btn" onClick={() => handleDownload(b.name)}
+                        style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>下载</button>
+                      <button className="user-mgmt-del-btn" onClick={() => handleDelete(b.name)}>删除</button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {backups.map(b => (
-                  <tr key={b.name}>
-                    <td className="backup-name-cell" title={b.name}>{b.name}</td>
-                    <td>{formatSize(b.size)}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="user-mgmt-del-btn" onClick={() => handleDownload(b.name)}
-                          style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>下载</button>
-                        <button className="user-mgmt-del-btn" onClick={() => handleDelete(b.name)}>删除</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+              ))}
+            </tbody>
+          </table>
+        )}
 
-          <div className="backup-hint">
-            💡 备份包含：Provider 配置、初始化配置、定价配置、用户数据、统计、Skills、会话数据。还原后需重启服务生效。
-          </div>
+        <div className="backup-hint">
+          💡 备份包含：Provider 配置、初始化配置、定价配置、用户数据、统计、Skills、会话数据。还原后需重启服务生效。
         </div>
       </div>
-    </>
+    </div>
   );
 }
