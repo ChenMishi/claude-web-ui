@@ -61,8 +61,11 @@ router.get('/fs/list', requireAuth, (req, res) => {
 router.post('/fs/upload', requireAuth, (req, res, next) => {
   upload.single('file')(req, res, err => {
     if (err) {
-      console.log('[fs/upload] multer 错误:', err.message, '| code:', err.code, '| Content-Type:', req.headers['content-type']);
-      return res.status(400).json({ error: `上传处理失败: ${err.message}`, code: err.code });
+      return res.status(400).json({
+        error: `上传处理失败: ${err.message}`,
+        code: err.code,
+        debug: { contentType: req.headers['content-type'], multerCode: err.code },
+      });
     }
     next();
   });
@@ -71,7 +74,10 @@ router.post('/fs/upload', requireAuth, (req, res, next) => {
     const { dir } = req.body;
     const file = req.file;
     if (!dir || !file) {
-      return res.status(400).json({ error: '缺少参数: dir, file' });
+      return res.status(400).json({
+        error: '缺少参数: dir, file',
+        debug: { hasDir: !!dir, dirVal: dir, hasFile: !!file, contentType: req.headers['content-type'] },
+      });
     }
     const targetDir = path.resolve(dir);
     if (!fs.existsSync(targetDir)) {
