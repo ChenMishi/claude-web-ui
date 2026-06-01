@@ -673,7 +673,6 @@ html, body, #root {
 
 .theme-slider-btn.active {
   color: #fff !important;
-  font-weight: 600;
   z-index: 2;
 }
 
