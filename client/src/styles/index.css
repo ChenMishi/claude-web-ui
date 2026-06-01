@@ -3446,6 +3446,62 @@ html, body, #root {
 }
 
 /* ── Restore Confirm & Progress Modal ── */
+/* ==========================================
+   Confirm dialog (reusable, same visual as restore-confirm)
+   ========================================== */
+.confirm-backdrop {
+  position: fixed; inset: 0; z-index: 450;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+.confirm-dialog {
+  width: 420px; max-width: 90vw;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 32px 28px 24px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+.confirm-dialog-icon { font-size: 40px; margin-bottom: 10px; }
+.confirm-dialog-title { font-size: 17px; color: var(--text-primary); margin: 0 0 8px; font-weight: 600; }
+.confirm-dialog-name {
+  font-size: 13px; color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin: 0 0 14px;
+  word-break: break-all;
+  padding: 6px 12px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+}
+.confirm-dialog-warn {
+  font-size: 13px; color: var(--text-muted);
+  line-height: 1.6; margin: 0 0 18px;
+}
+.confirm-dialog-actions {
+  display: flex; gap: 10px; justify-content: center;
+}
+.confirm-dialog-actions .cancel-btn,
+.confirm-dialog-actions .danger-btn {
+  padding: 8px 24px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  font-weight: 500;
+}
+.confirm-dialog-actions .cancel-btn {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+}
+.confirm-dialog-actions .cancel-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.confirm-dialog-actions .danger-btn {
+  background: var(--danger);
+  color: #fff;
+}
+.confirm-dialog-actions .danger-btn:hover { background: #e55; }
+
 .restore-confirm-backdrop {
   position: fixed; inset: 0; z-index: 450;
   display: flex; align-items: center; justify-content: center;

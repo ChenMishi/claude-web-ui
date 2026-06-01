@@ -22,6 +22,7 @@ export default function FileBrowser() {
   const [showNewFile, setShowNewFile] = useState(false);
   const [msg, setMsg] = useState('');
   const [showTransfer, setShowTransfer] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null); // { type, path, name }
   const editRef = useRef(null);
   const lastClickRef = useRef(0);
 
@@ -122,7 +123,13 @@ export default function FileBrowser() {
   };
 
   const handleDelete = async (item) => {
-    if (!confirm(`确定删除 ${item.name}？`)) return;
+    setConfirmDelete(item);
+  };
+
+  const handleConfirmDelete = async () => {
+    const item = confirmDelete;
+    if (!item) return;
+    setConfirmDelete(null);
     try {
       await deleteFileOrDir(item.path);
       setMsg('✅ 已删除');
@@ -287,6 +294,22 @@ export default function FileBrowser() {
         )}
       </div>
       {showTransfer && <FileTransfer onClose={() => setShowTransfer(false)} />}
+
+      {/* Delete confirmation dialog */}
+      {confirmDelete && (
+        <div className="confirm-backdrop" onClick={() => setConfirmDelete(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-dialog-icon">⚠️</div>
+            <div className="confirm-dialog-title">确认删除</div>
+            <div className="confirm-dialog-name">{confirmDelete.name}</div>
+            <div className="confirm-dialog-warn">此操作不可撤销，确定要删除吗？</div>
+            <div className="confirm-dialog-actions">
+              <button className="cancel-btn" onClick={() => setConfirmDelete(null)}>取消</button>
+              <button className="danger-btn" onClick={handleConfirmDelete}>确认删除</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
