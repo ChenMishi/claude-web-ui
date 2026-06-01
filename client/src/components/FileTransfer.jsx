@@ -461,7 +461,7 @@ export default function FileTransfer({ onClose }) {
             ))}
             {/* 传输统计汇总 */}
             {totalTransfers > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0 0', fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', marginTop: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0 0', fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', marginTop: 6, position: 'sticky', bottom: 0, background: 'var(--bg-primary)', zIndex: 1 }}>
                 <span>共 {totalTransfers} 个文件</span>
                 {doneTransfers > 0 && <span style={{ color: 'var(--success)' }}>✓ {doneTransfers} 完成</span>}
                 {errorTransfers > 0 && <span style={{ color: 'var(--danger)' }}>✗ {errorTransfers} 失败</span>}
