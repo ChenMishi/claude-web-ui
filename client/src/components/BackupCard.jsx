@@ -117,6 +117,8 @@ export default function BackupCard() {
   const [restoreMsg, setRestoreMsg] = useState('');
   const [restoring, setRestoring] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const [confirmFile, setConfirmFile] = useState(null);
+  const [restoreProgress, setRestoreProgress] = useState('');
   const fileInputRef = useRef(null);
 
   const loadData = async () => {
@@ -192,20 +194,34 @@ export default function BackupCard() {
     }
   };
 
-  const handleRestore = async (e) => {
+  const handleRestore = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setConfirmFile(file);
+    e.target.value = '';
+  };
+
+  const handleConfirmRestore = async () => {
+    const file = confirmFile;
+    if (!file) return;
+    setConfirmFile(null);
     setRestoreMsg('');
     setRestoring(true);
+    setRestoreProgress('正在上传并解压备份文件...');
     try {
       const result = await restoreBackup(file);
+      setRestoreProgress('');
       setRestoreMsg(`✅ ${result.message || '备份已还原'}`);
     } catch (err) {
+      setRestoreProgress('');
       setRestoreMsg(`❌ 还原失败: ${err.message}`);
     }
     setRestoring(false);
-    e.target.value = '';
     setTimeout(() => setRestoreMsg(''), 8000);
+  };
+
+  const cancelRestore = () => {
+    setConfirmFile(null);
   };
 
   return (
@@ -306,6 +322,39 @@ export default function BackupCard() {
           💡 备份包含：Provider 配置、初始化配置、定价配置、用户数据、统计、Skills、会话数据。还原后需重启服务生效。
         </div>
       </div>
+
+      {/* Confirmation dialog */}
+      {confirmFile && (
+        <div className="restore-confirm-backdrop" onClick={cancelRestore}>
+          <div className="restore-confirm-modal" onClick={e => e.stopPropagation()}>
+            <div className="restore-confirm-icon">⚠️</div>
+            <h3 className="restore-confirm-title">确认还原备份</h3>
+            <p className="restore-confirm-name">{confirmFile.name} ({formatSize(confirmFile.size)})</p>
+            <p className="restore-confirm-warn">
+              还原将<strong>覆盖当前所有配置</strong>，包括 Provider 设置、定价、用户账号和密码、JWT 密钥等。
+            </p>
+            <p className="restore-confirm-hint">还原完成后需要重启服务才能生效。</p>
+            <div className="restore-confirm-actions">
+              <button className="init-btn" onClick={cancelRestore}>取消</button>
+              <button className="init-btn" onClick={handleConfirmRestore}
+                style={{ background: 'var(--danger)', color: '#fff', border: 'none' }}>
+                确认还原
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Progress overlay */}
+      {restoring && (
+        <div className="restore-confirm-backdrop">
+          <div className="restore-progress-modal">
+            <div className="restore-progress-spinner" />
+            <p className="restore-progress-title">正在还原备份...</p>
+            <p className="restore-progress-hint">{restoreProgress}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

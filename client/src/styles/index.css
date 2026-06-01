@@ -3438,3 +3438,63 @@ html, body, #root {
 .dir-picker-create-msg {
   padding: 4px 20px; font-size: 12px; color: var(--danger);
 }
+
+/* ── Restore Confirm & Progress Modal ── */
+.restore-confirm-backdrop {
+  position: fixed; inset: 0; z-index: 450;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+.restore-confirm-modal {
+  width: 420px; max-width: 90vw;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 32px 28px 24px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+.restore-confirm-icon { font-size: 48px; margin-bottom: 12px; }
+.restore-confirm-title { font-size: 17px; color: var(--text-primary); margin: 0 0 8px; }
+.restore-confirm-name {
+  font-size: 13px; color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin: 0 0 16px;
+  word-break: break-all;
+}
+.restore-confirm-warn {
+  font-size: 13px; color: var(--danger);
+  line-height: 1.6; margin: 0 0 8px;
+  text-align: left;
+  padding: 10px 14px;
+  background: var(--danger-bg);
+  border-radius: 8px;
+}
+.restore-confirm-warn strong { color: var(--danger); }
+.restore-confirm-hint {
+  font-size: 12px; color: var(--text-muted);
+  margin: 0 0 20px;
+}
+.restore-confirm-actions {
+  display: flex; gap: 10px; justify-content: center;
+}
+
+/* Progress overlay */
+.restore-progress-modal {
+  padding: 40px 48px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+.restore-progress-spinner {
+  width: 40px; height: 40px;
+  margin: 0 auto 16px;
+  border: 3px solid var(--glass-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.restore-progress-title { font-size: 16px; color: var(--text-primary); margin: 0 0 8px; }
+.restore-progress-hint { font-size: 13px; color: var(--text-muted); margin: 0; }
