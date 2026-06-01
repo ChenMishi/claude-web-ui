@@ -635,13 +635,14 @@ html, body, #root {
   content: '';
   position: absolute;
   top: 2px;
-  width: calc(50% - 4px);
+  left: 1px;
+  width: calc(50% - 2px);
   height: calc(100% - 4px);
   background: var(--accent);
   opacity: 0.85;
   border-radius: 4px;
-  left: calc(var(--idx, 0) * 50% + 2px);
-  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateX(calc(var(--idx, 0) * (100% + 2px)));
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .theme-slider-btn {
