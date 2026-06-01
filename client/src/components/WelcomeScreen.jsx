@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useApp } from '../context/AppContext';
 
 export default function WelcomeScreen({ onSend }) {
-  const { model, systemPrompt, setSetting, currentProjectId, availableModels } = useApp();
+  const { model, currentModel, systemPrompt, setSetting, currentProjectId, availableModels } = useApp();
   const inputRef = useRef(null);
 
   const handleSend = () => {
@@ -27,7 +27,7 @@ export default function WelcomeScreen({ onSend }) {
       </p>
       <div className="welcome-config">
         <label>Model</label>
-        <select value={model} onChange={e => setSetting('model', e.target.value)}>
+        <select value={currentModel || model} onChange={e => setSetting('model', e.target.value)}>
           {availableModels.length > 0 ? (
             availableModels.map(m => <option key={m} value={m}>{m}</option>)
           ) : (

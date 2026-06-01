@@ -791,6 +791,17 @@ html, body, #root {
 .welcome-config select:focus,
 .welcome-config input:focus { border-color: var(--accent); background: var(--input-bg-focus); }
 
+[data-theme="dark"] .welcome-config select,
+[data-theme="dark"] .welcome-config input {
+  color: #eee;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .welcome-config select option {
+  background: #1a1a2e;
+  color: #eee;
+}
+
 /* Chat Messages */
 .message {
   max-width: 80%;
