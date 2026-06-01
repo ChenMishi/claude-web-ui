@@ -615,7 +615,7 @@ html, body, #root {
 
 /* Sidebar theme slider with animated bottom bar */
 .sidebar-theme-row {
-  padding: 2px 0;
+  padding: 2px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--glass-border);
   border-radius: 6px;
@@ -633,13 +633,12 @@ html, body, #root {
   content: '';
   position: absolute;
   top: 0;
-  left: 0;
-  width: 50%;
+  width: calc(50% - 2px);
   height: 100%;
   background: var(--accent);
-  border-radius: 6px;
-  transform: translateX(calc(var(--idx, 0) * 100%));
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 4px;
+  left: calc(var(--idx, 0) * 50% + 1px);
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .theme-slider-btn {
