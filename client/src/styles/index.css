@@ -668,8 +668,9 @@ html, body, #root {
 }
 
 .theme-slider-btn.active {
-  color: #fff;
-  font-weight: 500;
+  color: #fff !important;
+  font-weight: 600;
+  z-index: 2;
 }
 
 /* Main Content */
