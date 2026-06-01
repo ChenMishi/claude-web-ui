@@ -160,12 +160,53 @@ export default function FileTransfer({ onClose }) {
   // Download
   // ═══════════════════════════════════════════════════════════
 
+  const downloadViaXhr = (filePath, fileName, onProgress) => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', `/api/fs/download?path=${encodeURIComponent(filePath)}`);
+      xhr.responseType = 'blob';
+      xhr.setRequestHeader('Authorization', `Bearer ${TOKEN()}`);
+      xhr.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress({ loaded: e.loaded, total: e.total });
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const blob = xhr.response;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          resolve({ ok: true });
+        } else {
+          // Try to read error as text (blob → text)
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const err = JSON.parse(reader.result);
+              reject(new Error(err.error || `HTTP ${xhr.status}`));
+            } catch { reject(new Error(`HTTP ${xhr.status}`)); }
+          };
+          reader.onerror = () => reject(new Error(`HTTP ${xhr.status}`));
+          reader.readAsText(xhr.response);
+        }
+      };
+      xhr.onerror = () => reject(new Error('下载失败'));
+      xhr.send();
+    });
+  };
+
   const runDownload = async () => {
     if (selItems.length === 0) { setMsg('请先选择要下载的文件或目录'); return; }
     setMsg('');
 
     const queue = selItems.map(item => ({
-      id: item.path, name: item.name + (item.isDir ? '.tar.gz' : ''), direction: 'download',
+      id: item.path,
+      name: item.isDir ? item.name + '.tar.gz' : item.name,
+      direction: 'download',
       loaded: 0, total: item.size || 0, status: 'waiting',
     }));
     setTransfers(queue);
@@ -173,9 +214,7 @@ export default function FileTransfer({ onClose }) {
     for (const item of queue) {
       setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, status: 'transferring' } : t));
       try {
-        // Use the original path (without .tar.gz) for single files, with .tar.gz suffix handled by backend for dirs
-        const dlPath = selItems.find(s => s.path === item.id)?.path || item.id;
-        await downloadFile(dlPath, (p) => {
+        await downloadViaXhr(item.id, item.name, (p) => {
           setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, loaded: p.loaded, total: p.total || p.loaded } : t));
         });
         setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, status: 'done', loaded: t.total } : t));

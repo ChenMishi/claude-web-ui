@@ -12,6 +12,8 @@ dist/
 users.json
 init-config.json
 provider-config.json
+backup-config.json
+pricing-config.json
 
 # 日志目录
 logs/
