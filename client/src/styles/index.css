@@ -615,7 +615,7 @@ html, body, #root {
 
 /* Sidebar theme slider with animated bottom bar */
 .sidebar-theme-row {
-  padding: 6px 0 4px;
+  padding: 4px 0 2px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--glass-border);
   border-radius: 8px;
@@ -646,7 +646,7 @@ html, body, #root {
 .theme-slider-btn {
   flex: 1;
   min-width: 0;
-  padding: 5px 2px 6px;
+  padding: 3px 2px 4px;
   background: transparent;
   border: none;
   font-size: 11px;
