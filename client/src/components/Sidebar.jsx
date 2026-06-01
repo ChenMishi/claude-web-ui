@@ -196,7 +196,7 @@ export default function Sidebar() {
         </button>
         {isAdmin && (
           <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
-            🔧 设置
+            ⚙ 设置
             {(needInit || updateAvailable) && (
               <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
                 {needInit && (
