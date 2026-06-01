@@ -636,7 +636,7 @@ html, body, #root {
   position: absolute;
   top: 2px;
   left: 1px;
-  width: calc(50% - 2px);
+  width: calc(33.333% - 2px);
   height: calc(100% - 4px);
   background: var(--accent);
   opacity: 0.85;
