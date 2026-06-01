@@ -18,6 +18,9 @@ pricing-config.json
 # 日志目录
 logs/
 
+# 备份输出目录
+backups/
+
 # 二进制包
 packages/*.deb
 stats/
