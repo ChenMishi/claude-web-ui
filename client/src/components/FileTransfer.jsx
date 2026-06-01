@@ -273,6 +273,9 @@ export default function FileTransfer({ onClose }) {
 
   const isTransferring = transfers.some(t => t.status === 'transferring' || t.status === 'waiting');
   const hasPending = pendingQueue.length > 0;
+  const totalTransfers = transfers.length;
+  const doneTransfers = transfers.filter(t => t.status === 'done').length;
+  const errorTransfers = transfers.filter(t => t.status === 'error').length;
 
   const serverBreadcrumb = serverPath.split('/').filter(Boolean);
   const allItems = [
@@ -457,6 +460,15 @@ export default function FileTransfer({ onClose }) {
                 {t.total > 0 && <span style={{ color: 'var(--text-muted)', fontSize: 10, flexShrink: 0 }}>{formatBytes(t.loaded)}/{formatBytes(t.total)}</span>}
               </div>
             ))}
+            {/* 传输统计汇总 */}
+            {totalTransfers > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0 0', fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', marginTop: 6 }}>
+                <span>共 {totalTransfers} 个文件</span>
+                {doneTransfers > 0 && <span style={{ color: 'var(--success)' }}>✓ {doneTransfers} 完成</span>}
+                {errorTransfers > 0 && <span style={{ color: 'var(--danger)' }}>✗ {errorTransfers} 失败</span>}
+                {isTransferring && <span style={{ color: 'var(--accent)' }}>⏳ 进行中</span>}
+              </div>
+            )}
           </div>
         )}
       </div>
