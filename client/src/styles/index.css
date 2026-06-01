@@ -2756,6 +2756,7 @@ html, body, #root {
 .init-btn-check { background: var(--accent); color: #fff; font-size: 11px; padding: 5px 12px; }
 .init-btn-test { background: var(--accent); color: #fff; }
 .init-btn-save { background: var(--bg-primary); color: var(--accent); border: 1px solid var(--accent); }
+.init-btn-ready { background: var(--success); color: #fff; }
 .init-install-log { margin-top: 10px; background: #0d0d1f; border: 1px solid var(--border); border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; line-height: 1.5; color: #e0e0e0; white-space: pre-wrap; }
 .init-install-log pre { margin: 0; }
 .init-config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }

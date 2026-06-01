@@ -398,8 +398,7 @@ export default function FileTransfer({ onClose }) {
           {!supportsFSA && (
             <input ref={folderInputRef} type="file" webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleFileSelect} />
           )}
-          <button className="init-btn init-btn-save" onClick={startUpload} disabled={!hasPending}
-            style={{ background: hasPending ? '#4caf50' : undefined }}>
+          <button className={`init-btn ${hasPending ? 'init-btn-ready' : 'init-btn-save'}`} onClick={startUpload} disabled={!hasPending}>
             ▶ 开始上传 ({pendingQueue.length})
           </button>
           <button className="init-btn init-btn-save" onClick={runDownload} disabled={selCount === 0 || isTransferring || hasPending}>
