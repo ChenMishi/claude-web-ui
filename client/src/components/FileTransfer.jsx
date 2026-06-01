@@ -31,6 +31,9 @@ export default function FileTransfer({ onClose }) {
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
 
+  // File System Access API support (avoids Chrome webkitdirectory warning popup)
+  const supportsFSA = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+
   // ═══════════════════════════════════════════════════════════
   // Server panel
   // ═══════════════════════════════════════════════════════════
@@ -90,6 +93,41 @@ export default function FileTransfer({ onClose }) {
   // Upload
   // ═══════════════════════════════════════════════════════════
 
+  // 递归遍历 File System Access API 目录
+  const readFsaDir = async (dirHandle, basePath = '') => {
+    const files = [];
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind === 'file') {
+        const file = await handle.getFile();
+        files.push({ file, relPath: basePath ? `${basePath}/${name}` : name });
+      } else if (handle.kind === 'directory') {
+        const sub = await readFsaDir(handle, basePath ? `${basePath}/${name}` : name);
+        files.push(...sub);
+      }
+    }
+    return files;
+  };
+
+  // 使用 File System Access API 选择文件夹（无 Chrome 安全弹窗）
+  const selectFolderViaFSA = async () => {
+    try {
+      const dirHandle = await window.showDirectoryPicker();
+      const entries = await readFsaDir(dirHandle);
+      if (entries.length === 0) return;
+      setMsg('');
+      const queue = entries.map(({ file, relPath }) => ({
+        id: Date.now() + '_' + Math.random().toString(36).slice(2) + '_' + file.name,
+        name: relPath, direction: 'upload',
+        loaded: 0, total: file.size, status: 'pending',
+        _file: file,
+        _relPath: relPath,
+      }));
+      setPendingQueue(prev => [...prev, ...queue]);
+    } catch (err) {
+      if (err.name !== 'AbortError') setMsg('选择文件夹失败: ' + err.message);
+    }
+  };
+
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -99,6 +137,7 @@ export default function FileTransfer({ onClose }) {
       name: f.webkitRelativePath || f.name, direction: 'upload',
       loaded: 0, total: f.size, status: 'pending',
       _file: f,
+      _relPath: f.webkitRelativePath || f.name,
     }));
     setPendingQueue(prev => [...prev, ...queue]);
     // 重置 input 以便可以重复选择相同文件
@@ -120,7 +159,7 @@ export default function FileTransfer({ onClose }) {
       setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, status: 'transferring' } : t));
       try {
         const file = item._file;
-        const relPath = file.webkitRelativePath || file.name;
+        const relPath = item._relPath || file.webkitRelativePath || file.name;
         // Get the directory part of the relative path
         const dirParts = relPath.split('/');
         const fileName = dirParts.pop();
@@ -352,7 +391,10 @@ export default function FileTransfer({ onClose }) {
         {/* Action bar */}
         <div style={{ display: 'flex', gap: 8, padding: '12px 20px', borderTop: '1px solid var(--border)', flexShrink: 0, alignItems: 'center' }}>
           <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
-          <input ref={folderInputRef} type="file" webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleFileSelect} />
+          {/* Folder input: prefer File System Access API (no Chrome warning popup), fallback to webkitdirectory */}
+          {!supportsFSA && (
+            <input ref={folderInputRef} type="file" webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleFileSelect} />
+          )}
           <button className="init-btn init-btn-save" onClick={startUpload} disabled={!hasPending}
             style={{ background: hasPending ? '#4caf50' : undefined }}>
             ▶ 开始上传 ({pendingQueue.length})
@@ -363,7 +405,10 @@ export default function FileTransfer({ onClose }) {
           <button className="init-btn" onClick={() => fileInputRef.current?.click()}>
             📄 选择本地电脑文件上传
           </button>
-          <button className="init-btn" onClick={() => folderInputRef.current?.click()}>
+          <button className="init-btn" onClick={() => {
+            if (supportsFSA) selectFolderViaFSA();
+            else folderInputRef.current?.click();
+          }}>
             📁 选择本地电脑文件夹上传
           </button>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{serverPath}</span>
