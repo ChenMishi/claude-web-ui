@@ -620,12 +620,14 @@ html, body, #root {
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   margin: 0 8px;
+  overflow: hidden;
 }
 
 .theme-slider {
   position: relative;
   display: flex;
   gap: 0;
+  overflow: hidden;
 }
 
 /* Sliding pill background */
