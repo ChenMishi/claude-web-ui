@@ -196,6 +196,22 @@ export default function InitPanel() {
     runEnvInstall(component);
   }, [installingEnv, runEnvInstall]);
 
+  // ── Save Provider config only ──
+  const handleSaveProvider = async () => {
+    setSaveMsg('');
+    try {
+      const body = { baseUrl: editBaseUrl, chatUrl: editChatUrl, model: editModel };
+      if (editApiKey) body.apiKey = editApiKey;
+      await saveProviderConfig(body);
+      setSaveMsg('✅ Provider 配置已保存');
+      setTimeout(() => setSaveMsg(''), 3000);
+      loadProviderConfig();
+      loadAvailableModels();
+    } catch (err) {
+      setSaveMsg(`❌ 保存失败: ${err.message}`);
+    }
+  };
+
   // ── Unified save: Provider config + Proxy config ──
   const handleSaveAll = async () => {
     setSaveMsg('');
@@ -406,6 +422,10 @@ export default function InitPanel() {
                 {fetchingModels ? '拉取中...' : '拉取模型'}
               </button>
             </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <button className="init-btn init-btn-save" onClick={handleSaveProvider}>保存 Provider 配置</button>
           </div>
 
           {/* ── 代理地址 ── */}
