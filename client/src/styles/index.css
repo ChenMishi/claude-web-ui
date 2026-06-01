@@ -708,8 +708,19 @@ html, body, #root {
 .toggle-sidebar:hover { border-color: var(--accent); color: var(--text-primary); background: var(--glass-bg-hover); }
 
 /* Chat */
-.chat-container {
+.chat-glass {
   flex: 1;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+
+.chat-container {
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   overflow-anchor: none;
@@ -718,12 +729,6 @@ html, body, #root {
   flex-direction: column;
   gap: 16px;
   scroll-behavior: smooth;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--glass-radius);
-  box-shadow: var(--glass-shadow);
 }
 
 .chat-container::-webkit-scrollbar { width: 6px; }

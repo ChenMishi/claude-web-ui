@@ -522,6 +522,7 @@ export default function ChatView() {
     <div className="chat-layout">
       <div className="chat-content">
         <div className="chat-main">
+          <div className="chat-glass">
           <div className="chat-container" ref={containerRef}>
           {hasMore && chatMessages.length > 0 && atTop && (
             <div className="load-more-row">
@@ -595,6 +596,7 @@ export default function ChatView() {
               </button>
             </div>
           )}
+        </div>
         </div>
         </div>
         <div className="right-panels">
