@@ -632,12 +632,13 @@ html, body, #root {
 .theme-slider::before {
   content: '';
   position: absolute;
-  top: 1px;
-  width: calc(50% - 2px);
-  height: calc(100% - 2px);
+  top: 2px;
+  width: calc(50% - 4px);
+  height: calc(100% - 4px);
   background: var(--accent);
+  opacity: 0.85;
   border-radius: 4px;
-  left: calc(var(--idx, 0) * 50% + 1px);
+  left: calc(var(--idx, 0) * 50% + 2px);
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -646,7 +647,7 @@ html, body, #root {
   z-index: 1;
   flex: 1;
   min-width: 0;
-  padding: 1px 2px 2px;
+  padding: 3px 6px;
   background: transparent;
   border: none;
   font-size: 11px;
