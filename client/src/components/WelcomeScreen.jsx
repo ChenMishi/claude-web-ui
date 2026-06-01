@@ -28,9 +28,15 @@ export default function WelcomeScreen({ onSend }) {
       <div className="welcome-config">
         <label>Model</label>
         <select value={model} onChange={e => setSetting('model', e.target.value)}>
-          {availableModels.map(m => (
-            <option key={m.id} value={m.id}>{m.displayName || m.id}</option>
-          ))}
+          {availableModels.length > 0 ? (
+            availableModels.map(m => <option key={m} value={m}>{m}</option>)
+          ) : (
+            <>
+              <option value="claude-opus-4-7">Claude Opus 4.7</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+            </>
+          )}
         </select>
 
         <label>System Prompt (可选)</label>
