@@ -58,17 +58,19 @@ router.get('/fs/list', requireAuth, (req, res) => {
 });
 
 // Upload file — multipart form data (FormData + multer)
-router.post('/fs/upload', requireAuth, upload.single('file'), (req, res) => {
+router.post('/fs/upload', requireAuth, (req, res, next) => {
+  upload.single('file')(req, res, err => {
+    if (err) {
+      console.log('[fs/upload] multer 错误:', err.message, '| code:', err.code, '| Content-Type:', req.headers['content-type']);
+      return res.status(400).json({ error: `上传处理失败: ${err.message}`, code: err.code });
+    }
+    next();
+  });
+}, (req, res) => {
   try {
     const { dir } = req.body;
     const file = req.file;
     if (!dir || !file) {
-      console.log('[fs/upload] 400 诊断:', JSON.stringify({
-        dir, hasFile: !!file,
-        bodyKeys: Object.keys(req.body || {}),
-        contentType: req.headers['content-type'],
-        fileFieldName: file?.fieldname,
-      }));
       return res.status(400).json({ error: '缺少参数: dir, file' });
     }
     const targetDir = path.resolve(dir);
