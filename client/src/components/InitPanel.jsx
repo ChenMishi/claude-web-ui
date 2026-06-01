@@ -212,24 +212,17 @@ export default function InitPanel() {
     }
   };
 
-  // ── Unified save: Provider config + Proxy config ──
-  const handleSaveAll = async () => {
+  // ── Save Proxy config ──
+  const handleSaveProxy = async () => {
     setSaveMsg('');
 
-    // 1. Save provider config (API Key, Base URL, Model)
-    try {
-      const body = { baseUrl: editBaseUrl, chatUrl: editChatUrl, model: editModel };
-      if (editApiKey) body.apiKey = editApiKey;
-      await saveProviderConfig(body);
-    } catch {}
-
-    // 2. Save proxy address
+    // Save proxy address
     const proxyUrl = `http://${editProxyHost}:${editProxyPort}`;
     try {
       const d = await saveInitConfig({ proxyUrl, proxyHost: editProxyHost, proxyPort: parseInt(editProxyPort) || 15721 });
       if (d.ok) {
         setStatus(prev => ({ ...prev, saved: true }));
-        setSaveMsg('✅ 全部配置已保存，代理已重启');
+        setSaveMsg('✅ 代理配置已保存，代理已重启');
         setNeedInit(false);
       }
     } catch (err) {
@@ -450,7 +443,7 @@ export default function InitPanel() {
           </div>
 
           <div className="init-config-actions" style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="init-btn init-btn-save" onClick={handleSaveAll}>保存全部配置</button>
+            <button className="init-btn init-btn-save" onClick={handleSaveProxy}>保存代理配置</button>
             <button className="init-btn init-btn-test" onClick={handleTestProxy}>测试连接</button>
           </div>
           {testResult && <div className={`init-test-result ${testResult}`} style={{ marginTop: 8 }}>{testResult === 'success' ? '✅ 代理连接成功' : '❌ 代理连接失败'}</div>}
