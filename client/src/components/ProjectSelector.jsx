@@ -41,7 +41,8 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
 
   const handleLink = async () => {
     try {
-      await linkProject(currentPath);
+      const result = await linkProject(currentPath);
+      onSelect(result.id);
       onLink();
       setShowDialog(false);
     } catch (err) {
