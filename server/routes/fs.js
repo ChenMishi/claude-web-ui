@@ -63,6 +63,12 @@ router.post('/fs/upload', requireAuth, upload.single('file'), (req, res) => {
     const { dir } = req.body;
     const file = req.file;
     if (!dir || !file) {
+      console.log('[fs/upload] 400 诊断:', JSON.stringify({
+        dir, hasFile: !!file,
+        bodyKeys: Object.keys(req.body || {}),
+        contentType: req.headers['content-type'],
+        fileFieldName: file?.fieldname,
+      }));
       return res.status(400).json({ error: '缺少参数: dir, file' });
     }
     const targetDir = path.resolve(dir);
