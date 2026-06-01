@@ -632,9 +632,9 @@ html, body, #root {
 .theme-slider::before {
   content: '';
   position: absolute;
-  top: 0;
+  top: 1px;
   width: calc(50% - 2px);
-  height: 100%;
+  height: calc(100% - 2px);
   background: var(--accent);
   border-radius: 4px;
   left: calc(var(--idx, 0) * 50% + 1px);
