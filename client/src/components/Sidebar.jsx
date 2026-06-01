@@ -217,10 +217,7 @@ export default function Sidebar() {
         )}
 
         <div className="sidebar-theme-row">
-          <div
-          className="theme-slider"
-          style={{ '--idx': THEMES.findIndex(t => t.key === theme) }}
-        >
+          <div className="theme-slider">
           {THEMES.map(t => (
             <button
               key={t.key}

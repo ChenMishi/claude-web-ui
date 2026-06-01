@@ -615,38 +615,22 @@ html, body, #root {
 
 /* Sidebar theme slider with animated bottom bar */
 .sidebar-theme-row {
-  padding: 4px 0 2px;
+  padding: 2px 0;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--glass-border);
-  border-radius: 8px;
+  border-radius: 6px;
   margin: 0 8px;
 }
 
 .theme-slider {
-  position: relative;
   display: flex;
   gap: 0;
-  border-radius: 8px;
-}
-
-/* Sliding bottom bar indicator */
-.theme-slider::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 33.333%;
-  height: 3px;
-  background: var(--accent);
-  border-radius: 0 0 6px 6px;
-  transform: translateX(calc(var(--idx, 0) * 100%));
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .theme-slider-btn {
   flex: 1;
   min-width: 0;
-  padding: 3px 2px 4px;
+  padding: 1px 2px 2px;
   background: transparent;
   border: none;
   font-size: 11px;
