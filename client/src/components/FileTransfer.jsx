@@ -24,8 +24,10 @@ export default function FileTransfer({ onClose }) {
 
   // Transfers
   const [transfers, setTransfers] = useState([]);
+  const [pendingQueue, setPendingQueue] = useState([]); // 待确认上传的文件
   const [msg, setMsg] = useState('');
   const serverNavRef = useRef(0);
+  const dirClickRef = useRef(0);    // 目录双击检测
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
 
@@ -95,14 +97,25 @@ export default function FileTransfer({ onClose }) {
     const queue = files.map(f => ({
       id: Date.now() + '_' + Math.random().toString(36).slice(2) + '_' + f.name,
       name: f.webkitRelativePath || f.name, direction: 'upload',
-      loaded: 0, total: f.size, status: 'waiting',
+      loaded: 0, total: f.size, status: 'pending',
       _file: f,
     }));
+    setPendingQueue(prev => [...prev, ...queue]);
+    // 重置 input 以便可以重复选择相同文件
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (folderInputRef.current) folderInputRef.current.value = '';
+  };
+
+  const startUpload = () => {
+    if (pendingQueue.length === 0) return;
+    setMsg('');
+    const queue = pendingQueue.map(item => ({ ...item, status: 'waiting' }));
+    setPendingQueue([]);
+    setTransfers(prev => [...prev, ...queue]);
     runUploadQueue(queue);
   };
 
   const runUploadQueue = async (queue) => {
-    setTransfers(prev => [...prev, ...queue]);
     for (const item of queue) {
       setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, status: 'transferring' } : t));
       try {
@@ -123,8 +136,6 @@ export default function FileTransfer({ onClose }) {
       }
     }
     loadServer();
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (folderInputRef.current) folderInputRef.current.value = '';
   };
 
   const uploadFileToDir = (dir, fileName, file, onProgress) => {
@@ -222,6 +233,7 @@ export default function FileTransfer({ onClose }) {
   };
 
   const isTransferring = transfers.some(t => t.status === 'transferring' || t.status === 'waiting');
+  const hasPending = pendingQueue.length > 0;
 
   const serverBreadcrumb = serverPath.split('/').filter(Boolean);
   const allItems = [
@@ -290,9 +302,22 @@ export default function FileTransfer({ onClose }) {
                       onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'var(--hover)'; }}
                       onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}>
                       <input type="checkbox" checked={isSel} onChange={() => toggleServer(d, true)} style={{ margin: 0 }} />
-                      <span style={{ cursor: 'pointer' }} onClick={() => toggleServer(d, true)}>📁 {d.name}</span>
-                      <span onClick={() => { setServerPath(d.path); setSelectedServer({}); }}
-                        style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent)', cursor: 'pointer' }}>进入 →</span>
+                      <span style={{ cursor: 'pointer', flex: 1 }}
+                        onClick={() => {
+                          const now = Date.now();
+                          if (now - dirClickRef.current < 350) {
+                            // 双击 → 进入目录
+                            dirClickRef.current = 0;
+                            setServerPath(d.path);
+                            setSelectedServer({});
+                          } else {
+                            // 单击 → 选中/取消
+                            dirClickRef.current = now;
+                            toggleServer(d, true);
+                          }
+                        }}
+                        title="单击选中，双击进入"
+                      >📁 {d.name}</span>
                     </div>
                   );
                 })}
@@ -328,7 +353,11 @@ export default function FileTransfer({ onClose }) {
         <div style={{ display: 'flex', gap: 8, padding: '12px 20px', borderTop: '1px solid var(--border)', flexShrink: 0, alignItems: 'center' }}>
           <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
           <input ref={folderInputRef} type="file" webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleFileSelect} />
-          <button className="init-btn init-btn-save" onClick={runDownload} disabled={selCount === 0 || isTransferring}>
+          <button className="init-btn init-btn-save" onClick={startUpload} disabled={!hasPending}
+            style={{ background: hasPending ? '#4caf50' : undefined }}>
+            ▶ 开始上传 ({pendingQueue.length})
+          </button>
+          <button className="init-btn init-btn-save" onClick={runDownload} disabled={selCount === 0 || isTransferring || hasPending}>
             ⬇ 下载选中 ({selCount})
           </button>
           <button className="init-btn" onClick={() => fileInputRef.current?.click()}>
@@ -342,10 +371,30 @@ export default function FileTransfer({ onClose }) {
         </div>
 
         {/* Transfer queue */}
-        {transfers.length > 0 && (
-          <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0, maxHeight: 160, overflowY: 'auto', padding: '8px 20px' }}>
+        {(transfers.length > 0 || pendingQueue.length > 0) && (
+          <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0, maxHeight: 180, overflowY: 'auto', padding: '8px 20px' }}>
+            {pendingQueue.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>📋 待上传 ({pendingQueue.length} 项)</span>
+                <button onClick={() => setPendingQueue([])}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, textDecoration: 'underline' }}>清空</button>
+              </div>
+            )}
+            {pendingQueue.map(t => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: 12 }}>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.name}>
+                  {t.name}
+                </span>
+                <span style={{ color: 'var(--text-muted)', flexShrink: 0, fontSize: 11 }}>⬆</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>待确认</span>
+                {t.total > 0 && <span style={{ color: 'var(--text-muted)', fontSize: 10, flexShrink: 0 }}>{formatBytes(t.total)}</span>}
+                <button onClick={() => setPendingQueue(prev => prev.filter(x => x.id !== t.id))}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+                  title="移除">✕</button>
+              </div>
+            ))}
             {transfers.map(t => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: 12 }}>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.name}>
                   {t.name}
                 </span>
