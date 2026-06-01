@@ -639,7 +639,6 @@ html, body, #root {
   width: calc(33.333% - 2px);
   height: calc(100% - 4px);
   background: var(--accent);
-  opacity: 0.85;
   border-radius: 4px;
   transform: translateX(calc(var(--idx, 0) * (100% + 2px)));
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
