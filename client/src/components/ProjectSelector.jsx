@@ -81,6 +81,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
 
   return (
     <div className="project-selector" ref={dropdownRef}>
+      <div className="project-section-label">选取会话存储目录</div>
       {/* Wrap trigger + dropdown so dropdown is positioned right below trigger */}
       <div className="project-dropdown-wrap">
         <div className="project-dropdown-trigger" onClick={() => setDropdownOpen(!dropdownOpen)}>
@@ -117,10 +118,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
       </div>
 
       <div className="project-actions">
-        <button onClick={() => setShowDialog(true)}>+ 链接项目</button>
-        {currentProjectId && (
-          <button className="danger" onClick={(e) => handleDelClick(e, currentProjectId)}>取消链接</button>
-        )}
+        <button onClick={() => setShowDialog(true)}>+ 添加会话存储目录</button>
         <button className="new-chat-btn-inline" onClick={() => { onSelect(currentProjectId); setView('chat'); }}>
           + 新建对话
         </button>
@@ -137,7 +135,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
             style={{ left: confirmDel.x, top: confirmDel.y - 10 }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="confirm-popup-text">确定取消链接？</div>
+            <div className="confirm-popup-text">此操作会清空该目录下所有会话数据</div>
             <div className="confirm-popup-actions">
               <button className="confirm-popup-cancel" onClick={() => setConfirmDel(null)}>取消</button>
               <button className="confirm-popup-ok" onClick={() => handleUnlink(confirmDel.id)}>确定</button>
@@ -149,7 +147,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
       {showDialog && (
         <div className="dialog-overlay" onClick={() => setShowDialog(false)}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3>链接项目目录</h3>
+            <h3>添加会话存储目录</h3>
             <div className="dialog-breadcrumb">
               <span className="breadcrumb-link" onClick={() => setCurrentPath('/')}>/</span>
               {currentPath.split('/').filter(Boolean).map((seg, i, arr) => (

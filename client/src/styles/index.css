@@ -260,6 +260,12 @@ html, body, #root {
   margin-bottom: 16px;
 }
 
+.project-section-label {
+  font-size: 11px; color: var(--text-muted);
+  margin-bottom: 6px;
+  padding-left: 2px;
+}
+
 .project-dropdown-wrap {
   position: relative;
 }
