@@ -230,31 +230,6 @@ router.post('/fs/write', (req, res) => {
   }
 });
 
-// Upload a file (base64 encoded, supports binary)
-router.post('/fs/upload', (req, res) => {
-  const { dir, fileName, content } = req.body || {};
-  if (!dir || !fileName || content === undefined) {
-    return res.status(400).json({ error: 'dir, fileName, content are required' });
-  }
-  if (!path.isAbsolute(dir) || dir.includes('..')) {
-    return res.status(403).json({ error: 'Forbidden — invalid path' });
-  }
-  if (fileName.includes('/') || fileName.includes('\\') || fileName === '.' || fileName === '..') {
-    return res.status(400).json({ error: 'Invalid file name' });
-  }
-  const err = restrictPath(req, dir);
-  if (err) return res.status(403).json({ error: err });
-  const filePath = path.join(dir, fileName);
-  try {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const buf = Buffer.from(content, 'base64');
-    fs.writeFileSync(filePath, buf);
-    res.json({ ok: true, path: filePath, size: buf.length });
-  } catch (err) {
-    res.status(500).json({ error: `上传文件失败: ${err.message}` });
-  }
-});
-
 // Delete a file or empty directory
 router.delete('/fs/delete', (req, res) => {
   const { filePath } = req.body || {};
