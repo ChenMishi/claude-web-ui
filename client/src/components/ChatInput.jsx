@@ -254,7 +254,7 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
           </select>
         </div>
         <div className="input-select-group" style={{ position: 'relative' }} ref={skillsContainerRef}>
-          <span className="input-select-icon" title="技能">🔧</span>
+          <span className="input-select-icon" title="技能">🧩</span>
           <button
             className="input-select input-select-skill"
             onClick={() => setShowSkills(!showSkills)}
@@ -299,7 +299,7 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
                               else if (el.value.startsWith('/' + s.name)) el.value = el.value.slice(s.name.length + 1);
                             }
                           } else {
-                            onSkillChange({ name: s.name, displayName: s.displayName, icon: s.icon || '🔧' });
+                            onSkillChange({ name: s.name, displayName: s.displayName, icon: s.icon || '🧩' });
                             if (el) {
                               const cmd = '/' + s.name + ' ';
                               el.value = cmd + el.value;
@@ -311,7 +311,7 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
                           setShowSkills(false);
                         }}
                       >
-                        <span className="skills-chip-icon">{s.icon || '🔧'}</span>
+                        <span className="skills-chip-icon">{s.icon || '🧩'}</span>
                         <span className="skills-chip-label">{s.displayName || s.name}</span>
                       </button>
                     );

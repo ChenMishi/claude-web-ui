@@ -192,7 +192,7 @@ export default function Sidebar() {
           💻 终端
         </button>
         <button className={activeView === 'skills' ? 'active' : ''} onClick={() => setView('skills')}>
-          🔧 技能
+          🧩 技能
         </button>
         {isAdmin && (
           <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
