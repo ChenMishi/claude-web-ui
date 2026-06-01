@@ -1726,12 +1726,12 @@ html, body, #root {
 }
 
 .file-tree-toggle button {
-  padding: 2px 8px;
+  padding: 1px 6px;
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10px;
   cursor: pointer;
   transition: all 0.15s;
 }

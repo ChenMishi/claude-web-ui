@@ -174,11 +174,11 @@ export default function FileBrowser() {
       <div className="file-tree-panel">
         <div className="file-tree-header">
           <span className="file-tree-title">📁 文件浏览</span>
-          <div className="file-tree-toggle">
-            <button onClick={() => setShowTransfer(true)} title="文件传输" style={{ fontWeight: 600 }}>📁 文件传输</button>
-            <button onClick={() => setShowNewDir(true)} title="新建目录">📂+</button>
-            <button onClick={() => setShowNewFile(true)} title="新建文件">📄+</button>
-          </div>
+        </div>
+        <div className="file-tree-toggle" style={{ marginBottom: 12 }}>
+          <button onClick={() => setShowTransfer(true)} title="文件传输">📁 文件传输</button>
+          <button onClick={() => setShowNewDir(true)} title="新建目录">📂+</button>
+          <button onClick={() => setShowNewFile(true)} title="新建文件">📄+</button>
         </div>
 
         {/* Breadcrumb */}
