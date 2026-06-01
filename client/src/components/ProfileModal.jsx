@@ -88,6 +88,7 @@ export default function ProfileModal({ onClose }) {
   return createPortal(
     <div className="profile-backdrop" onClick={onClose}>
       <div className="profile-modal" onClick={e => e.stopPropagation()}>
+        <div className="profile-scroll">
         <div className="profile-modal-header">
           <h3>个人设置</h3>
           <button className="profile-close-btn" onClick={onClose}>✕</button>
@@ -180,6 +181,7 @@ export default function ProfileModal({ onClose }) {
           </button>
         </form>
       )}
+    </div>
     </div>
     </div>,
     document.body

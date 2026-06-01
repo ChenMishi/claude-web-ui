@@ -313,9 +313,13 @@ html, body, #root {
   border: 1px solid var(--glass-border);
   border-radius: 0 0 12px 12px;
   margin-top: 0;
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+
+.project-dropdown-scroll {
   max-height: 240px;
   overflow-y: auto;
-  box-shadow: var(--glass-shadow);
 }
 
 .project-dropdown-empty {
@@ -1412,11 +1416,15 @@ html, body, #root {
 .skill-detail-modal {
   width: 520px; max-width: 90vw;
   max-height: 85vh;
-  overflow-y: auto;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 16px 48px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+.skill-detail-scroll {
+  max-height: 85vh;
+  overflow-y: auto;
 }
 .skill-detail-header {
   display: flex; align-items: flex-start; gap: 14px;
@@ -1564,10 +1572,13 @@ html, body, #root {
   border-radius: 12px;
   margin-bottom: 8px;
   padding: 6px;
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+.slash-commands-scroll {
   max-height: 260px;
   overflow-y: auto;
   scrollbar-width: thin;
-  box-shadow: var(--glass-shadow);
 }
 .slash-cmd-item {
   display: flex;
@@ -2008,9 +2019,13 @@ html, body, #root {
 
 .dialog-dir-list {
   max-height: 300px;
-  overflow-y: auto;
   border: 1px solid var(--glass-border);
   border-radius: 10px;
+  overflow: hidden;
+}
+.dialog-dir-scroll {
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .dialog-dir-item {
@@ -2313,9 +2328,13 @@ html, body, #root {
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   padding: 16px;
-  overflow: auto;
+  overflow: hidden;
   margin: 0;
   min-height: 40px;
+}
+.tool-call-detail pre code {
+  display: block;
+  overflow: auto;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.8;
@@ -2374,10 +2393,15 @@ html, body, #root {
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   padding: 16px;
-  overflow: auto;
+  overflow: hidden;
   margin: 0;
   max-height: 500px;
   min-height: 40px;
+}
+.tool-result-content pre code {
+  display: block;
+  overflow: auto;
+  max-height: calc(500px - 32px);
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.8;
@@ -2766,8 +2790,9 @@ html, body, #root {
 .init-btn-test { background: var(--accent); color: #fff; }
 .init-btn-save { background: var(--bg-primary); color: var(--accent); border: 1px solid var(--accent); }
 .init-btn-ready { background: var(--success); color: #fff; }
-.init-install-log { margin-top: 10px; background: #0d0d1f; border: 1px solid var(--border); border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; line-height: 1.5; color: #e0e0e0; white-space: pre-wrap; }
-.init-install-log pre { margin: 0; }
+.init-install-log { margin-top: 10px; background: #0d0d1f; border: 1px solid var(--border); border-radius: 8px; padding: 12px; max-height: 200px; overflow: hidden; }
+.init-install-scroll { max-height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; line-height: 1.5; color: #e0e0e0; white-space: pre-wrap; }
+.init-install-scroll pre, .init-install-log pre { margin: 0; }
 .init-config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .init-config-row label { font-size: 12px; color: var(--text-muted); white-space: nowrap; min-width: 60px; }
 .init-config-inputs { display: flex; align-items: center; gap: 6px; }
@@ -2867,6 +2892,9 @@ html, body, #root {
 .log-refresh { margin-left: auto; }
 .log-content {
   background: #0d0d1f; border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden;
+}
+.log-scroll {
   padding: 14px; font-family: var(--font-mono); font-size: 12px; line-height: 1.6;
   color: #e0e0e0; white-space: pre-wrap; max-height: calc(100vh - 200px); overflow-y: auto;
 }
@@ -3121,8 +3149,12 @@ html, body, #root {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 28px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2);
+  max-height: 75vh;
+  overflow: hidden;
+}
+.profile-scroll {
+  padding: 28px;
   max-height: 75vh;
   overflow-y: auto;
 }

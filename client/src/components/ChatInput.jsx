@@ -209,6 +209,7 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
       <ExecutionBar />
       {showCommands && (
         <div className="slash-commands" ref={cmdListRef}>
+          <div className="slash-commands-scroll">
           {filteredCmds.map((c, i) => (
             <div
               key={c.cmd}
@@ -220,6 +221,7 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
               <span className="slash-cmd-desc">{c.desc}</span>
             </div>
           ))}
+          </div>
         </div>
       )}
       <div className="input-wrapper">

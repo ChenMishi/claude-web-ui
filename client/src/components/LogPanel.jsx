@@ -37,6 +37,7 @@ export default function LogPanel() {
         <button className="log-tab log-refresh" onClick={load}>刷新</button>
       </div>
       <div className="log-content">
+        <div className="log-scroll">
         {lines.length === 0 ? (
           <div className="log-empty">暂无日志</div>
         ) : (
@@ -46,6 +47,7 @@ export default function LogPanel() {
             </div>
           ))
         )}
+        </div>
       </div>
     </div>
   );

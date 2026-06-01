@@ -94,6 +94,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
 
         {dropdownOpen && (
           <div className="project-dropdown-list">
+            <div className="project-dropdown-scroll">
             {projects.length === 0 && (
               <div className="project-dropdown-empty">无项目</div>
             )}
@@ -114,6 +115,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
                 </button>
               </div>
             ))}
+            </div>
           </div>
         )}
       </div>
@@ -164,6 +166,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
               ))}
             </div>
             <div className="dialog-dir-list">
+              <div className="dialog-dir-scroll">
               {currentPath !== '/' && (
                 <div className="dialog-dir-item" onClick={goUp}>
                   <span>📁</span>
@@ -182,6 +185,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
                   此目录为空
                 </div>
               )}
+              </div>
             </div>
             <div className="dialog-mkdir">
               <input

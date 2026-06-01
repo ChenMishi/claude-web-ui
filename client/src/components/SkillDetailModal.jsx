@@ -17,6 +17,7 @@ export default function SkillDetailModal({ skill, onClose }) {
   return (
     <div className="dialog-overlay" onClick={() => onClose(false)}>
       <div className="skill-detail-modal" onClick={e => e.stopPropagation()}>
+        <div className="skill-detail-scroll">
         <div className="skill-detail-header">
           <div className="skill-detail-icon">{skill.icon || '📦'}</div>
           <div>
@@ -67,6 +68,7 @@ export default function SkillDetailModal({ skill, onClose }) {
           <button className="skill-detail-install" onClick={handleInstall}>
             安装技能
           </button>
+        </div>
         </div>
       </div>
     </div>

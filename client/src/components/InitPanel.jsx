@@ -312,7 +312,7 @@ export default function InitPanel() {
               <button className="init-btn init-btn-install" onClick={handleInstallSDK} disabled={installingSDK}>
                 {installingSDK ? '安装中...' : '安装 SDK'}
               </button>
-              {sdkInstallLog && <div className="init-install-log"><pre>{sdkInstallLog}</pre></div>}
+              {sdkInstallLog && <div className="init-install-log"><div className="init-install-scroll"><pre>{sdkInstallLog}</pre></div></div>}
             </div>
           )}
         </div>
@@ -339,7 +339,7 @@ export default function InitPanel() {
                   <div style={{ width: `${claudeInstallPct}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.3s' }} />
                 </div>
               )}
-              {claudeInstallLog && <div className="init-install-log"><pre>{claudeInstallLog}</pre></div>}
+              {claudeInstallLog && <div className="init-install-log"><div className="init-install-scroll"><pre>{claudeInstallLog}</pre></div></div>}
             </div>
           ) : (
             <div className="init-deploy-area" style={{ marginTop: 10 }}>
@@ -354,7 +354,7 @@ export default function InitPanel() {
               {claudeUpdateInfo && !claudeUpdateInfo.hasUpdate && claudeUpdateInfo.current && (
                 <span style={{ fontSize: 12, color: 'var(--success)' }}>已是最新 v{claudeUpdateInfo.current}</span>
               )}
-              {upgradeClaudeLog && <div className="init-install-log"><pre>{upgradeClaudeLog}</pre></div>}
+              {upgradeClaudeLog && <div className="init-install-log"><div className="init-install-scroll"><pre>{upgradeClaudeLog}</pre></div></div>}
             </div>
           )}
         </div>
