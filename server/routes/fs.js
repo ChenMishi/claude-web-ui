@@ -3,9 +3,15 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
+const multer = require('multer');
 const router = express.Router();
 
 const { requireAuth } = require('../middleware/auth');
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB per file
+});
 
 // List directory contents
 router.get('/fs/list', requireAuth, (req, res) => {
@@ -51,21 +57,21 @@ router.get('/fs/list', requireAuth, (req, res) => {
   }
 });
 
-// Upload file (base64 content from browser File object)
-router.post('/fs/upload', requireAuth, (req, res) => {
+// Upload file — multipart form data (FormData + multer)
+router.post('/fs/upload', requireAuth, upload.single('file'), (req, res) => {
   try {
-    const { dir, fileName, content } = req.body;
-    if (!dir || !fileName || !content) {
-      return res.status(400).json({ error: '缺少参数: dir, fileName, content' });
+    const { dir } = req.body;
+    const file = req.file;
+    if (!dir || !file) {
+      return res.status(400).json({ error: '缺少参数: dir, file' });
     }
     const targetDir = path.resolve(dir);
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
-    const targetPath = path.join(targetDir, fileName);
-    const buffer = Buffer.from(content, 'base64');
-    fs.writeFileSync(targetPath, buffer);
-    res.json({ ok: true, path: targetPath, size: buffer.length });
+    const targetPath = path.join(targetDir, file.originalname);
+    fs.writeFileSync(targetPath, file.buffer);
+    res.json({ ok: true, path: targetPath, size: file.buffer.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

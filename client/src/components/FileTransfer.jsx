@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { uploadFile, downloadFile } from '../api';
 
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B';
@@ -130,29 +129,26 @@ export default function FileTransfer({ onClose }) {
 
   const uploadFileToDir = (dir, fileName, file, onProgress) => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result.split(',')[1];
-        const body = JSON.stringify({ dir, fileName, content: base64 });
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/fs/upload');
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('Authorization', `Bearer ${TOKEN()}`);
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable && onProgress) onProgress({ loaded: e.loaded, total: e.total });
-        };
-        xhr.onload = () => {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            if (xhr.status >= 200 && xhr.status < 300) resolve(data);
-            else reject(new Error(data.error || `HTTP ${xhr.status}`));
-          } catch { reject(new Error('解析响应失败')); }
-        };
-        xhr.onerror = () => reject(new Error('上传失败'));
-        xhr.send(body);
+      const formData = new FormData();
+      formData.append('dir', dir);
+      formData.append('file', file, fileName);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/fs/upload');
+      // 不设置 Content-Type，浏览器会自动设置带 boundary 的 multipart/form-data
+      xhr.setRequestHeader('Authorization', `Bearer ${TOKEN()}`);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress({ loaded: e.loaded, total: e.total });
       };
-      reader.onerror = () => reject(new Error('读取文件失败'));
-      reader.readAsDataURL(file);
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+          else reject(new Error(data.error || `HTTP ${xhr.status}`));
+        } catch { reject(new Error('解析响应失败')); }
+      };
+      xhr.onerror = () => reject(new Error('上传失败'));
+      xhr.send(formData);
     });
   };
 
