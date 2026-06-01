@@ -16,7 +16,6 @@ export default function FileTransfer({ onClose }) {
   const { user } = useApp();
   const rootPath = user?.role !== 'admin' ? (user?.homeDir || `/home/${user?.username}`) : '/root';
 
-  const [mode, setMode] = useState('upload');
 
   // Server panel
   const [serverPath, setServerPath] = useState(rootPath);
@@ -166,22 +165,6 @@ export default function FileTransfer({ onClose }) {
             title="关闭">✕</button>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', padding: '0 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          {[
-            ['upload', '⬆ 上传（本地 → 服务器）'],
-            ['download', '⬇ 下载（服务器 → 本地）'],
-          ].map(([m, label]) => (
-            <button key={m} onClick={() => { setMode(m); setMsg(''); }}
-              style={{
-                padding: '10px 20px', border: 'none', background: 'transparent',
-                color: mode === m ? 'var(--accent)' : 'var(--text-muted)',
-                borderBottom: mode === m ? '2px solid var(--accent)' : '2px solid transparent',
-                cursor: 'pointer', fontSize: 13, fontWeight: mode === m ? 600 : 400,
-              }}>{label}</button>
-          ))}
-        </div>
-
         {/* Server directory panel */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {/* Breadcrumb */}
@@ -255,24 +238,19 @@ export default function FileTransfer({ onClose }) {
 
         {/* Action bar */}
         <div style={{ display: 'flex', gap: 8, padding: '12px 20px', borderTop: '1px solid var(--border)', flexShrink: 0, alignItems: 'center' }}>
-          {mode === 'upload' ? (
-            <>
-              <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
-              <input ref={folderInputRef} type="file" webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleFileSelect} />
-              <button className="init-btn init-btn-save" onClick={() => fileInputRef.current?.click()}>
-                📄 选择文件
-              </button>
-              <button className="init-btn" onClick={() => folderInputRef.current?.click()}
-                style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
-                📁 选择文件夹
-              </button>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>上传至: {serverPath}</span>
-            </>
-          ) : (
-            <button className="init-btn init-btn-save" onClick={runDownload} disabled={selCount === 0 || isTransferring}>
-              ⬇ 下载选中文件 ({selCount})
-            </button>
-          )}
+          <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
+          <input ref={folderInputRef} type="file" webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleFileSelect} />
+          <button className="init-btn init-btn-save" onClick={runDownload} disabled={selCount === 0 || isTransferring}>
+            ⬇ 下载选中文件 ({selCount})
+          </button>
+          <button className="init-btn" onClick={() => fileInputRef.current?.click()}>
+            📄 选择本地电脑文件
+          </button>
+          <button className="init-btn" onClick={() => folderInputRef.current?.click()}
+            style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
+            📁 选择本地电脑文件夹
+          </button>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{serverPath}</span>
           {msg && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{msg}</span>}
         </div>
 
