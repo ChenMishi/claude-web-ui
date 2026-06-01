@@ -1,6 +1,8 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { execSync } = require('child_process');
 const router = express.Router();
 
 const { requireAuth } = require('../middleware/auth');
@@ -77,7 +79,21 @@ router.get('/fs/download', requireAuth, (req, res) => {
     const resolved = path.resolve(filePath);
     if (!fs.existsSync(resolved)) return res.status(404).json({ error: '文件不存在' });
     const stat = fs.statSync(resolved);
-    if (stat.isDirectory()) return res.status(400).json({ error: '不能下载目录' });
+    if (stat.isDirectory()) {
+      // Download directory as tar.gz
+      const tmpFile = path.join(os.tmpdir(), `fs-dl-${Date.now()}.tar.gz`);
+      try {
+        const dirName = path.basename(resolved) || 'download';
+        execSync(`tar -czf "${tmpFile}" -C "${path.dirname(resolved)}" "${dirName}"`, { timeout: 120000 });
+        res.download(tmpFile, `${dirName}.tar.gz`, () => {
+          try { fs.unlinkSync(tmpFile); } catch {}
+        });
+      } catch (e) {
+        try { fs.unlinkSync(tmpFile); } catch {}
+        return res.status(500).json({ error: `打包失败: ${e.message}` });
+      }
+      return;
+    }
     res.download(resolved);
   } catch (err) {
     res.status(500).json({ error: err.message });

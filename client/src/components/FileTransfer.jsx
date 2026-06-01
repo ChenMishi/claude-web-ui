@@ -16,7 +16,6 @@ export default function FileTransfer({ onClose }) {
   const { user } = useApp();
   const rootPath = user?.role !== 'admin' ? (user?.homeDir || `/home/${user?.username}`) : '/root';
 
-
   // Server panel
   const [serverPath, setServerPath] = useState(rootPath);
   const [serverDirs, setServerDirs] = useState([]);
@@ -59,29 +58,35 @@ export default function FileTransfer({ onClose }) {
     setSelectedServer({});
   };
 
-  const toggleServer = (entry) => {
+  const toggleServer = (entry, isDir) => {
     setSelectedServer(prev => {
       const next = { ...prev };
       if (next[entry.path]) delete next[entry.path];
-      else next[entry.path] = entry;
+      else next[entry.path] = { ...entry, isDir: !!isDir };
       return next;
     });
   };
 
   const toggleAllServer = () => {
-    const allFiles = serverFiles.filter(f => !f.name.startsWith('.'));
-    const allSelected = allFiles.every(f => selectedServer[f.path]);
+    const allItems = [
+      ...serverDirs.map(d => ({ ...d, isDir: true })),
+      ...serverFiles.filter(f => !f.name.startsWith('.')),
+    ];
+    const allSelected = allItems.every(item => selectedServer[item.path]);
     if (allSelected) {
       setSelectedServer({});
     } else {
       const next = {};
-      allFiles.forEach(f => { next[f.path] = f; });
+      allItems.forEach(item => { next[item.path] = item; });
       setSelectedServer(next);
     }
   };
 
+  const selItems = Object.values(selectedServer);
+  const selCount = selItems.length;
+
   // ═══════════════════════════════════════════════════════════
-  // Upload / Download
+  // Upload
   // ═══════════════════════════════════════════════════════════
 
   const handleFileSelect = (e) => {
@@ -90,7 +95,7 @@ export default function FileTransfer({ onClose }) {
     setMsg('');
     const queue = files.map(f => ({
       id: Date.now() + '_' + Math.random().toString(36).slice(2) + '_' + f.name,
-      name: f.name, direction: 'upload',
+      name: f.webkitRelativePath || f.name, direction: 'upload',
       loaded: 0, total: f.size, status: 'waiting',
       _file: f,
     }));
@@ -102,7 +107,15 @@ export default function FileTransfer({ onClose }) {
     for (const item of queue) {
       setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, status: 'transferring' } : t));
       try {
-        await uploadFile(serverPath, item._file, (p) => {
+        const file = item._file;
+        const relPath = file.webkitRelativePath || file.name;
+        // Get the directory part of the relative path
+        const dirParts = relPath.split('/');
+        const fileName = dirParts.pop();
+        const subDir = dirParts.length > 0 ? '/' + dirParts.join('/') : '';
+        const targetDir = serverPath + subDir;
+
+        await uploadFileToDir(targetDir, fileName, file, (p) => {
           setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, loaded: p.loaded, total: p.total } : t));
         });
         setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, status: 'done', loaded: t.total } : t));
@@ -115,19 +128,54 @@ export default function FileTransfer({ onClose }) {
     if (folderInputRef.current) folderInputRef.current.value = '';
   };
 
+  const uploadFileToDir = (dir, fileName, file, onProgress) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(',')[1];
+        const body = JSON.stringify({ dir, fileName, content: base64 });
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/fs/upload');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', `Bearer ${TOKEN()}`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && onProgress) onProgress({ loaded: e.loaded, total: e.total });
+        };
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+            else reject(new Error(data.error || `HTTP ${xhr.status}`));
+          } catch { reject(new Error('解析响应失败')); }
+        };
+        xhr.onerror = () => reject(new Error('上传失败'));
+        xhr.send(body);
+      };
+      reader.onerror = () => reject(new Error('读取文件失败'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // Download
+  // ═══════════════════════════════════════════════════════════
+
   const runDownload = async () => {
-    const selected = Object.values(selectedServer);
-    if (selected.length === 0) { setMsg('请先在服务器目录中选择要下载的文件'); return; }
+    if (selItems.length === 0) { setMsg('请先选择要下载的文件或目录'); return; }
     setMsg('');
-    const queue = selected.map(f => ({
-      id: f.path, name: f.name, direction: 'download',
-      loaded: 0, total: f.size || 0, status: 'waiting',
+
+    const queue = selItems.map(item => ({
+      id: item.path, name: item.name + (item.isDir ? '.tar.gz' : ''), direction: 'download',
+      loaded: 0, total: item.size || 0, status: 'waiting',
     }));
     setTransfers(queue);
+
     for (const item of queue) {
       setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, status: 'transferring' } : t));
       try {
-        await downloadFile(item.id, (p) => {
+        // Use the original path (without .tar.gz) for single files, with .tar.gz suffix handled by backend for dirs
+        const dlPath = selItems.find(s => s.path === item.id)?.path || item.id;
+        await downloadFile(dlPath, (p) => {
           setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, loaded: p.loaded, total: p.total || p.loaded } : t));
         });
         setTransfers(prev => prev.map(t => t.id === item.id ? { ...t, status: 'done', loaded: t.total } : t));
@@ -141,9 +189,11 @@ export default function FileTransfer({ onClose }) {
   const isTransferring = transfers.some(t => t.status === 'transferring' || t.status === 'waiting');
 
   const serverBreadcrumb = serverPath.split('/').filter(Boolean);
-  const allFilesFiltered = serverFiles.filter(f => !f.name.startsWith('.'));
-  const allSelected = allFilesFiltered.length > 0 && allFilesFiltered.every(f => selectedServer[f.path]);
-  const selCount = Object.keys(selectedServer).length;
+  const allItems = [
+    ...serverDirs.map(d => ({ ...d, isDir: true })),
+    ...serverFiles.filter(f => !f.name.startsWith('.')).map(f => ({ ...f, isDir: false })),
+  ];
+  const allSelected = allItems.length > 0 && allItems.every(item => selectedServer[item.path]);
 
   // ═══════════════════════════════════════════════════════════
   // Render
@@ -197,26 +247,29 @@ export default function FileTransfer({ onClose }) {
                     📁 ..
                   </div>
                 )}
-                {serverDirs.map(d => (
-                  <div key={d.path} onClick={() => { setServerPath(d.path); setSelectedServer({}); }}
-                    style={{ padding: '6px 12px', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 4 }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <span>📁</span>
-                    <span>{d.name}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>进入 →</span>
-                  </div>
-                ))}
+                {serverDirs.map(d => {
+                  const isSel = !!selectedServer[d.path];
+                  return (
+                    <div key={d.path}
+                      style={{ padding: '6px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 4, background: isSel ? 'var(--accent-light)' : 'transparent' }}
+                      onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'var(--hover)'; }}
+                      onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}>
+                      <input type="checkbox" checked={isSel} onChange={() => toggleServer(d, true)} style={{ margin: 0 }} />
+                      <span style={{ cursor: 'pointer' }} onClick={() => toggleServer(d, true)}>📁 {d.name}</span>
+                      <span onClick={() => { setServerPath(d.path); setSelectedServer({}); }}
+                        style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent)', cursor: 'pointer' }}>进入 →</span>
+                    </div>
+                  );
+                })}
                 {serverFiles.map(f => {
                   const isSel = !!selectedServer[f.path];
                   return (
-                    <div key={f.path} onClick={() => toggleServer(f)}
+                    <div key={f.path} onClick={() => toggleServer(f, false)}
                       style={{ padding: '6px 12px', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 4, background: isSel ? 'var(--accent-light)' : 'transparent' }}
                       onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'var(--hover)'; }}
                       onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}>
-                      <input type="checkbox" checked={isSel} readOnly style={{ margin: 0 }} />
-                      <span>📄</span>
-                      <span>{f.name}</span>
+                      <input type="checkbox" checked={isSel} readOnly style={{ margin: 0, pointerEvents: 'none' }} />
+                      <span>📄 {f.name}</span>
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{formatBytes(f.size)}</span>
                     </div>
                   );
@@ -226,7 +279,7 @@ export default function FileTransfer({ onClose }) {
           </div>
 
           {/* Selection bar */}
-          {allFilesFiltered.length > 0 && (
+          {allItems.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderTop: '1px solid var(--border)', flexShrink: 0, fontSize: 12, color: 'var(--text-muted)' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
                 <input type="checkbox" checked={allSelected} onChange={toggleAllServer} style={{ margin: 0 }} /> 全选
@@ -241,14 +294,13 @@ export default function FileTransfer({ onClose }) {
           <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
           <input ref={folderInputRef} type="file" webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleFileSelect} />
           <button className="init-btn init-btn-save" onClick={runDownload} disabled={selCount === 0 || isTransferring}>
-            ⬇ 下载选中文件 ({selCount})
+            ⬇ 下载选中 ({selCount})
           </button>
           <button className="init-btn" onClick={() => fileInputRef.current?.click()}>
-            📄 选择本地电脑文件
+            📄 选择本地电脑文件上传
           </button>
-          <button className="init-btn" onClick={() => folderInputRef.current?.click()}
-            style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
-            📁 选择本地电脑文件夹
+          <button className="init-btn" onClick={() => folderInputRef.current?.click()}>
+            📁 选择本地电脑文件夹上传
           </button>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{serverPath}</span>
           {msg && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{msg}</span>}
@@ -259,7 +311,7 @@ export default function FileTransfer({ onClose }) {
           <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0, maxHeight: 160, overflowY: 'auto', padding: '8px 20px' }}>
             {transfers.map(t => (
               <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.name}>
                   {t.name}
                 </span>
                 <span style={{ color: 'var(--text-muted)', flexShrink: 0, fontSize: 11 }}>
