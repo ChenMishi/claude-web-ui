@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getBackupList, createBackup, deleteBackup, getBackupConfig, saveBackupConfig, restoreBackup, getBackupDownloadUrl } from '../api';
-import { listDir } from '../api';
+import { listDir, mkdir } from '../api';
 
 function formatSize(bytes) {
   if (!bytes) return '—';
@@ -14,6 +14,9 @@ function DirPicker({ value, onSelect, onClose }) {
   const [dirs, setDirs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [newDirName, setNewDirName] = useState('');
+  const [createMsg, setCreateMsg] = useState('');
 
   const loadDir = useCallback(async (p) => {
     setLoading(true); setError('');
@@ -21,7 +24,6 @@ function DirPicker({ value, onSelect, onClose }) {
       const data = await listDir(p);
       setCwd(data.path);
       setDirs(data.dirs || []);
-      // Also allow navigating up
       if (data.path !== '/') {
         const parent = data.path.split('/').slice(0, -1).join('/') || '/';
         setDirs(prev => [{ name: '..', path: parent, isParent: true }, ...prev]);
@@ -33,6 +35,20 @@ function DirPicker({ value, onSelect, onClose }) {
   }, []);
 
   useEffect(() => { loadDir(cwd); }, [cwd, loadDir]);
+
+  const handleCreateDir = async () => {
+    if (!newDirName.trim()) return;
+    setCreateMsg('');
+    try {
+      await mkdir(cwd, newDirName.trim());
+      setNewDirName('');
+      setCreating(false);
+      loadDir(cwd);
+    } catch (err) {
+      setCreateMsg(`创建失败: ${err.message}`);
+      setTimeout(() => setCreateMsg(''), 3000);
+    }
+  };
 
   return (
     <div className="dir-picker-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -65,9 +81,26 @@ function DirPicker({ value, onSelect, onClose }) {
             ))
           )}
         </div>
+        {createMsg && <div className="dir-picker-create-msg">{createMsg}</div>}
+        {creating && (
+          <div className="dir-picker-create-row">
+            <input
+              type="text" placeholder="新目录名称" autoFocus
+              value={newDirName}
+              onChange={e => setNewDirName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleCreateDir(); if (e.key === 'Escape') { setCreating(false); setNewDirName(''); } }}
+              className="dir-picker-create-input"
+            />
+            <button className="init-btn init-btn-save" onClick={handleCreateDir}>创建</button>
+            <button className="init-btn" onClick={() => { setCreating(false); setNewDirName(''); }}>取消</button>
+          </div>
+        )}
         <div className="dir-picker-actions">
-          <button className="init-btn" onClick={onClose}>取消</button>
-          <button className="init-btn init-btn-save" onClick={() => { onSelect(cwd); onClose(); }}>选择此目录</button>
+          <button className="init-btn" onClick={() => setCreating(v => !v)}>📁 新建目录</button>
+          <div className="dir-picker-actions-right">
+            <button className="init-btn" onClick={onClose}>取消</button>
+            <button className="init-btn init-btn-save" onClick={() => { onSelect(cwd); onClose(); }}>选择此目录</button>
+          </div>
         </div>
       </div>
     </div>
