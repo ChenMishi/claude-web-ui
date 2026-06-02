@@ -208,7 +208,7 @@ export const getSessionMessages = (id, offset) => fetchJSON(`/session/${id}/mess
 export const resolveQuestion = (id, answers) => fetchJSON(`/session/${id}/message/resolve`, { method: 'POST', body: JSON.stringify(answers) });
 
 // Agent SDK chat (full tool calling via session endpoint)
-export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem, onAssistant, onToolResult, onToolUse, onAskUser, onThinking, onDone, onError, onTitle }) {
+export async function runAgent({ sessionId, cwd, prompt, options = {}, signal, onSystem, onAssistant, onToolResult, onToolUse, onAskUser, onThinking, onDone, onError, onTitle }) {
   const body = { prompt, cwd, options };
 
   let response;
@@ -217,8 +217,10 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json', Accept: 'text/event-stream' }),
       body: JSON.stringify(body),
+      signal,
     });
   } catch (err) {
+    if (err.name === 'AbortError') return; // silently ignore aborted requests
     onError?.(new Error(`无法连接服务器: ${err.message}`));
     return;
   }
@@ -233,6 +235,7 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json', Accept: 'text/event-stream' }),
             body: JSON.stringify(body),
+            signal,
           });
           if (!response.ok) {
             const err = await response.json().catch(() => ({}));
@@ -273,6 +276,7 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, onSystem,
       try {
         chunk = await reader.read();
       } catch (err) {
+        if (err.name === 'AbortError') break; // silently stop on abort
         if (!currentEvent) onError?.(new Error(`连接中断: ${err.message}`));
         break;
       }

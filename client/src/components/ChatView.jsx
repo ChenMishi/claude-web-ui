@@ -70,6 +70,7 @@ export default function ChatView() {
   const textAccum = useRef('');
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
+  const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
   const [askUser, setAskUser] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -206,6 +207,13 @@ export default function ChatView() {
   useEffect(() => {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
+
+  // Abort SSE stream when switching to a different session
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, [currentSessionId]);
 
   // Reconnect to running session after page refresh
   useEffect(() => {
@@ -397,9 +405,15 @@ export default function ChatView() {
     const cwd = project?.cwd || '/root';
     const sessionId = currentSessionId || 'new';
 
+    // Abort any previous stream and create a new AbortController for this send
+    abortRef.current?.abort();
+    const abort = new AbortController();
+    abortRef.current = abort;
+
     runAgent({
       sessionId,
       cwd,
+      signal: abort.signal,
       prompt: promptText,
       options: { model: currentModel || model, systemPrompt: systemPrompt || undefined, permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
       onThinking: ({ text: thinkingText, usage }) => {
