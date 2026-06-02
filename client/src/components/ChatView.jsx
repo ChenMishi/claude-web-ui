@@ -498,8 +498,17 @@ export default function ChatView() {
     const vals = Object.values(answers.answers || answers);
     const text = vals.filter(Boolean).join('，');
     setAskUser(null);
-    // Send answer as new message — session was silently aborted, will resume
-    if (text) {
+
+    // Tool confirmation: session is NOT aborted, SDK continues in same turn.
+    // Don't call handleSend — the 409 "Session is busy" error is expected if we do.
+    const askQs = askUser.questions || [];
+    const isToolConfirm = askQs.length === 1 && askQs[0]?.options
+      && askQs[0].options.length === 2
+      && askQs[0].options.includes('允许')
+      && askQs[0].options.includes('拒绝');
+
+    if (!isToolConfirm && text) {
+      // AskUserQuestion: session was aborted, answer starts a new turn
       setTimeout(() => handleSend(text), 200);
     }
   }, [askUser, currentSessionId, handleSend]);
