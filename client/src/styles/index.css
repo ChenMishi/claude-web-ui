@@ -3439,6 +3439,7 @@ html, body, #root {
 
 .stats-error { font-size: 13px; color: var(--danger); padding: 16px 0; }
 .stats-loading { font-size: 13px; color: var(--text-muted); padding: 24px 0; text-align: center; }
+.stats-reloading { font-size: 12px; color: var(--accent); padding: 0; margin-bottom: 8px; }
 
 .stats-empty { text-align: center; padding: 48px 0; color: var(--text-muted); }
 .stats-empty-icon { font-size: 48px; margin-bottom: 12px; }

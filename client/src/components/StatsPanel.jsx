@@ -147,8 +147,8 @@ export default function StatsPanel() {
       {/* Error state */}
       {error && <div className="stats-error">⚠ {error}</div>}
 
-      {/* Loading state */}
-      {loading && <div className="stats-loading">加载中…</div>}
+      {/* Loading state — only show on initial load when no data yet */}
+      {loading && !summary && <div className="stats-loading">加载中…</div>}
 
       {/* Empty state */}
       {!loading && !error && summary && summary.sessionCount === 0 && (
@@ -159,8 +159,11 @@ export default function StatsPanel() {
         </div>
       )}
 
-      {/* Summary cards */}
-      {!loading && summary && summary.sessionCount > 0 && (
+      {/* Subtle reload indicator — doesn't disrupt layout */}
+      {loading && summary && <div className="stats-reloading">⟳ 刷新中…</div>}
+
+      {/* Summary cards — stay visible during reload to prevent layout shift */}
+      {summary && summary.sessionCount > 0 && (
         <>
           <div className="stats-cards">
             {summaryCards.map((c, i) => (
