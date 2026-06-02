@@ -296,9 +296,11 @@ function buildSDKOptions(runtime, body, authUser) {
     ...agentOptions.effort !== undefined ? { effort: agentOptions.effort } : {},
     // Non-admin users: strip additionalDirectories (could be used to bypass sandbox)
     ...(sandbox ? {} : (agentOptions.additionalDirectories?.length ? { additionalDirectories: agentOptions.additionalDirectories } : {})),
-    ...agentOptions.env !== undefined ? { env: agentOptions.env } : {},
     // Always route SDK through built-in proxy
+    // IMPORTANT: ...process.env must be first so the subprocess inherits PATH etc.
+    // The SDK query() `env` parameter COMPLETELY REPLACES the subprocess environment.
     env: {
+      ...process.env,
       ANTHROPIC_BASE_URL: proxyUrl,
       ANTHROPIC_API_KEY: 'proxy',
       ...(agentOptions.env || {}),
