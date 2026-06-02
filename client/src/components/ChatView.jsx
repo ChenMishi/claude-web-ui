@@ -111,13 +111,13 @@ export default function ChatView() {
     }
   };
 
-  // Auto-scroll when ask dialog appears
+  // Auto-scroll when ask dialog or tool confirm appears
   useEffect(() => {
-    if (askUser && askRef.current) {
+    if ((askUser || toolConfirm) && askRef.current) {
       askRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       isAskBuffered.current = true;
     }
-  }, [askUser]);
+  }, [askUser, toolConfirm]);
 
   // Track how many messages are loaded
   useEffect(() => {
