@@ -126,26 +126,18 @@ pct 3 "检查 Node.js 环境..."
 ensure_node
 
 pct 5 "升级中..."
-log "停止旧服务..."
 
-# ---------- 停止服务 ----------
+# ---------- 保存旧服务端口（稍后重启时复用）----------
+OLD_PORT=""
+OLD_PID=""
 if [ -f .port ]; then
     OLD_PORT=$(cat .port)
-    if lsof -i ":$OLD_PORT" &>/dev/null 2>&1; then
-        log "停止旧服务 (端口 $OLD_PORT)"
-        kill $(lsof -t -i ":$OLD_PORT") 2>/dev/null
-        sleep 2
-        lsof -i ":$OLD_PORT" &>/dev/null 2>&1 && kill -9 $(lsof -t -i ":$OLD_PORT") 2>/dev/null
-    fi
 fi
 if [ -f .pid ]; then
     OLD_PID=$(cat .pid)
-    kill -0 "$OLD_PID" 2>/dev/null && kill "$OLD_PID" 2>/dev/null
-    rm -f .pid
 fi
 
 # ---------- 拉取最新代码 ----------
-rm -f .pid .port
 pct 10 "拉取最新代码..."
 log "拉取最新代码..."
 
@@ -190,21 +182,31 @@ else
 fi
 cd "$PROJECT_DIR"
 
-# ---------- 读取端口 ----------
-pct 80 "检查端口..."
+# ---------- 报告完成（旧服务仍在运行，前端可看到进度）----------
+pct 85 "升级完成，准备重启服务..."
+NEW_VERSION=$(cat VERSION 2>/dev/null || echo "?")
+echo "{\"status\":\"done\",\"progress\":100,\"message\":\"升级完成，请刷新页面\",\"newVersion\":\"$NEW_VERSION\"}" > /tmp/claude-web-ui-upgrade.status.tmp && mv /tmp/claude-web-ui-upgrade.status.tmp /tmp/claude-web-ui-upgrade.status.json
+
+# ---------- 停止旧服务 ----------
+pct 90 "停止旧服务..."
+log "停止旧服务..."
 PORT=${OLD_PORT:-3000}
+if [ -n "$OLD_PORT" ] && lsof -i ":$OLD_PORT" &>/dev/null 2>&1; then
+    log "停止旧服务 (端口 $OLD_PORT)"
+    kill $(lsof -t -i ":$OLD_PORT") 2>/dev/null
+    sleep 2
+    lsof -i ":$OLD_PORT" &>/dev/null 2>&1 && kill -9 $(lsof -t -i ":$OLD_PORT") 2>/dev/null
+fi
+if [ -n "$OLD_PID" ]; then
+    kill -0 "$OLD_PID" 2>/dev/null && kill "$OLD_PID" 2>/dev/null
+fi
+rm -f .pid .port
 
-while lsof -i ":$PORT" &>/dev/null 2>&1; do
-    warn "端口 $PORT 已被占用"
-    PORT=$((PORT + 1))
-    [ $PORT -gt 3020 ] && { err "无可用端口"; exit 1; }
-done
-
-# ---------- 启动服务 ----------
+# ---------- 启动新服务 ----------
+pct 95 "启动新服务..."
 export PORT=$PORT
 echo "$PORT" > .port
 
-pct 90 "启动服务..."
 log "启动服务 (端口 $PORT)..."
 nohup node server.js > server.log 2>&1 &
 NEW_PID=$!
