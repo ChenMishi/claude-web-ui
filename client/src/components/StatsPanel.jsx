@@ -27,6 +27,19 @@ const PRESETS = [
     } },
   { label: '本月',   value: 'month',    granularity: 'day',
     compute: (now) => ({ from: new Date(now.getFullYear(), now.getMonth(), 1), to: now }) },
+  { label: '上周',   value: 'lastWeek', granularity: 'day',
+    compute: (now) => {
+      const day = now.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      const thisMon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+      const lastMon = new Date(thisMon.getTime() - 7 * 86400000);
+      return { from: lastMon, to: thisMon };
+    } },
+  { label: '上月',   value: 'lastMonth', granularity: 'day',
+    compute: (now) => ({
+      from: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      to: new Date(now.getFullYear(), now.getMonth(), 1),
+    }) },
 ];
 
 function fmtTok(n) {
