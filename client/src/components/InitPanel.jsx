@@ -67,6 +67,9 @@ export default function InitPanel() {
     setEditProxyPort(String(res.proxyPort || '15721'));
     setEnvChecked(true);
 
+    // Cache detection result so it persists across page refreshes
+    try { localStorage.setItem('claude-ui:envStatus', JSON.stringify({ status: res, time: Date.now() })); } catch {}
+
     const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
     for (let i = 0; i < items.length; i++) {
       await new Promise(r => setTimeout(r, 700));
@@ -74,8 +77,25 @@ export default function InitPanel() {
     }
   }, []);
 
-  // Auto-load status on mount
-  useEffect(() => { loadStatus(); loadProviderConfig(); }, [loadStatus, loadProviderConfig]);
+  // Auto-load status on mount — restore cached env detection if available
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('claude-ui:envStatus');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setStatus(parsed.status);
+        setEnvChecked(true);
+        // Restore env progress as all-checked
+        const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
+        const progress = {};
+        items.forEach(k => { progress[k] = { checked: true }; });
+        setEnvProgress(progress);
+        setEditProxyHost(parsed.status?.proxyHost || '127.0.0.1');
+        setEditProxyPort(String(parsed.status?.proxyPort || '15721'));
+      }
+    } catch {}
+    loadStatus(); loadProviderConfig();
+  }, [loadStatus, loadProviderConfig]);
 
   const handleCheckClaudeUpdate = useCallback(async () => {
     setCheckingClaudeUpdate(true); setClaudeUpdateInfo(null);

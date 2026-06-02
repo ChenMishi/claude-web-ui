@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getUsers, createUser, deleteUser, getPricing, savePricing } from '../api';
 import VersionCard from './VersionCard';
+import ClaudeCodeCard from './ClaudeCodeCard';
 import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
 import StatsPanel from './StatsPanel';
@@ -244,7 +245,10 @@ export default function SettingsPanel() {
       ) : settingsTab === 'init' ? (
         <InitPanel />
       ) : settingsTab === 'upgrade' ? (
-        <VersionCard />
+        <>
+          <VersionCard />
+          <ClaudeCodeCard />
+        </>
       ) : settingsTab === 'stats' ? (
         <StatsPanel />
       ) : (
