@@ -215,7 +215,7 @@ export default function StatsPanel() {
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickFormatter={fmtTok} />
                       <Tooltip
                         contentStyle={{
-                          background: 'var(--bg-card)', border: '1px solid var(--glass-border)',
+                          background: 'var(--bg-primary)', border: '1px solid var(--glass-border)',
                           borderRadius: 8, fontSize: 12, color: 'var(--text-primary)',
                         }}
                         formatter={(val, name) => [fmtTok(val), name]}
@@ -241,7 +241,7 @@ export default function StatsPanel() {
                       <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickFormatter={v => `${v.toFixed(0)}`} />
                       <Tooltip
                         contentStyle={{
-                          background: 'var(--bg-card)', border: '1px solid var(--glass-border)',
+                          background: 'var(--bg-primary)', border: '1px solid var(--glass-border)',
                           borderRadius: 8, fontSize: 12, color: 'var(--text-primary)',
                         }}
                         formatter={(val) => [`${summary.currency || '¥'}${fmtCost(val)}`, '花费']}
@@ -260,19 +260,18 @@ export default function StatsPanel() {
                 <div className="stats-chart-card stats-pie-card">
                   <div className="stats-chart-header">模型分布</div>
                   <div className="stats-chart-wrap">
-                    <ResponsiveContainer width="100%" height={240}>
+                    <ResponsiveContainer width="100%" height={260}>
                       <PieChart>
                         <Pie data={usage.byModel} dataKey="cost" nameKey="model"
-                          cx="50%" cy="50%" outerRadius={80} innerRadius={40}
-                          label={({ model, percent }) => `${model?.slice(0, 12)} ${(percent * 100).toFixed(0)}%`}
-                          labelLine={false}>
+                          cx="50%" cy="50%" outerRadius={90} innerRadius={50}
+                          label={({ model, percent }) => `${model?.slice(0, 12)} ${(percent * 100).toFixed(0)}%`}>
                           {usage.byModel.map((_, i) => (
                             <Cell key={i} fill={COLORS[i % COLORS.length]} />
                           ))}
                         </Pie>
                         <Tooltip
                           contentStyle={{
-                            background: 'var(--bg-card)', border: '1px solid var(--glass-border)',
+                            background: 'var(--bg-primary)', border: '1px solid var(--glass-border)',
                             borderRadius: 8, fontSize: 12, color: 'var(--text-primary)',
                           }}
                           formatter={(val) => [`${summary.currency || '¥'}${fmtCost(val)}`, '花费']}
@@ -286,26 +285,36 @@ export default function StatsPanel() {
                 <div className="stats-chart-card stats-pie-card">
                   <div className="stats-chart-header">Token 类型占比</div>
                   <div className="stats-chart-wrap">
-                    <ResponsiveContainer width="100%" height={240}>
+                    <ResponsiveContainer width="100%" height={260}>
                       <PieChart>
                         <Pie
-                          data={[
-                            { name: '输入', value: summary.totalInput },
-                            { name: '输出', value: summary.totalOutput },
-                            { name: '缓存读取', value: summary.totalCacheRead },
-                            { name: '缓存写入', value: summary.totalCacheWrite },
-                          ].filter(d => d.value > 0)}
+                          data={(() => {
+                            const raw = [
+                              { name: '输入', value: summary.totalInput },
+                              { name: '输出', value: summary.totalOutput },
+                              { name: '缓存读取', value: summary.totalCacheRead },
+                              { name: '缓存写入', value: summary.totalCacheWrite },
+                            ];
+                            return raw.filter(d => d.value > 0);
+                          })()}
                           dataKey="value" nameKey="name"
-                          cx="50%" cy="50%" outerRadius={80} innerRadius={40}
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                          labelLine={false}>
-                          {[0, 1, 2, 3].map((_, i) => (
-                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                          ))}
+                          cx="50%" cy="50%" outerRadius={90} innerRadius={50}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                          {(() => {
+                            const raw = [
+                              { name: '输入', value: summary.totalInput },
+                              { name: '输出', value: summary.totalOutput },
+                              { name: '缓存读取', value: summary.totalCacheRead },
+                              { name: '缓存写入', value: summary.totalCacheWrite },
+                            ];
+                            return raw.filter(d => d.value > 0).map((_, i) => (
+                              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                            ));
+                          })()}
                         </Pie>
                         <Tooltip
                           contentStyle={{
-                            background: 'var(--bg-card)', border: '1px solid var(--glass-border)',
+                            background: 'var(--bg-primary)', border: '1px solid var(--glass-border)',
                             borderRadius: 8, fontSize: 12, color: 'var(--text-primary)',
                           }}
                           formatter={(val) => [fmtTok(val), '']}

@@ -3463,7 +3463,7 @@ html, body, #root {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .stats-chart-card {
-  background: var(--bg-card); border: 1px solid var(--glass-border);
+  background: var(--bg-primary); border: 1px solid var(--glass-border);
   border-radius: 12px; padding: 16px; margin-bottom: 12px;
 }
 .stats-chart-header { font-size: 14px; font-weight: 500; margin-bottom: 12px; color: var(--text-primary); }
