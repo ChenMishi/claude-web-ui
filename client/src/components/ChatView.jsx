@@ -72,6 +72,7 @@ export default function ChatView() {
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
   const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
   const [askUser, setAskUser] = useState(null);
+  const [toolConfirm, setToolConfirm] = useState(null); // { tool, action, input } — separate from askUser
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [activeSkill, setActiveSkill] = useState(null); // { name, displayName, icon }
@@ -305,6 +306,8 @@ export default function ChatView() {
                           bAppend({ role: 'tool', toolResult: { tool_use_id: t.tool_use_id, content: text, is_error: t.is_error }, timestamp: Date.now() });
                         });
                       }
+                    } else if (currentEvent === 'tool_confirm') {
+                      setToolConfirm({ tool: parsed.tool, action: parsed.action, input: parsed.input });
                     } else if (currentEvent === 'done') {
                       bUpdate(null);
                       setStreaming(false);
@@ -460,6 +463,9 @@ export default function ChatView() {
       onAskUser: ({ questions }) => {
         setAskUser({ questions });
       },
+      onToolConfirm: ({ tool, action, input }) => {
+        setToolConfirm({ tool, action, input });
+      },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency }) => {
         bUpdate(null);
         setStreaming(false);
@@ -498,20 +504,19 @@ export default function ChatView() {
     const vals = Object.values(answers.answers || answers);
     const text = vals.filter(Boolean).join('，');
     setAskUser(null);
-
-    // Tool confirmation: session is NOT aborted, SDK continues in same turn.
-    // Don't call handleSend — the 409 "Session is busy" error is expected if we do.
-    const askQs = askUser.questions || [];
-    const isToolConfirm = askQs.length === 1 && askQs[0]?.options
-      && askQs[0].options.length === 2
-      && askQs[0].options.includes('允许')
-      && askQs[0].options.includes('拒绝');
-
-    if (!isToolConfirm && text) {
-      // AskUserQuestion: session was aborted, answer starts a new turn
+    // AskUserQuestion: session was aborted, answer starts a new turn
+    if (text) {
       setTimeout(() => handleSend(text), 200);
     }
   }, [askUser, currentSessionId, handleSend]);
+
+  // Tool confirmation handler — separate from AskUserQuestion
+  const handleToolConfirm = useCallback((allowed) => {
+    if (!toolConfirm || !currentSessionId) return;
+    const answer = allowed ? '允许' : '拒绝';
+    resolveQuestion(currentSessionId, { answers: { q0: answer } }).catch(() => {});
+    setToolConfirm(null);
+  }, [toolConfirm, currentSessionId]);
 
   // Buffered append: hold messages while AskUserQuestion dialog is shown
   const bufferedAppend = useCallback((msg) => {
@@ -536,12 +541,9 @@ export default function ChatView() {
 
   const hasMessages = chatMessages.length > 0;
   const askQs = askUser?.questions || [];
-  const isToolConfirm = askQs.length === 1 && askQs[0]?.options
-    && askQs[0].options.length === 2
-    && askQs[0].options.includes('允许')
-    && askQs[0].options.includes('拒绝');
 
   return (
+    <>
     <div className="chat-layout">
       <div className="chat-content">
         <div className="chat-main">
@@ -558,21 +560,8 @@ export default function ChatView() {
           {chatMessages.map((msg, i) => (
             <ChatMessage key={i} message={msg} />
           ))}
-          {/* AskUserQuestion / Tool confirmation dialog */}
-          {askUser && isToolConfirm && (
-            <div className="ask-user-dialog" ref={askRef}>
-              <h4>🤔 {askQs[0].question || askQs[0].header}</h4>
-              <div className="confirm-buttons">
-                <button className="confirm-btn-allow" onClick={() => handleResolveAsk({ answers: { q0: '允许' } })}>
-                  允许
-                </button>
-                <button className="confirm-btn-deny" onClick={() => handleResolveAsk({ answers: { q0: '拒绝' } })}>
-                  拒绝
-                </button>
-              </div>
-            </div>
-          )}
-          {askUser && !isToolConfirm && (
+          {/* AskUserQuestion dialog — embedded in chat flow */}
+          {askUser && (
             <div className="ask-user-dialog" ref={askRef}>
               <h4>🤔 Claude 想确认几个问题</h4>
               {askQs.map((q, qi) => (
@@ -629,5 +618,29 @@ export default function ChatView() {
       </div>
       <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} activeSkill={activeSkill} onSkillChange={setActiveSkill} />
     </div>
+
+    {/* Tool permission confirmation overlay — floating, not in chat flow */}
+    {toolConfirm && (
+      <div className="tool-confirm-overlay" onClick={() => handleToolConfirm(false)}>
+        <div className="tool-confirm-dialog" onClick={e => e.stopPropagation()}>
+          <div className="tool-confirm-icon">🔐</div>
+          <h3>工具权限确认</h3>
+          <p className="tool-confirm-desc">{toolConfirm.action}</p>
+          <div className="tool-confirm-detail">
+            <code>{toolConfirm.tool}</code>
+            {toolConfirm.input?.description && <span> — {toolConfirm.input.description.slice(0, 100)}</span>}
+          </div>
+          <div className="tool-confirm-buttons">
+            <button className="tool-confirm-btn-deny" onClick={() => handleToolConfirm(false)}>
+              ✕ 拒绝
+            </button>
+            <button className="tool-confirm-btn-allow" onClick={() => handleToolConfirm(true)}>
+              ✓ 允许
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }

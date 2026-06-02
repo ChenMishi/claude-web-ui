@@ -377,9 +377,7 @@ function buildSDKOptions(runtime, body, authUser) {
         console.log('[canUseTool] user answered:', JSON.stringify(result));
         resolve(result);
       }, 'confirm', input);
-      broadcast(runtime, 'ask_user', {
-        questions: [{ question: `允许执行 ${action}？`, header: action, options: ['允许', '拒绝'] }],
-      });
+      broadcast(runtime, 'tool_confirm', { tool: toolName, action, input });
     });
   };
 

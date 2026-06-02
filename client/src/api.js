@@ -208,7 +208,7 @@ export const getSessionMessages = (id, offset) => fetchJSON(`/session/${id}/mess
 export const resolveQuestion = (id, answers) => fetchJSON(`/session/${id}/message/resolve`, { method: 'POST', body: JSON.stringify(answers) });
 
 // Agent SDK chat (full tool calling via session endpoint)
-export async function runAgent({ sessionId, cwd, prompt, options = {}, signal, onSystem, onAssistant, onToolResult, onToolUse, onAskUser, onThinking, onDone, onError, onTitle }) {
+export async function runAgent({ sessionId, cwd, prompt, options = {}, signal, onSystem, onAssistant, onToolResult, onToolUse, onAskUser, onToolConfirm, onThinking, onDone, onError, onTitle }) {
   const body = { prompt, cwd, options };
 
   let response;
@@ -334,6 +334,10 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, signal, o
 
                 case 'ask_user':
                   onAskUser?.(parsed);
+                  break;
+
+                case 'tool_confirm':
+                  onToolConfirm?.(parsed);
                   break;
 
                 case 'done':
