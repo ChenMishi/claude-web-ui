@@ -129,7 +129,12 @@ function checkClaudeCode() {
 }
 
 function getClaudeCodeVersion() {
-  try { return require('child_process').execSync('claude --version', { encoding: 'utf8', timeout: 5000 }).trim(); }
+  try {
+    const raw = require('child_process').execSync('claude --version', { encoding: 'utf8', timeout: 5000 }).trim();
+    // 提取纯版本号，例如 "2.1.148 (Claude Code)" → "v2.1.148"
+    const match = raw.match(/^(\d+\.\d+\.\d+)/);
+    return match ? 'v' + match[1] : raw;
+  }
   catch { return null; }
 }
 
