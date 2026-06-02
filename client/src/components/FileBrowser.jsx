@@ -151,17 +151,41 @@ export default function FileBrowser() {
     setContextMenu({ x: e.clientX, y: e.clientY, path: item.path, name: item.name });
   };
 
-  const handleCopyPath = async () => {
+  const handleCopyPath = () => {
     if (!contextMenu) return;
-    try {
-      await navigator.clipboard.writeText(contextMenu.path);
-      setMsg('✅ 路径已复制: ' + contextMenu.path);
-      setTimeout(() => setMsg(''), 2000);
-    } catch {
-      setMsg('❌ 复制失败');
-      setTimeout(() => setMsg(''), 2000);
+    const path = contextMenu.path;
+    let copied = false;
+    // Try modern clipboard API first (requires secure context)
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(path).then(() => {
+        setMsg('✅ 路径已复制: ' + path);
+        setTimeout(() => setMsg(''), 2000);
+      }).catch(() => {
+        fallbackCopy(path);
+      });
+    } else {
+      fallbackCopy(path);
     }
     setContextMenu(null);
+  };
+
+  const fallbackCopy = (text) => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      setMsg('✅ 路径已复制: ' + text);
+    } catch {
+      setMsg('❌ 复制失败');
+    }
+    document.body.removeChild(ta);
+    setTimeout(() => setMsg(''), 2000);
   };
 
   // Close context menu on any click outside
