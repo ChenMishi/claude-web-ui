@@ -41,16 +41,18 @@ function readStats(fromISO, toISO) {
 // Helper: aggregate records by time bucket
 function aggregate(records, granularity) {
   const fmt = (d) => {
+    // 转换为中国时区 UTC+8
+    const d8 = new Date(d.getTime() + 8 * 3600000);
     switch (granularity) {
-      case 'hour': return d.toISOString().slice(0, 13) + ':00';
-      case 'day': return d.toISOString().slice(0, 10);
+      case 'hour': return d8.toISOString().slice(0, 13) + ':00';
+      case 'day': return d8.toISOString().slice(0, 10);
       case 'week': {
-        const start = new Date(d);
+        const start = new Date(d8);
         start.setDate(start.getDate() - start.getDay());
         return start.toISOString().slice(0, 10);
       }
-      case 'month': return d.toISOString().slice(0, 7);
-      default: return d.toISOString().slice(0, 10);
+      case 'month': return d8.toISOString().slice(0, 7);
+      default: return d8.toISOString().slice(0, 10);
     }
   };
 

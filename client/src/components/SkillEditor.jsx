@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { getSkill, createSkill, updateSkill, listModels } from '../api';
+import { getSkill, createSkill, updateSkill, listModels, parseSkillMd } from '../api';
 
 const TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'NotebookEdit'];
 const CATEGORIES = ['开发', '运维', '文档', '安全', '其他'];
@@ -33,6 +33,38 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [importMsg, setImportMsg] = useState('');
+  const fileInputRef = useRef(null);
+
+  const handleImportMd = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportMsg('');
+    setError('');
+    try {
+      const text = await file.text();
+      const result = await parseSkillMd(text);
+      const meta = result.meta || {};
+      if (meta.name) setName(meta.name);
+      if (meta.displayName) setDisplayName(meta.displayName);
+      if (meta.description) setDescription(meta.description);
+      if (meta.icon) setIcon(meta.icon);
+      if (meta.category) setCategory(meta.category);
+      if (meta.model) setModel(meta.model);
+      if (Array.isArray(meta.allowedTools)) setAllowedTools(meta.allowedTools);
+      if (Array.isArray(meta.deniedTools)) setDeniedTools(meta.deniedTools);
+      if (meta.permissionMode) setPermissionMode(meta.permissionMode);
+      if (meta.version) setVersion(meta.version);
+      if (meta.author) setAuthor(meta.author);
+      if (result.body) setBody(result.body);
+      setImportMsg(`已导入: ${meta.displayName || meta.name || file.name}`);
+      setTimeout(() => setImportMsg(''), 3000);
+    } catch (err) {
+      setError(`导入失败: ${err.message}`);
+    }
+    // Reset file input so same file can be re-imported
+    e.target.value = '';
+  };
 
   useEffect(() => {
     // Load available models
@@ -117,8 +149,13 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
       <div className="skills-editor-modal" onClick={e => e.stopPropagation()}>
         <div className="skills-editor-header">
           <h3>{isEdit ? '编辑技能' : '新建技能'}</h3>
+          <input type="file" ref={fileInputRef} accept=".md" style={{ display: 'none' }} onChange={handleImportMd} />
+          <button className="skills-editor-import" onClick={() => fileInputRef.current?.click()}
+            title="从 .md 文件导入技能配置">📄 从 .md 导入</button>
           <button className="skills-editor-close" onClick={() => onClose(false)}>✕</button>
         </div>
+
+        {importMsg && <div className="skills-editor-msg success">{importMsg}</div>}
 
         <div className="skills-editor-body">
           <div className="skills-editor-row">

@@ -392,4 +392,18 @@ router.post('/skills/marketplace/install', async (req, res) => {
   }
 });
 
+// Parse .md file content — extract YAML frontmatter + body
+router.post('/skills/parse-md', (req, res) => {
+  try {
+    const { content } = req.body || {};
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'content is required' });
+    }
+    const result = parseSkillContent(content);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

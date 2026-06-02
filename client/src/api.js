@@ -402,6 +402,10 @@ export async function installMarketplaceSkill({ url, targetScope, skillName }) {
   });
 }
 
+export async function parseSkillMd(content) {
+  return fetchJSON('/skills/parse-md', { method: 'POST', body: JSON.stringify({ content }) });
+}
+
 // ── Model API (built-in proxy provider) ──
 
 export async function listModels() {

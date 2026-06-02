@@ -182,7 +182,8 @@ export default function FileBrowser() {
         </div>
 
         {/* Breadcrumb */}
-        <div className="dialog-breadcrumb" style={{ padding: '4px 8px', fontSize: 12 }}>
+        <div className="dialog-breadcrumb" style={{ padding: '4px 8px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
           <span className="breadcrumb-link" onClick={() => setCurrentPath('/')}>/</span>
           {breadcrumbSegs.map((seg, i) => (
             <span key={i}>
@@ -192,6 +193,8 @@ export default function FileBrowser() {
               {i < breadcrumbSegs.length - 1 && ' / '}
             </span>
           ))}
+          </div>
+          <button onClick={() => loadFiles()} title="刷新文件列表" style={{ padding: '2px 6px', fontSize: 11, background: 'transparent', border: '1px solid var(--glass-border)', borderRadius: 4, color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}>🔄 刷新</button>
         </div>
 
         {/* New dir input */}
