@@ -1833,6 +1833,32 @@ html, body, #root {
 .file-tree-item:hover { background: rgba(108, 99, 255, 0.08); color: var(--text-primary); }
 .file-tree-item.dir { font-weight: 500; color: var(--text-primary); }
 
+/* Right-click context menu for file browser */
+.context-menu {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  min-width: 180px;
+  overflow: hidden;
+}
+.context-menu-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.context-menu-item:hover {
+  background: rgba(108, 99, 255, 0.12);
+  color: var(--accent);
+}
+
 .file-tree-children { padding-left: 16px; }
 
 .file-viewer {

@@ -23,6 +23,7 @@ export default function FileBrowser() {
   const [msg, setMsg] = useState('');
   const [showTransfer, setShowTransfer] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null); // { type, path, name }
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, path }
   const editRef = useRef(null);
   const lastClickRef = useRef(0);
 
@@ -144,6 +145,33 @@ export default function FileBrowser() {
     }
   };
 
+  // Right-click context menu
+  const handleContextMenu = (e, item) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, path: item.path, name: item.name });
+  };
+
+  const handleCopyPath = async () => {
+    if (!contextMenu) return;
+    try {
+      await navigator.clipboard.writeText(contextMenu.path);
+      setMsg('✅ 路径已复制: ' + contextMenu.path);
+      setTimeout(() => setMsg(''), 2000);
+    } catch {
+      setMsg('❌ 复制失败');
+      setTimeout(() => setMsg(''), 2000);
+    }
+    setContextMenu(null);
+  };
+
+  // Close context menu on any click outside
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [contextMenu]);
+
   const handleSaveFile = async () => {
     if (!selectedFile) return;
     try {
@@ -174,6 +202,7 @@ export default function FileBrowser() {
       <div className="file-tree-panel">
         <div className="file-tree-header">
           <span className="file-tree-title">📁 文件浏览</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 8, fontWeight: 400 }}>右键点击可复制路径</span>
         </div>
         <div className="file-tree-toggle" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -228,13 +257,15 @@ export default function FileBrowser() {
         {/* Directory listing */}
         <div style={{ flex: 1, overflow: 'auto' }}>
           {currentPath !== '/' && (
-            <div className="file-tree-item dir" onClick={goUp} style={{ paddingLeft: 8 }}>
+            <div className="file-tree-item dir" onClick={goUp} onContextMenu={(e) => handleContextMenu(e, { path: currentPath.split('/').slice(0, -1).join('/') || '/', name: '..' })} style={{ paddingLeft: 8 }}>
               📁 <span style={{ color: 'var(--text-muted)' }}>..</span>
             </div>
           )}
           {dirs.map(d => (
             <div key={d.path} style={{ display: 'flex', alignItems: 'center' }}>
-              <div className="file-tree-item dir" onClick={() => handleFileClick({ type: 'dir', path: d.path, name: d.name })} style={{ flex: 1, paddingLeft: 8 }}>
+              <div className="file-tree-item dir" onClick={() => handleFileClick({ type: 'dir', path: d.path, name: d.name })}
+                onContextMenu={(e) => handleContextMenu(e, { path: d.path, name: d.name })}
+                style={{ flex: 1, paddingLeft: 8 }}>
                 📁 {d.name}
               </div>
               <button onClick={(e) => { e.stopPropagation(); handleDelete({ type: 'dir', path: d.path, name: d.name }); }}
@@ -245,6 +276,7 @@ export default function FileBrowser() {
             <div key={f.path} style={{ display: 'flex', alignItems: 'center' }}>
               <div className={`file-tree-item ${selectedFile?.path === f.path ? 'dir' : ''}`}
                 onClick={() => handleFileClick({ type: 'file', path: f.path, name: f.name })}
+                onContextMenu={(e) => handleContextMenu(e, { path: f.path, name: f.name })}
                 style={{ flex: 1, paddingLeft: 8 }}>
                 {selectedFile?.path === f.path ? '📝' : '📄'} {f.name}
               </div>
@@ -299,6 +331,19 @@ export default function FileBrowser() {
         )}
       </div>
       {showTransfer && <FileTransfer onClose={() => setShowTransfer(false)} />}
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <div className="context-menu" style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999 }}
+          onClick={e => e.stopPropagation()}>
+          <div className="context-menu-item" onClick={handleCopyPath}>
+            📋 复制绝对路径
+          </div>
+          <div className="context-menu-path" style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 12px 6px', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {contextMenu.path}
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation dialog */}
       {confirmDelete && (
