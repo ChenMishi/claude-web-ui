@@ -9,10 +9,24 @@ import {
 const COLORS = ['#6366f1', '#22d3ee', '#f59e0b', '#ef4444', '#84cc16', '#a78bfa'];
 
 const PRESETS = [
-  { label: '1小时', value: '1h', hours: 1, granularity: 'hour' },
-  { label: '24小时', value: '24h', hours: 24, granularity: 'hour' },
-  { label: '7天', value: '7d', hours: 168, granularity: 'day' },
-  { label: '30天', value: '30d', hours: 720, granularity: 'day' },
+  { label: '1小时',  value: '1h',       granularity: 'hour',
+    compute: (now) => ({ from: new Date(now.getTime() - 3600000), to: now }) },
+  { label: '今天',   value: 'today',    granularity: 'hour',
+    compute: (now) => ({ from: new Date(now.getFullYear(), now.getMonth(), now.getDate()), to: now }) },
+  { label: '昨天',   value: 'yesterday', granularity: 'hour',
+    compute: (now) => {
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return { from: new Date(todayStart.getTime() - 86400000), to: todayStart };
+    } },
+  { label: '本周',   value: 'week',     granularity: 'day',
+    compute: (now) => {
+      const day = now.getDay(); // 0=Sun … 6=Sat
+      const diff = day === 0 ? 6 : day - 1; // days back to Monday
+      const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+      return { from: mon, to: now };
+    } },
+  { label: '本月',   value: 'month',    granularity: 'day',
+    compute: (now) => ({ from: new Date(now.getFullYear(), now.getMonth(), 1), to: now }) },
 ];
 
 function fmtTok(n) {
@@ -31,8 +45,7 @@ export default function StatsPanel() {
   const { user } = useApp();
   const isAdmin = user?.role === 'admin';
 
-  const [preset, setPreset] = useState('7d');
-  const [granularity, setGranularity] = useState('day');
+  const [preset, setPreset] = useState('week');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [showCustom, setShowCustom] = useState(false);
@@ -72,19 +85,17 @@ export default function StatsPanel() {
 
   // Reload on preset/custom/user change
   useEffect(() => {
-    let from, to, gran;
     if (showCustom && customFrom && customTo) {
-      from = new Date(customFrom).toISOString();
-      to = new Date(customTo + 'T23:59:59').toISOString();
-      gran = 'day';
+      loadData(
+        new Date(customFrom).toISOString(),
+        new Date(customTo + 'T23:59:59').toISOString(),
+        'day'
+      );
     } else {
-      const p = PRESETS.find(x => x.value === preset) || PRESETS[2];
-      const now = new Date();
-      from = new Date(now.getTime() - p.hours * 3600000).toISOString();
-      to = now.toISOString();
-      gran = p.granularity;
+      const p = PRESETS.find(x => x.value === preset) || PRESETS[0];
+      const { from, to } = p.compute(new Date());
+      loadData(from.toISOString(), to.toISOString(), p.granularity);
     }
-    loadData(from, to, gran);
   }, [preset, showCustom, customFrom, customTo, selectedUserId, loadData]);
 
   const handlePresetClick = (p) => {
