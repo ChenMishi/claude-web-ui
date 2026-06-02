@@ -168,7 +168,7 @@ export default function StatsPanel() {
                 <div className="stats-card-icon">{c.icon}</div>
                 <div className="stats-card-body">
                   <div className="stats-card-label">{c.label}</div>
-                  <div className="stats-card-value">{c.value}</div>
+                  <div className="stats-card-value" title={String(c.value)}>{c.value}</div>
                 </div>
               </div>
             ))}
