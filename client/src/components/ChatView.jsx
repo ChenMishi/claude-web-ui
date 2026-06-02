@@ -543,7 +543,6 @@ export default function ChatView() {
   const askQs = askUser?.questions || [];
 
   return (
-    <>
     <div className="chat-layout">
       <div className="chat-content">
         <div className="chat-main">
@@ -608,6 +607,20 @@ export default function ChatView() {
               </button>
             </div>
           )}
+          {/* Tool permission confirmation — same style as AskUserQuestion, separate logic */}
+          {toolConfirm && (
+            <div className="ask-user-dialog" ref={askRef}>
+              <h4>🔐 {toolConfirm.action}</h4>
+              <div className="confirm-buttons">
+                <button className="confirm-btn-allow" onClick={() => handleToolConfirm(true)}>
+                  允许
+                </button>
+                <button className="confirm-btn-deny" onClick={() => handleToolConfirm(false)}>
+                  拒绝
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         </div>
         </div>
@@ -618,29 +631,5 @@ export default function ChatView() {
       </div>
       <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} activeSkill={activeSkill} onSkillChange={setActiveSkill} />
     </div>
-
-    {/* Tool permission confirmation overlay — floating, not in chat flow */}
-    {toolConfirm && (
-      <div className="tool-confirm-overlay" onClick={() => handleToolConfirm(false)}>
-        <div className="tool-confirm-dialog" onClick={e => e.stopPropagation()}>
-          <div className="tool-confirm-icon">🔐</div>
-          <h3>工具权限确认</h3>
-          <p className="tool-confirm-desc">{toolConfirm.action}</p>
-          <div className="tool-confirm-detail">
-            <code>{toolConfirm.tool}</code>
-            {toolConfirm.input?.description && <span> — {toolConfirm.input.description.slice(0, 100)}</span>}
-          </div>
-          <div className="tool-confirm-buttons">
-            <button className="tool-confirm-btn-deny" onClick={() => handleToolConfirm(false)}>
-              ✕ 拒绝
-            </button>
-            <button className="tool-confirm-btn-allow" onClick={() => handleToolConfirm(true)}>
-              ✓ 允许
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-  </>
   );
 }
