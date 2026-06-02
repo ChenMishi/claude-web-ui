@@ -410,6 +410,17 @@ export async function parseSkillMd(content) {
   return fetchJSON('/skills/parse-md', { method: 'POST', body: JSON.stringify({ content }) });
 }
 
+export async function importSkillFile(file) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${BASE}/skills/import-file`, { method: 'POST', headers: authHeaders({}), body: form });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `导入失败 (${res.status})`);
+  }
+  return res.json();
+}
+
 // ── Model API (built-in proxy provider) ──
 
 export async function listModels() {

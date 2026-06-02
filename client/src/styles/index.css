@@ -1376,6 +1376,25 @@ html, body, #root {
   border-color: var(--accent);
   color: var(--accent);
 }
+.skills-editor-import-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(var(--accent-rgb, 99, 102, 241), 0.12), rgba(var(--accent-rgb, 99, 102, 241), 0.06));
+  border: 1.5px dashed var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.skills-editor-import-btn:hover {
+  background: linear-gradient(135deg, rgba(var(--accent-rgb, 99, 102, 241), 0.2), rgba(var(--accent-rgb, 99, 102, 241), 0.1));
+  border-style: solid;
+  transform: translateY(-1px);
+}
 .skills-editor-msg {
   margin: 0 22px 8px;
   padding: 6px 14px;

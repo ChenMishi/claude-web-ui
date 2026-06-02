@@ -7,6 +7,10 @@ const { parseSkillFile, parseSkillContent } = require('../skills/parser');
 const { getSaveDir } = require('../skills/store');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { execSync } = require('child_process');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -405,5 +409,71 @@ router.post('/skills/parse-md', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Import skill from uploaded file (.md / .zip / .tar.gz)
+router.post('/skills/import-file', upload.single('file'), (req, res) => {
+  const tmpDir = path.join(os.tmpdir(), `skill-import-${Date.now()}`);
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'no file uploaded' });
+
+    const ext = path.extname(file.originalname).toLowerCase();
+    let mdContent = '';
+
+    if (ext === '.md') {
+      mdContent = file.buffer.toString('utf8');
+    } else if (ext === '.zip') {
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const zipPath = path.join(tmpDir, file.originalname);
+      fs.writeFileSync(zipPath, file.buffer);
+      execSync(`unzip -o "${zipPath}" -d "${tmpDir}"`, { timeout: 10000 });
+      const mdFiles = findMdFiles(tmpDir);
+      if (mdFiles.length === 0) return res.status(400).json({ error: '压缩包中未找到 .md 文件' });
+      mdContent = fs.readFileSync(mdFiles[0], 'utf8');
+    } else if (ext === '.gz' || ext === '.tgz') {
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const tgzPath = path.join(tmpDir, file.originalname);
+      fs.writeFileSync(tgzPath, file.buffer);
+      execSync(`tar -xzf "${tgzPath}" -C "${tmpDir}"`, { timeout: 10000 });
+      const mdFiles = findMdFiles(tmpDir);
+      if (mdFiles.length === 0) return res.status(400).json({ error: '压缩包中未找到 .md 文件' });
+      mdContent = fs.readFileSync(mdFiles[0], 'utf8');
+    } else if (ext === '.tar') {
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const tarPath = path.join(tmpDir, file.originalname);
+      fs.writeFileSync(tarPath, file.buffer);
+      execSync(`tar -xf "${tarPath}" -C "${tmpDir}"`, { timeout: 10000 });
+      const mdFiles = findMdFiles(tmpDir);
+      if (mdFiles.length === 0) return res.status(400).json({ error: '压缩包中未找到 .md 文件' });
+      mdContent = fs.readFileSync(mdFiles[0], 'utf8');
+    } else {
+      return res.status(400).json({ error: `不支持的文件格式: ${ext}` });
+    }
+
+    const result = parseSkillContent(mdContent);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: `导入失败: ${err.message}` });
+  } finally {
+    // Cleanup temp dir
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+});
+
+function findMdFiles(dir) {
+  const results = [];
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...findMdFiles(full));
+      } else if (entry.name.endsWith('.md')) {
+        results.push(full);
+      }
+    }
+  } catch {}
+  return results;
+}
 
 module.exports = router;

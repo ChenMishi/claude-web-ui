@@ -80,7 +80,7 @@ export default function SettingsPanel() {
         {isAdmin && (
           <button className={settingsTab === 'users' ? 'active' : ''} onClick={() => setSettingsTab('users')}>👥 用户管理</button>
         )}
-        <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}>🔧 初始化</button>
+        <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}>⚡ 初始化</button>
         <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}>📋 日志</button>
         <button className={settingsTab === 'stats' ? 'active' : ''} onClick={() => setSettingsTab('stats')}>📊 统计</button>
         <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => setSettingsTab('upgrade')}>🔄 升级</button>

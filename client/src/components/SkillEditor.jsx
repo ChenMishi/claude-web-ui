@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { getSkill, createSkill, updateSkill, listModels, parseSkillMd } from '../api';
+import { getSkill, createSkill, updateSkill, listModels, parseSkillMd, importSkillFile } from '../api';
 
 const TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'NotebookEdit'];
 const CATEGORIES = ['开发', '运维', '文档', '安全', '其他'];
@@ -36,14 +36,25 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
   const [importMsg, setImportMsg] = useState('');
   const fileInputRef = useRef(null);
 
-  const handleImportMd = async (e) => {
+  const handleImportFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImportMsg('');
     setError('');
     try {
-      const text = await file.text();
-      const result = await parseSkillMd(text);
+      const ext = file.name.split('.').pop().toLowerCase();
+      let result;
+      if (ext === 'md') {
+        const text = await file.text();
+        result = await parseSkillMd(text);
+      } else if (['zip', 'gz', 'tgz', 'tar'].includes(ext)) {
+        setImportMsg('正在解压并解析...');
+        result = await importSkillFile(file);
+      } else {
+        setError(`不支持的文件格式: .${ext}，请上传 .md / .zip / .tar.gz`);
+        e.target.value = '';
+        return;
+      }
       const meta = result.meta || {};
       if (meta.name) setName(meta.name);
       if (meta.displayName) setDisplayName(meta.displayName);
@@ -57,8 +68,8 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
       if (meta.version) setVersion(meta.version);
       if (meta.author) setAuthor(meta.author);
       if (result.body) setBody(result.body);
-      setImportMsg(`已导入: ${meta.displayName || meta.name || file.name}`);
-      setTimeout(() => setImportMsg(''), 3000);
+      setImportMsg(`✅ 已导入: ${meta.displayName || meta.name || file.name}`);
+      setTimeout(() => setImportMsg(''), 4000);
     } catch (err) {
       setError(`导入失败: ${err.message}`);
     }
@@ -149,11 +160,19 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
       <div className="skills-editor-modal" onClick={e => e.stopPropagation()}>
         <div className="skills-editor-header">
           <h3>{isEdit ? '编辑技能' : '新建技能'}</h3>
-          <input type="file" ref={fileInputRef} accept=".md" style={{ display: 'none' }} onChange={handleImportMd} />
-          <button className="skills-editor-import" onClick={() => fileInputRef.current?.click()}
-            title="从 .md 文件导入技能配置">📄 从 .md 导入</button>
+          <input type="file" ref={fileInputRef} accept=".md,.zip,.tar.gz,.tgz,.tar" style={{ display: 'none' }} onChange={handleImportFile} />
           <button className="skills-editor-close" onClick={() => onClose(false)}>✕</button>
         </div>
+
+        {!isEdit && (
+          <div style={{ padding: '0 24px 12px' }}>
+            <button className="skills-editor-import-btn"
+              onClick={() => fileInputRef.current?.click()}
+              title="从 .md / .zip / .tar.gz 文件导入技能配置">
+              📥 从文件导入（支持 .md / .zip / .tar.gz）
+            </button>
+          </div>
+        )}
 
         {importMsg && <div className="skills-editor-msg success">{importMsg}</div>}
 
