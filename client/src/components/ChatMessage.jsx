@@ -37,12 +37,15 @@ export default function ChatMessage({ message }) {
 
   const labels = { user: '你', assistant: 'Claude' };
   const safeContent = typeof content === 'string' ? content : '';
+  const hasCodeFence = safeContent.includes('```');
 
   return (
     <div className={`message ${role}`}>
       <div className="message-header">
         <span className="role-label">{labels[role] || role}</span>
         {timestamp && <span className="message-time">{formatTime(timestamp)}</span>}
+        {streaming && <span style={{color:'#58a6ff',fontSize:10,marginLeft:8}}>⚡流式</span>}
+        {hasCodeFence && <span style={{color:'#f0c040',fontSize:10,marginLeft:4}}>```{streaming?'':'(非流式)'}</span>}
       </div>
       <div className="message-content">
         <MarkdownRenderer content={safeContent} streaming={streaming} />
