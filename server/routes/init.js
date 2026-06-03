@@ -351,6 +351,16 @@ router.post('/init/install-claude', (req, res) => {
     if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
+  // 先清理旧模块目录，避免 ENOTEMPTY 错误
+  try {
+    const npmRoot = require('child_process').execSync('npm root -g', { encoding: 'utf8' }).trim();
+    const modulePath = path.join(npmRoot, '@anthropic-ai', 'claude-code');
+    if (fs.existsSync(modulePath)) {
+      send('progress', { pct: 5, text: '清理旧版本...' });
+      fs.rmSync(modulePath, { recursive: true, force: true });
+    }
+  } catch {}
+
   send('progress', { pct: 10, text: '正在安装 Claude Code...' });
 
   const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code'], { env: process.env });
@@ -425,6 +435,16 @@ router.post('/init/upgrade-claude', (req, res) => {
   const send = (event, data) => {
     if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
+
+  // 先清理旧模块目录，避免 ENOTEMPTY 错误
+  try {
+    const npmRoot = require('child_process').execSync('npm root -g', { encoding: 'utf8' }).trim();
+    const modulePath = path.join(npmRoot, '@anthropic-ai', 'claude-code');
+    if (fs.existsSync(modulePath)) {
+      send('progress', { pct: 5, text: '清理旧版本...' });
+      fs.rmSync(modulePath, { recursive: true, force: true });
+    }
+  } catch {}
 
   send('progress', { pct: 10, text: '正在升级 Claude Code...' });
 
