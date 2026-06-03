@@ -282,7 +282,7 @@ function startServer(opts = {}) {
 
   server.listen(port, '0.0.0.0', () => {
     const pkg = require('../package.json');
-    console.log(`Claude Web UI v${pkg.version} running at http://0.0.0.0:${port}`);
+    console.log(`AI IntelliWork Hub v${pkg.version} running at http://0.0.0.0:${port}`);
     console.log(`API docs at http://localhost:${port}/docs`);
 
     // Start built-in proxy — read address from saved config

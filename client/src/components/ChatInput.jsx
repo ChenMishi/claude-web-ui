@@ -112,7 +112,7 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
       case 'focus': el.value = '请简化后续回复，只展示必要信息'; handleSend(); return;
       case 'export': {
         const msgs = el.value || '';
-        const text = `Claude Web UI 对话导出\n${new Date().toLocaleString()}\n\n` +
+        const text = `AI IntelliWork Hub 对话导出\n${new Date().toLocaleString()}\n\n` +
           (chatMessages || []).map(m => `[${m.role === 'user' ? '你' : 'Claude'}]\n${typeof m.content === 'string' ? m.content : ''}\n`).join('\n');
         try {
           navigator.clipboard.writeText(text).then(() => alert('对话已复制到剪贴板'));

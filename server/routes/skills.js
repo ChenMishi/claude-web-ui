@@ -316,7 +316,7 @@ router.get('/skills/marketplace/list', async (req, res) => {
             icon: parsed.meta.icon || '🔧',
             category: parsed.meta.category || '其他',
             version: parsed.meta.version || '1.0.0',
-            author: parsed.meta.author || 'Claude Web UI',
+            author: parsed.meta.author || 'AI IntelliWork Hub',
             downloads: 0,
           });
         }

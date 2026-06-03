@@ -32,8 +32,8 @@ export default function LoginPage() {
       <div className="login-card">
         {/* Logo area */}
         <div className="login-header">
-          <div className="login-logo">CW</div>
-          <h1>Claude Web UI</h1>
+          <img src="/logo.png" alt="Logo" className="login-logo" />
+          <h1>AI IntelliWork Hub</h1>
           <p>AI 驱动的智能工作助手</p>
         </div>
 
