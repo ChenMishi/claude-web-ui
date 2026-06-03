@@ -360,6 +360,26 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, signal, o
       }
 
       if (done) {
+        // 处理缓冲区中剩余的数据（可能包含最后的 done 事件）
+        if (buffer.trim()) {
+          const line = buffer.trim();
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            try {
+              const parsed = JSON.parse(data);
+              if (currentEvent === 'done') {
+                receivedDone = true;
+                onDone?.(parsed);
+              } else if (currentEvent === 'title') {
+                onTitle?.(parsed);
+              } else if (currentEvent === 'error') {
+                onError?.(new Error(parsed.message));
+              }
+            } catch {}
+          }
+        }
         if (!receivedDone) {
           onError?.(new Error('连接中断: 服务器提前关闭了连接'));
         }
