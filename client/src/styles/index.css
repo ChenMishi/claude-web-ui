@@ -2492,6 +2492,27 @@ html, body, #root {
 
 .tool-call-detail code { font-family: var(--font-mono); font-size: 13px; line-height: 1.8; white-space: pre-wrap; }
 
+/* Typewriter code block inside tool call (Write/Edit) */
+.tool-call-detail .typewriter-code {
+  background: var(--code-block-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 16px;
+  overflow: hidden;
+  margin: 0;
+  min-height: 40px;
+}
+.tool-call-detail .typewriter-code code {
+  display: block;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--code-block-text);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
 /* Tool Result Blocks */
 .tool-result-block {
   align-self: flex-start;

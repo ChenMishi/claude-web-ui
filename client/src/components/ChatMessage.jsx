@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 
 function formatTime(ts) {
@@ -27,7 +27,7 @@ export default function ChatMessage({ message }) {
 
   // Tool call display
   if (role === 'tool' && toolCall) {
-    return <ToolCallBlock toolCall={toolCall} />;
+    return <ToolCallBlock toolCall={toolCall} streaming={streaming} />;
   }
 
   // Tool result display
@@ -37,15 +37,12 @@ export default function ChatMessage({ message }) {
 
   const labels = { user: '你', assistant: 'Claude' };
   const safeContent = typeof content === 'string' ? content : '';
-  const hasCodeFence = safeContent.includes('```');
 
   return (
     <div className={`message ${role}`}>
       <div className="message-header">
         <span className="role-label">{labels[role] || role}</span>
         {timestamp && <span className="message-time">{formatTime(timestamp)}</span>}
-        {streaming && <span style={{color:'#58a6ff',fontSize:10,marginLeft:8}}>⚡流式</span>}
-        {hasCodeFence && <span style={{color:'#f0c040',fontSize:10,marginLeft:4}}>```{streaming?'':'(非流式)'}</span>}
       </div>
       <div className="message-content">
         <MarkdownRenderer content={safeContent} streaming={streaming} />
@@ -75,8 +72,57 @@ function ThinkingBlock({ content }) {
   );
 }
 
-function ToolCallBlock({ toolCall }) {
+function ToolCallBlock({ toolCall, streaming }) {
   const [expanded, setExpanded] = useState(true);
+  const [revealedLen, setRevealedLen] = useState(0);
+  const animRef = useRef(null);
+
+  const isWrite = toolCall.name === 'Write';
+  const isEdit = toolCall.name === 'Edit';
+  const isCodeTool = isWrite || isEdit;
+  const codeContent = isCodeTool
+    ? (toolCall.input?.content || toolCall.input?.new_string || '')
+    : '';
+  const filePath = isCodeTool ? (toolCall.input?.file_path || '') : '';
+
+  // Typewriter animation for Write/Edit tools when streaming
+  useEffect(() => {
+    if (!streaming || !isCodeTool || !codeContent) return;
+
+    const totalLen = codeContent.length;
+    // Adaptive speed: more chars per tick for longer content
+    // ~60 ticks per second, aim to finish within ~3-8 seconds depending on size
+    const targetTicks = totalLen > 5000 ? 400 : totalLen > 2000 ? 300 : totalLen > 500 ? 200 : 100;
+    const interval = Math.max(16, Math.min(50, (targetTicks * 16) / Math.max(1, totalLen / 50)));
+    const charsPerTick = Math.max(1, Math.ceil(totalLen / targetTicks));
+
+    animRef.current = setInterval(() => {
+      setRevealedLen(prev => {
+        const next = prev + charsPerTick;
+        if (next >= totalLen) {
+          clearInterval(animRef.current);
+          animRef.current = null;
+          return totalLen;
+        }
+        return next;
+      });
+    }, interval);
+
+    return () => {
+      if (animRef.current) {
+        clearInterval(animRef.current);
+        animRef.current = null;
+      }
+    };
+  }, [streaming, isCodeTool, codeContent]);
+
+  // Reset revealedLen when a new tool call comes in
+  useEffect(() => {
+    setRevealedLen(0);
+  }, [toolCall.tool_use_id]);
+
+  const isAnimating = streaming && isCodeTool && revealedLen < codeContent.length;
+  const shownCode = isCodeTool && streaming ? codeContent.slice(0, revealedLen) : '';
 
   const getToolLabel = (name) => {
     const map = {
@@ -87,9 +133,12 @@ function ToolCallBlock({ toolCall }) {
     return map[name] || '🔨';
   };
 
-  const inputPreview = (typeof toolCall.input === 'string'
-    ? toolCall.input.slice(0, 120)
-    : JSON.stringify(toolCall.input ?? {}).slice(0, 120)) || '';
+  // Preview text: file_path for code tools, or first 120 chars of input
+  const inputPreview = isCodeTool && filePath
+    ? filePath
+    : ((typeof toolCall.input === 'string'
+        ? toolCall.input.slice(0, 120)
+        : JSON.stringify(toolCall.input ?? {}).slice(0, 120)) || '');
 
   return (
     <div className="tool-call-block">
@@ -101,7 +150,11 @@ function ToolCallBlock({ toolCall }) {
       </div>
       {expanded && (
         <div className="tool-call-detail">
-          <pre><code>{JSON.stringify(toolCall.input, null, 2)}</code></pre>
+          {isCodeTool && streaming ? (
+            <pre className="typewriter-code"><code>{shownCode}{isAnimating && <span className="live-cursor">▍</span>}</code></pre>
+          ) : (
+            <pre><code>{JSON.stringify(toolCall.input, null, 2)}</code></pre>
+          )}
         </div>
       )}
     </div>
