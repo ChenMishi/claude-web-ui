@@ -504,6 +504,13 @@ export default function ChatView() {
     const vals = Object.values(answers.answers || answers);
     const text = vals.filter(Boolean).join('，');
     setAskUser(null);
+    isAskBuffered.current = false;
+    // Flush buffered messages
+    const buf = askBufferRef.current;
+    if (buf.length > 0) {
+      buf.forEach(msg => appendRef.current(msg));
+      askBufferRef.current = [];
+    }
     // AskUserQuestion: session was aborted, answer starts a new turn
     if (text) {
       setTimeout(() => handleSend(text), 200);
@@ -517,27 +524,6 @@ export default function ChatView() {
     resolveQuestion(currentSessionId, { answers: { q0: answer } }).catch(() => {});
     setToolConfirm(null);
   }, [toolConfirm, currentSessionId]);
-
-  // Buffered append: hold messages while AskUserQuestion dialog is shown
-  const bufferedAppend = useCallback((msg) => {
-    if (isAskBuffered.current && askUser) {
-      askBufferRef.current.push(msg);
-    } else {
-      origAppendRef.current(msg);
-    }
-  }, [askUser]);
-
-  const bufferedUpdate = useCallback((content) => {
-    if (isAskBuffered.current && askUser) {
-      // Update the last buffered assistant message
-      const buf = askBufferRef.current;
-      if (buf.length > 0 && buf[buf.length - 1].role === 'assistant') {
-        buf[buf.length - 1] = { ...buf[buf.length - 1], content, streaming: true };
-      }
-    } else {
-      origUpdateRef.current(content);
-    }
-  }, [askUser]);
 
   const hasMessages = chatMessages.length > 0;
   const askQs = askUser?.questions || [];
