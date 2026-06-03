@@ -71,6 +71,7 @@ export default function MarkdownRenderer({ content, streaming }) {
     liveCodeBlock = extractLiveCodeBlock(content);
     if (liveCodeBlock) {
       renderContent = liveCodeBlock.before;
+      console.log('[LiveCode] 检测到未闭合代码块 | lang:', liveCodeBlock.lang, '| code长度:', liveCodeBlock.code.length, '| before长度:', liveCodeBlock.before.length);
     }
   }
 

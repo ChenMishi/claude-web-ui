@@ -453,6 +453,10 @@ export default function ChatView() {
           bAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
         } else {
           textAccum.current += content;
+          if (textAccum.current.includes('```')) {
+            const count = (textAccum.current.match(/```/g) || []).length;
+            console.log('[ChatView] 流式更新 | 累积长度:', textAccum.current.length, '| ```计数:', count, '| 最后80字:', textAccum.current.slice(-80));
+          }
           bUpdate(textAccum.current);
         }
         execPhase({ phase: 'responding', detail: '' });
