@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 
 function formatTime(ts) {
@@ -53,47 +53,7 @@ export default function ChatMessage({ message }) {
 
 function ThinkingBlock({ content, streaming }) {
   const [expanded, setExpanded] = useState(true);
-  const [revealedLen, setRevealedLen] = useState(0);
-  const animRef = useRef(null);
   const safeContent = typeof content === 'string' ? content : '';
-
-  // Typewriter animation for thinking when streaming
-  useEffect(() => {
-    if (!streaming || !safeContent) return;
-
-    const totalLen = safeContent.length;
-    // Adaptive speed: more chars per tick for longer content
-    const targetTicks = totalLen > 3000 ? 300 : totalLen > 1000 ? 200 : totalLen > 300 ? 120 : 60;
-    const interval = Math.max(16, Math.min(50, (targetTicks * 16) / Math.max(1, totalLen / 50)));
-    const charsPerTick = Math.max(1, Math.ceil(totalLen / targetTicks));
-
-    animRef.current = setInterval(() => {
-      setRevealedLen(prev => {
-        const next = prev + charsPerTick;
-        if (next >= totalLen) {
-          clearInterval(animRef.current);
-          animRef.current = null;
-          return totalLen;
-        }
-        return next;
-      });
-    }, interval);
-
-    return () => {
-      if (animRef.current) {
-        clearInterval(animRef.current);
-        animRef.current = null;
-      }
-    };
-  }, [streaming, safeContent]);
-
-  // Reset when content changes (new thinking burst)
-  useEffect(() => {
-    setRevealedLen(0);
-  }, [content]);
-
-  const isAnimating = streaming && revealedLen < safeContent.length;
-  const shownContent = streaming ? safeContent.slice(0, revealedLen) : safeContent;
 
   return (
     <div className="thinking-block">
@@ -105,14 +65,8 @@ function ThinkingBlock({ content, streaming }) {
       </div>
       {expanded && (
         <div className="thinking-content">
-          {streaming ? (
-            <div className="thinking-typewriter">
-              <MarkdownRenderer content={shownContent} />
-              {isAnimating && <span className="live-cursor">▍</span>}
-            </div>
-          ) : (
-            <MarkdownRenderer content={safeContent} />
-          )}
+          <MarkdownRenderer content={safeContent} />
+          {streaming && <span className="live-cursor">▍</span>}
         </div>
       )}
     </div>
@@ -121,8 +75,6 @@ function ThinkingBlock({ content, streaming }) {
 
 function ToolCallBlock({ toolCall, streaming }) {
   const [expanded, setExpanded] = useState(true);
-  const [revealedLen, setRevealedLen] = useState(0);
-  const animRef = useRef(null);
 
   const isWrite = toolCall.name === 'Write';
   const isEdit = toolCall.name === 'Edit';
@@ -131,45 +83,6 @@ function ToolCallBlock({ toolCall, streaming }) {
     ? (toolCall.input?.content || toolCall.input?.new_string || '')
     : '';
   const filePath = isCodeTool ? (toolCall.input?.file_path || '') : '';
-
-  // Typewriter animation for Write/Edit tools when streaming
-  useEffect(() => {
-    if (!streaming || !isCodeTool || !codeContent) return;
-
-    const totalLen = codeContent.length;
-    // Adaptive speed: more chars per tick for longer content
-    // ~60 ticks per second, aim to finish within ~3-8 seconds depending on size
-    const targetTicks = totalLen > 5000 ? 400 : totalLen > 2000 ? 300 : totalLen > 500 ? 200 : 100;
-    const interval = Math.max(16, Math.min(50, (targetTicks * 16) / Math.max(1, totalLen / 50)));
-    const charsPerTick = Math.max(1, Math.ceil(totalLen / targetTicks));
-
-    animRef.current = setInterval(() => {
-      setRevealedLen(prev => {
-        const next = prev + charsPerTick;
-        if (next >= totalLen) {
-          clearInterval(animRef.current);
-          animRef.current = null;
-          return totalLen;
-        }
-        return next;
-      });
-    }, interval);
-
-    return () => {
-      if (animRef.current) {
-        clearInterval(animRef.current);
-        animRef.current = null;
-      }
-    };
-  }, [streaming, isCodeTool, codeContent]);
-
-  // Reset revealedLen when a new tool call comes in
-  useEffect(() => {
-    setRevealedLen(0);
-  }, [toolCall.tool_use_id]);
-
-  const isAnimating = streaming && isCodeTool && revealedLen < codeContent.length;
-  const shownCode = isCodeTool && streaming ? codeContent.slice(0, revealedLen) : '';
 
   const getToolLabel = (name) => {
     const map = {
@@ -198,7 +111,7 @@ function ToolCallBlock({ toolCall, streaming }) {
       {expanded && (
         <div className="tool-call-detail">
           {isCodeTool && streaming ? (
-            <pre className="typewriter-code"><code>{shownCode}{isAnimating && <span className="live-cursor">▍</span>}</code></pre>
+            <pre className="typewriter-code"><code>{codeContent}<span className="live-cursor">▍</span></code></pre>
           ) : (
             <pre><code>{JSON.stringify(toolCall.input, null, 2)}</code></pre>
           )}
