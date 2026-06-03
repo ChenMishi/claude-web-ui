@@ -68,6 +68,8 @@ export default function ChatView() {
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
   const textAccum = useRef('');
+  const hasThinking = useRef(false);
+  const thinkingAccum = useRef('');
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
   const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
@@ -416,7 +418,9 @@ export default function ChatView() {
     startTimer();
     bAppend({ role: 'user', content: promptText, timestamp: Date.now() });
     hasAssistantText.current = false;
+    hasThinking.current = false;
     textAccum.current = '';
+    thinkingAccum.current = '';
 
     const project = projects.find(p => p.id === currentProjectId);
     const cwd = project?.cwd || '/root';
@@ -436,9 +440,17 @@ export default function ChatView() {
       onThinking: ({ text: thinkingText, usage }) => {
         execPhase({ phase: 'thinking', detail: thinkingText });
         if (usage) execTokens(toTokens(usage));
-        bAppend({ role: 'thinking', content: thinkingText, timestamp: Date.now() });
+        if (!hasThinking.current) {
+          hasThinking.current = true;
+          thinkingAccum.current = thinkingText;
+          bAppend({ role: 'thinking', content: thinkingText, streaming: true, timestamp: Date.now() });
+        } else {
+          thinkingAccum.current += thinkingText;
+          bUpdate(thinkingAccum.current);
+        }
       },
       onAssistant: ({ content, usage, session_id }) => {
+        hasThinking.current = false;
         // Reload session list as soon as we have the session ID for new sessions
         if (session_id && !currentSessionId) {
           setSessionId(session_id);
@@ -460,6 +472,7 @@ export default function ChatView() {
       },
       onToolUse: ({ tool, input, tool_use_id, usage }) => {
         hasAssistantText.current = false;
+        hasThinking.current = false;
         // Track tasks
         if (tool === 'TaskCreate') {
           addTask(input?.subject || '', input?.description || '');

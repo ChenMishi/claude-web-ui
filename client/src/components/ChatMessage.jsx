@@ -22,7 +22,7 @@ export default function ChatMessage({ message }) {
 
   // Thinking block display
   if (role === 'thinking') {
-    return <ThinkingBlock content={content} />;
+    return <ThinkingBlock content={content} streaming={streaming} />;
   }
 
   // Tool call display
@@ -51,9 +51,49 @@ export default function ChatMessage({ message }) {
   );
 }
 
-function ThinkingBlock({ content }) {
+function ThinkingBlock({ content, streaming }) {
   const [expanded, setExpanded] = useState(true);
+  const [revealedLen, setRevealedLen] = useState(0);
+  const animRef = useRef(null);
   const safeContent = typeof content === 'string' ? content : '';
+
+  // Typewriter animation for thinking when streaming
+  useEffect(() => {
+    if (!streaming || !safeContent) return;
+
+    const totalLen = safeContent.length;
+    // Adaptive speed: more chars per tick for longer content
+    const targetTicks = totalLen > 3000 ? 300 : totalLen > 1000 ? 200 : totalLen > 300 ? 120 : 60;
+    const interval = Math.max(16, Math.min(50, (targetTicks * 16) / Math.max(1, totalLen / 50)));
+    const charsPerTick = Math.max(1, Math.ceil(totalLen / targetTicks));
+
+    animRef.current = setInterval(() => {
+      setRevealedLen(prev => {
+        const next = prev + charsPerTick;
+        if (next >= totalLen) {
+          clearInterval(animRef.current);
+          animRef.current = null;
+          return totalLen;
+        }
+        return next;
+      });
+    }, interval);
+
+    return () => {
+      if (animRef.current) {
+        clearInterval(animRef.current);
+        animRef.current = null;
+      }
+    };
+  }, [streaming, safeContent]);
+
+  // Reset when content changes (new thinking burst)
+  useEffect(() => {
+    setRevealedLen(0);
+  }, [content]);
+
+  const isAnimating = streaming && revealedLen < safeContent.length;
+  const shownContent = streaming ? safeContent.slice(0, revealedLen) : safeContent;
 
   return (
     <div className="thinking-block">
@@ -65,7 +105,14 @@ function ThinkingBlock({ content }) {
       </div>
       {expanded && (
         <div className="thinking-content">
-          <MarkdownRenderer content={safeContent} />
+          {streaming ? (
+            <div className="thinking-typewriter">
+              <MarkdownRenderer content={shownContent} />
+              {isAnimating && <span className="live-cursor">▍</span>}
+            </div>
+          ) : (
+            <MarkdownRenderer content={safeContent} />
+          )}
         </div>
       )}
     </div>

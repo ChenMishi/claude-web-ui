@@ -1793,6 +1793,19 @@ html, body, #root {
 .thinking-content p:last-child { margin-bottom: 0; }
 .thinking-content code { font-size: 12px; opacity: 0.85; }
 
+/* Thinking typewriter inline container */
+.thinking-typewriter {
+  display: inline;
+}
+.thinking-typewriter .live-cursor {
+  display: inline-block;
+  color: var(--accent);
+  animation: blink-cursor 1s step-end infinite;
+  margin-left: 1px;
+  font-weight: bold;
+  vertical-align: baseline;
+}
+
 /* Error message */
 .error-msg {
   align-self: center;
