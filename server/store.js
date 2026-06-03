@@ -105,11 +105,13 @@ function subscribeToStream(runtime, res) {
 // Notify all subscribers that the session is done
 function broadcastDone(runtime, result) {
   broadcast(runtime, 'done', result);
-  // Close all subscriber connections
-  for (const sub of runtime.subscribers) {
-    try { if (!sub.writableEnded) sub.end(); } catch {}
-  }
-  runtime.subscribers.clear();
+  // 延迟关闭连接，确保 done 事件已刷写到客户端
+  setTimeout(() => {
+    for (const sub of runtime.subscribers) {
+      try { if (!sub.writableEnded) sub.end(); } catch {}
+    }
+    runtime.subscribers.clear();
+  }, 100);
 }
 
 // Reset all runtime statuses to idle (called on server startup)
