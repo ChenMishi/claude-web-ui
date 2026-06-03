@@ -96,17 +96,29 @@ export default function MarkdownRenderer({ content, streaming }) {
 
 // 检测流式输出中末尾未闭合的代码块
 function extractLiveCodeBlock(text) {
-  const lastFence = text.lastIndexOf('```');
-  if (lastFence === -1) return null;
+  // 成对匹配 ```：奇数位置是开，偶数位置是闭
+  // 如果总数是奇数 → 最后一个 ``` 未闭合
+  let count = 0;
+  let idx = 0;
+  let lastOpenPos = -1;
 
-  const afterLast = text.slice(lastFence + 3);
-  // 后面还有 ``` → 代码块已闭合
-  if (afterLast.includes('```')) return null;
+  while (true) {
+    const pos = text.indexOf('```', idx);
+    if (pos === -1) break;
+    count++;
+    if (count % 2 === 1) lastOpenPos = pos; // 奇数 = 开启
+    idx = pos + 3;
+  }
 
-  // 确保 ``` 在行首或前面是换行（排除行内 ``` 的情况）
-  if (lastFence > 0 && text[lastFence - 1] !== '\n') return null;
+  // 全都成对闭合 或 没有 ``` → 无未完成代码块
+  if (count === 0 || count % 2 === 0) return null;
 
-  const before = text.slice(0, lastFence);
+  const before = text.slice(0, lastOpenPos);
+  const afterLast = text.slice(lastOpenPos + 3);
+
+  // 确保 ``` 在行首（排除行内 ``` 干扰）
+  if (lastOpenPos > 0 && text[lastOpenPos - 1] !== '\n') return null;
+
   const newlineIdx = afterLast.indexOf('\n');
   const lang = newlineIdx === -1 ? afterLast.trim() : afterLast.slice(0, newlineIdx).trim();
   const code = newlineIdx === -1 ? '' : afterLast.slice(newlineIdx + 1);
