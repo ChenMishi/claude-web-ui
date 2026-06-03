@@ -879,6 +879,24 @@ html, body, #root {
 
 .message-content pre code { padding: 0; background: none; }
 
+/* 流式输出中的代码块 - 打字机效果 */
+.live-code-block {
+  margin: 8px 0;
+}
+
+.live-cursor {
+  display: inline-block;
+  color: var(--accent);
+  animation: blink-cursor 1s step-end infinite;
+  margin-left: 1px;
+  font-weight: bold;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 /* Syntax highlighting (Prism token colors) */
 .token.comment,
 .token.prolog,

@@ -9,7 +9,7 @@ function formatTime(ts) {
 }
 
 export default function ChatMessage({ message }) {
-  const { role, content, error, toolCall, toolResult, timestamp } = message;
+  const { role, content, error, toolCall, toolResult, timestamp, streaming } = message;
 
   if (role === 'system') {
     const isAbort = typeof content === 'string' && content.startsWith('⏹');
@@ -45,7 +45,7 @@ export default function ChatMessage({ message }) {
         {timestamp && <span className="message-time">{formatTime(timestamp)}</span>}
       </div>
       <div className="message-content">
-        <MarkdownRenderer content={safeContent} />
+        <MarkdownRenderer content={safeContent} streaming={streaming} />
       </div>
     </div>
   );

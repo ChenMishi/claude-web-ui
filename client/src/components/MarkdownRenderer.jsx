@@ -61,16 +61,57 @@ function safeUrl(url) {
   }
 }
 
-export default function MarkdownRenderer({ content }) {
+export default function MarkdownRenderer({ content, streaming }) {
   if (!content || typeof content !== 'string') return null;
-  const html = DOMPurify.sanitize(renderMarkdown(content), {
+
+  // 流式输出时，检测末尾未闭合的代码块
+  let liveCodeBlock = null;
+  let renderContent = content;
+  if (streaming) {
+    liveCodeBlock = extractLiveCodeBlock(content);
+    if (liveCodeBlock) {
+      renderContent = liveCodeBlock.before;
+    }
+  }
+
+  const html = DOMPurify.sanitize(renderMarkdown(renderContent), {
     ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'h1', 'h2', 'h3', 'h4',
       'ul', 'ol', 'li', 'pre', 'code', 'blockquote', 'hr', 'a', 'img',
       'table', 'thead', 'tbody', 'tr', 'th', 'td',
       'span'],
     ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'class'],
   });
+
+  if (liveCodeBlock) {
+    return (
+      <div className="markdown-body">
+        <div dangerouslySetInnerHTML={{ __html: html }} />
+        <pre className="live-code-block"><code className={`language-${liveCodeBlock.lang}`}>{liveCodeBlock.code}<span className="live-cursor">▍</span></code></pre>
+      </div>
+    );
+  }
+
   return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+// 检测流式输出中末尾未闭合的代码块
+function extractLiveCodeBlock(text) {
+  const lastFence = text.lastIndexOf('```');
+  if (lastFence === -1) return null;
+
+  const afterLast = text.slice(lastFence + 3);
+  // 后面还有 ``` → 代码块已闭合
+  if (afterLast.includes('```')) return null;
+
+  // 确保 ``` 在行首或前面是换行（排除行内 ``` 的情况）
+  if (lastFence > 0 && text[lastFence - 1] !== '\n') return null;
+
+  const before = text.slice(0, lastFence);
+  const newlineIdx = afterLast.indexOf('\n');
+  const lang = newlineIdx === -1 ? afterLast.trim() : afterLast.slice(0, newlineIdx).trim();
+  const code = newlineIdx === -1 ? '' : afterLast.slice(newlineIdx + 1);
+
+  return { before, lang: lang || 'text', code };
 }
 
 function escapeHtml(text) {
