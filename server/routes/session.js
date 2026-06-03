@@ -455,17 +455,29 @@ async function generateSessionTitle(sessionId, prompt, cwd, authUser) {
   }
 }
 
-// Lightweight: just call Haiku API, return title text (no disk I/O)
+// Lightweight: just call the proxy, return title text (no disk I/O)
 async function generateTitleText(prompt) {
   const proxyBase = getProxyUrl();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
+
+  // 读取 provider 配置，选择标题生成用的模型
+  let titleModel = 'claude-haiku-4-5-20251001'; // 默认 Anthropic
+  try {
+    const providerFile = path.join(path.resolve(__dirname, '..', '..'), 'provider-config.json');
+    if (fs.existsSync(providerFile)) {
+      const cfg = JSON.parse(fs.readFileSync(providerFile, 'utf8'));
+      // 优先用 haikuModel，其次 sonnetModel，最后用主 model
+      titleModel = cfg.haikuModel || cfg.sonnetModel || cfg.model || titleModel;
+    }
+  } catch {}
+
   try {
     const proxyRes = await fetch(`${proxyBase}/v1/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: titleModel,
         max_tokens: 50,
         messages: [{ role: 'user', content: `用不超过15个汉字为以下对话生成一个简短的标题，直接返回标题文本，不要带引号、不要解释：${prompt}` }],
         stream: false,
@@ -483,7 +495,8 @@ async function generateTitleText(prompt) {
       if (c.thinking) return String(c.thinking).trim().slice(0, 30);
     }
     return null;
-  } catch {
+  } catch (err) {
+    console.error('generateTitleText error:', err?.message);
     return null;
   } finally {
     clearTimeout(timer);
