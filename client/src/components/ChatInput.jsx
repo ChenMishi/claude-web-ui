@@ -34,7 +34,7 @@ const COMMANDS = [
   { cmd: '/perm all', desc: '所有工具操作需确认', action: 'perm-all' },
 ];
 
-export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSkillChange }) {
+export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
     setView, setMessages, currentProjectId, selectProject, theme, chatMessages, projects,
     availableModels, currentModel, switchCurrentModel } = useApp();
@@ -231,7 +231,7 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
           placeholder={isStreaming ? '输入消息中途插入... (Enter 发送)' : '输入消息... (Shift+Enter 换行) 输入 / 查看快捷指令'}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
-          disabled={disabled && !isStreaming}
+          disabled={false}
         />
         <div className="input-select-group">
           <span className="input-select-icon" title="模型">⚡</span>
@@ -331,7 +331,7 @@ export default function ChatInput({ onSend, onStop, disabled, activeSkill, onSki
             ⏹ 中止
           </button>
         )}
-        <button className="send-btn" onClick={handleSend} disabled={disabled && !isStreaming}>
+        <button className="send-btn" onClick={handleSend} disabled={false}>
           发送
         </button>
       </div>

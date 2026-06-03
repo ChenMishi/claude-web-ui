@@ -76,6 +76,8 @@ export default function ChatView() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [activeSkill, setActiveSkill] = useState(null); // { name, displayName, icon }
+  const [queuedMessages, setQueuedMessages] = useState([]); // 排队中的消息
+  const pendingQueue = useRef([]); // 消息队列 ref，驱动自动发送
   const askRef = useRef(null);
   const chatMessagesRef = useRef(chatMessages);
   chatMessagesRef.current = chatMessages;
@@ -213,6 +215,9 @@ export default function ChatView() {
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
+      // 切换会话时清空排队消息
+      pendingQueue.current = [];
+      setQueuedMessages([]);
     };
   }, [currentSessionId]);
 
@@ -361,9 +366,21 @@ export default function ChatView() {
     cacheWrite: sdkUsage.cache_creation_input_tokens || 0,
   } : null;
 
+  // 清空排队消息
+  const clearPendingQueue = useCallback(() => {
+    pendingQueue.current = [];
+    setQueuedMessages([]);
+    // 从聊天中移除所有 "排队中" 消息
+    const msgs = chatMessagesRef.current.filter(m => !m.queued);
+    if (msgs.length < chatMessagesRef.current.length) {
+      setMessages(msgs);
+    }
+  }, [setMessages]);
+
   const handleStop = useCallback((execStatus) => {
     ++execIdRef.current;  // bump so stale SSE errors are ignored
     stopTimer();
+    clearPendingQueue();  // 清空排队消息
 
     // End streaming on last assistant message
     bUpdate(null);
@@ -374,17 +391,20 @@ export default function ChatView() {
     bAppend({ role: 'system', content: summary, timestamp: Date.now() });
 
     execReset();
-  }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset]);
+  }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset, clearPendingQueue]);
 
   const handleSend = useCallback((text) => {
     if (!text.trim()) return;
-    // If streaming, abort current session first
+
+    // 如果正在执行中，不中断，改为排队等待
     if (isStreaming) {
-      stopTimer();
-      bUpdate(null);
-      setStreaming(false);
-      if (currentSessionId) abortSession(currentSessionId).catch(() => {});
+      const item = { text: text.trim(), timestamp: Date.now() };
+      pendingQueue.current.push(item);
+      setQueuedMessages([...pendingQueue.current]);
+      bAppend({ role: 'user', content: '⏳ 排队中: ' + item.text, timestamp: item.timestamp, queued: true });
+      return;
     }
+
     // Bump execution ID so stale SSE errors from previous run are ignored
     const myExecId = ++execIdRef.current;
     setStreaming(true);
@@ -480,6 +500,13 @@ export default function ChatView() {
             getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
           }
         }
+
+        // 检查排队消息，自动发送下一条
+        const next = pendingQueue.current.shift();
+        if (next) {
+          setQueuedMessages([...pendingQueue.current]);
+          setTimeout(() => handleSend(next.text), 300);
+        }
       },
       onTitle: ({ title }) => {
         if (title) updateMainTask(title);
@@ -489,6 +516,7 @@ export default function ChatView() {
         if (execIdRef.current !== myExecId) return;
         // AskUserQuestion abort is expected — don't show error
         if (askRef.current) return;
+        clearPendingQueue();  // 出错时清空排队消息
         setStreaming(false);
         stopTimer();
         execPhase({ phase: 'done', detail: err.message });
@@ -615,7 +643,7 @@ export default function ChatView() {
           <ExecutionPanel />
         </div>
       </div>
-      <ChatInput onSend={handleSend} onStop={handleStop} disabled={isStreaming} activeSkill={activeSkill} onSkillChange={setActiveSkill} />
+      <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} />
     </div>
   );
 }
