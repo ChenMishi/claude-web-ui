@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Hexagon background -->
+  <polygon points="100,18 178,62 178,138 100,182 22,138 22,62"
+           fill="url(#bg)" stroke="none"/>
+
+  <!-- Inner ring -->
+  <polygon points="100,38 160,68 160,132 100,162 40,132 40,68"
+           fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+
+  <!-- AI letters -->
+  <text x="100" y="115" text-anchor="middle" font-family="Arial, sans-serif"
+        font-weight="800" font-size="72" fill="#ffffff" letter-spacing="-2">
+    AI
+  </text>
+
+  <!-- Bottom accent line -->
+  <line x1="70" y1="135" x2="130" y2="135" stroke="url(#accent)" stroke-width="3" stroke-linecap="round"/>
+</svg>
