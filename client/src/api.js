@@ -270,12 +270,29 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, signal, o
   let currentEvent = '';
   let receivedDone = false;
 
+  // 超时保护：30 秒无数据则判定连接断开
+  const STREAM_TIMEOUT = 30000;
+  let lastDataTime = Date.now();
+
   try {
     while (true) {
       let chunk;
       try {
-        chunk = await reader.read();
+        // Promise.race 实现超时：reader.read() vs delay
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('STREAM_TIMEOUT')), STREAM_TIMEOUT);
+        });
+        chunk = await Promise.race([reader.read(), timeoutPromise]);
+        clearTimeout(timeoutId);
+        lastDataTime = Date.now();
       } catch (err) {
+        if (err.message === 'STREAM_TIMEOUT') {
+          if (!receivedDone) {
+            onError?.(new Error('响应超时: 服务端超过 30 秒未发送数据'));
+          }
+          break;
+        }
         if (err.name === 'AbortError') break; // silently stop on abort
         if (!currentEvent) onError?.(new Error(`连接中断: ${err.message}`));
         break;
