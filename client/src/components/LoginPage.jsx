@@ -32,7 +32,7 @@ export default function LoginPage() {
       <div className="login-card">
         {/* Logo area */}
         <div className="login-header">
-          <img src="/logo.png" alt="Logo" className="login-logo" />
+          <img src="/logo.svg" alt="Logo" className="login-logo" />
           <h1>AI IntelliWork Hub</h1>
           <p>AI 驱动的智能工作助手</p>
         </div>
