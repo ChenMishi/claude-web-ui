@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 
 function formatTime(ts) {
@@ -53,7 +53,53 @@ export default function ChatMessage({ message }) {
 
 function ThinkingBlock({ content, streaming }) {
   const [expanded, setExpanded] = useState(true);
+  const [revealedLen, setRevealedLen] = useState(0);
+  const rafRef = useRef(null);
+  const prevStreaming = useRef(false);
   const safeContent = typeof content === 'string' ? content : '';
+
+  useEffect(() => {
+    const wasStreaming = prevStreaming.current;
+    prevStreaming.current = streaming;
+
+    // Streaming just ended — show everything instantly
+    if (wasStreaming && !streaming) {
+      cancelAnimationFrame(rafRef.current);
+      setRevealedLen(safeContent.length);
+      return;
+    }
+
+    if (!streaming || !safeContent) return;
+
+    // New streaming block — reset
+    if (!wasStreaming) setRevealedLen(0);
+
+    // rAF-based chasing: throttle to ~15fps, advance in large chunks
+    let frame = 0;
+    const tick = () => {
+      frame++;
+      if (frame % 4 !== 0) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      setRevealedLen(prev => {
+        const total = safeContent.length;
+        if (prev >= total) return prev;
+        // Jump ~5% of remaining each tick, at least 1 char
+        const chunk = Math.max(1, Math.ceil((total - prev) / 20));
+        const next = prev + chunk;
+        if (next >= total) return total;
+        rafRef.current = requestAnimationFrame(tick);
+        return next;
+      });
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [streaming, safeContent]);
+
+  const isAnimating = streaming && revealedLen < safeContent.length;
+  const shownContent = streaming ? safeContent.slice(0, revealedLen) : safeContent;
 
   return (
     <div className="thinking-block">
@@ -65,8 +111,8 @@ function ThinkingBlock({ content, streaming }) {
       </div>
       {expanded && (
         <div className="thinking-content">
-          <MarkdownRenderer content={safeContent} />
-          {streaming && <span className="live-cursor">▍</span>}
+          <MarkdownRenderer content={shownContent} />
+          {isAnimating && <span className="live-cursor">▍</span>}
         </div>
       )}
     </div>
@@ -75,6 +121,8 @@ function ThinkingBlock({ content, streaming }) {
 
 function ToolCallBlock({ toolCall, streaming }) {
   const [expanded, setExpanded] = useState(true);
+  const [revealedLen, setRevealedLen] = useState(0);
+  const rafRef = useRef(null);
 
   const isWrite = toolCall.name === 'Write';
   const isEdit = toolCall.name === 'Edit';
@@ -83,6 +131,40 @@ function ToolCallBlock({ toolCall, streaming }) {
     ? (toolCall.input?.content || toolCall.input?.new_string || '')
     : '';
   const filePath = isCodeTool ? (toolCall.input?.file_path || '') : '';
+
+  // rAF typewriter animation for Write/Edit tools
+  useEffect(() => {
+    if (!streaming || !isCodeTool || !codeContent) {
+      if (!streaming) setRevealedLen(0);
+      return;
+    }
+
+    setRevealedLen(0);
+    let frame = 0;
+    const totalLen = codeContent.length;
+
+    const tick = () => {
+      frame++;
+      if (frame % 4 !== 0) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      setRevealedLen(prev => {
+        if (prev >= totalLen) return totalLen;
+        const chunk = Math.max(1, Math.ceil((totalLen - prev) / 25));
+        const next = prev + chunk;
+        if (next >= totalLen) return totalLen;
+        rafRef.current = requestAnimationFrame(tick);
+        return next;
+      });
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [streaming, isCodeTool, codeContent]);
+
+  const isAnimating = streaming && isCodeTool && revealedLen < codeContent.length;
+  const shownCode = isCodeTool && streaming ? codeContent.slice(0, revealedLen) : '';
 
   const getToolLabel = (name) => {
     const map = {
@@ -111,7 +193,7 @@ function ToolCallBlock({ toolCall, streaming }) {
       {expanded && (
         <div className="tool-call-detail">
           {isCodeTool && streaming ? (
-            <pre className="typewriter-code"><code>{codeContent}<span className="live-cursor">▍</span></code></pre>
+            <pre className="typewriter-code"><code>{shownCode}{isAnimating && <span className="live-cursor">▍</span>}</code></pre>
           ) : (
             <pre><code>{JSON.stringify(toolCall.input, null, 2)}</code></pre>
           )}
