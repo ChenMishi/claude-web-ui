@@ -69,7 +69,6 @@ export default function ChatView() {
   const hasAssistantText = useRef(false);
   const textAccum = useRef('');
   const hasThinking = useRef(false);
-  const thinkingAccum = useRef('');
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
   const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
@@ -112,33 +111,6 @@ export default function ChatView() {
       }
     } else {
       updateRef.current(content);
-    }
-  };
-  // Role-aware update: finds the last message with given role and updates its content
-  const bUpdateRole = (role, content) => {
-    if (isAskBuffered.current && askRef.current) {
-      const buf = askBufferRef.current;
-      for (let i = buf.length - 1; i >= 0; i--) {
-        if (buf[i].role === role) {
-          buf[i] = content === null
-            ? { ...buf[i], streaming: false }
-            : { ...buf[i], content };
-          return;
-        }
-      }
-    } else {
-      setMessages(prev => {
-        const msgs = [...prev];
-        for (let i = msgs.length - 1; i >= 0; i--) {
-          if (msgs[i].role === role) {
-            msgs[i] = content === null
-              ? { ...msgs[i], streaming: false }
-              : { ...msgs[i], content };
-            return msgs;
-          }
-        }
-        return prev;
-      });
     }
   };
 
@@ -314,7 +286,7 @@ export default function ChatView() {
                             bAppend({ role: 'assistant', content: text, streaming: true, timestamp: Date.now() });
                           } else {
                             textAccum.current += text;
-                            bUpdateRole('assistant', textAccum.current);
+                            bUpdate(textAccum.current);
                           }
                           execPhase({ phase: 'responding', detail: '' });
                         }
@@ -343,8 +315,7 @@ export default function ChatView() {
                     } else if (currentEvent === 'tool_confirm') {
                       setToolConfirm({ tool: parsed.tool, action: parsed.action, input: parsed.input });
                     } else if (currentEvent === 'done') {
-                      bUpdateRole('assistant', null);
-                      bUpdateRole('thinking', null);
+                      bUpdate(null);
                       setStreaming(false);
                       stopTimer();
                       execDone({ tokens: parsed.tokens, cost: parsed.cost, currency: parsed.currency });
@@ -408,8 +379,7 @@ export default function ChatView() {
     clearPendingQueue();  // 清空排队消息
 
     // End streaming on last assistant message
-    bUpdateRole('assistant', null);
-    bUpdateRole('thinking', null);
+    bUpdate(null);
     setStreaming(false);
 
     // Append a summary system message
@@ -449,7 +419,6 @@ export default function ChatView() {
     hasAssistantText.current = false;
     hasThinking.current = false;
     textAccum.current = '';
-    thinkingAccum.current = '';
 
     const project = projects.find(p => p.id === currentProjectId);
     const cwd = project?.cwd || '/root';
@@ -469,18 +438,11 @@ export default function ChatView() {
       onThinking: ({ text: thinkingText, usage }) => {
         execPhase({ phase: 'thinking', detail: thinkingText });
         if (usage) execTokens(toTokens(usage));
-        hasAssistantText.current = false;  // 新消息开始，重置助手累积状态
-        if (!hasThinking.current) {
-          hasThinking.current = true;
-          thinkingAccum.current = thinkingText;
-          bAppend({ role: 'thinking', content: thinkingText, streaming: true, timestamp: Date.now() });
-        } else {
-          thinkingAccum.current += thinkingText;
-          bUpdateRole('thinking', thinkingAccum.current);
-        }
+        hasAssistantText.current = false;  // 防止跨消息状态污染
+        bAppend({ role: 'thinking', content: thinkingText, streaming: true, timestamp: Date.now() });
       },
       onAssistant: ({ content, usage, session_id }) => {
-        hasThinking.current = false;
+        hasThinking.current = false;  // 防止跨消息状态污染
         // Reload session list as soon as we have the session ID for new sessions
         if (session_id && !currentSessionId) {
           setSessionId(session_id);
@@ -495,7 +457,7 @@ export default function ChatView() {
           bAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
         } else {
           textAccum.current += content;
-          bUpdateRole('assistant', textAccum.current);
+          bUpdate(textAccum.current);
         }
         execPhase({ phase: 'responding', detail: '' });
         if (usage) execTokens(toTokens(usage));
@@ -524,8 +486,7 @@ export default function ChatView() {
         setToolConfirm({ tool, action, input });
       },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency }) => {
-        bUpdateRole('assistant', null);
-        bUpdateRole('thinking', null);
+        bUpdate(null);
         setStreaming(false);
         stopTimer();
         execDone({ tokens: doneTokens, cost, currency });
