@@ -34,7 +34,7 @@ const COMMANDS = [
   { cmd: '/perm all', desc: '所有工具操作需确认', action: 'perm-all' },
 ];
 
-export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange }) {
+export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, queuedMessages, onRemoveQueued }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
     setView, setMessages, currentProjectId, selectProject, theme, chatMessages, projects,
     availableModels, currentModel, switchCurrentModel } = useApp();
@@ -207,6 +207,21 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange }
   return (
     <div className="input-area">
       <ExecutionBar />
+      {queuedMessages && queuedMessages.length > 0 && (
+        <div className="queued-messages">
+          {queuedMessages.map((item, idx) => (
+            <div key={idx} className="queued-item">
+              <span className="queued-icon">⏳</span>
+              <span className="queued-text">{item.text}</span>
+              <button
+                className="queued-remove"
+                onClick={() => onRemoveQueued && onRemoveQueued(idx)}
+                title="取消排队"
+              >✕</button>
+            </div>
+          ))}
+        </div>
+      )}
       {showCommands && (
         <div className="slash-commands" ref={cmdListRef}>
           <div className="slash-commands-scroll">

@@ -370,12 +370,7 @@ export default function ChatView() {
   const clearPendingQueue = useCallback(() => {
     pendingQueue.current = [];
     setQueuedMessages([]);
-    // 从聊天中移除所有 "排队中" 消息
-    const msgs = chatMessagesRef.current.filter(m => !m.queued);
-    if (msgs.length < chatMessagesRef.current.length) {
-      setMessages(msgs);
-    }
-  }, [setMessages]);
+  }, []);
 
   const handleStop = useCallback((execStatus) => {
     ++execIdRef.current;  // bump so stale SSE errors are ignored
@@ -401,7 +396,6 @@ export default function ChatView() {
       const item = { text: text.trim(), timestamp: Date.now() };
       pendingQueue.current.push(item);
       setQueuedMessages([...pendingQueue.current]);
-      bAppend({ role: 'user', content: '⏳ 排队中: ' + item.text, timestamp: item.timestamp, queued: true });
       return;
     }
 
@@ -643,7 +637,7 @@ export default function ChatView() {
           <ExecutionPanel />
         </div>
       </div>
-      <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} />
+      <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} queuedMessages={queuedMessages} onRemoveQueued={(idx) => { pendingQueue.current.splice(idx, 1); setQueuedMessages([...pendingQueue.current]); }} />
     </div>
   );
 }
