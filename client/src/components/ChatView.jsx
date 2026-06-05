@@ -72,6 +72,7 @@ export default function ChatView() {
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
   const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
+  const throttleRef = useRef(null);  // setTimeout id for bUpdate throttling during responding phase
   const [askUser, setAskUser] = useState(null);
   const [toolConfirm, setToolConfirm] = useState(null); // { tool, action, input } — separate from askUser
   const [loadingMore, setLoadingMore] = useState(false);
@@ -216,7 +217,8 @@ export default function ChatView() {
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
-      // 切换会话时清空排队消息
+      // 切换会话时清空排队消息和节流定时器
+      if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
       pendingQueue.current = [];
       setQueuedMessages([]);
     };
@@ -286,7 +288,13 @@ export default function ChatView() {
                             bAppend({ role: 'assistant', content: text, streaming: true, timestamp: Date.now() });
                           } else {
                             textAccum.current += text;
-                            bUpdate(textAccum.current);
+                            if (!throttleRef.current) {
+                              bUpdate(textAccum.current);
+                              throttleRef.current = setTimeout(() => {
+                                throttleRef.current = null;
+                                bUpdate(textAccum.current);
+                              }, 100);
+                            }
                           }
                           execPhase({ phase: 'responding', detail: '' });
                         }
@@ -315,6 +323,7 @@ export default function ChatView() {
                     } else if (currentEvent === 'tool_confirm') {
                       setToolConfirm({ tool: parsed.tool, action: parsed.action, input: parsed.input });
                     } else if (currentEvent === 'done') {
+                      if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
                       bUpdate(null);
                       setStreaming(false);
                       stopTimer();
@@ -377,6 +386,7 @@ export default function ChatView() {
     ++execIdRef.current;  // bump so stale SSE errors are ignored
     stopTimer();
     clearPendingQueue();  // 清空排队消息
+    if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
 
     // End streaming on last assistant message
     bUpdate(null);
@@ -457,7 +467,14 @@ export default function ChatView() {
           bAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
         } else {
           textAccum.current += content;
-          bUpdate(textAccum.current);
+          // 节流：100ms 内最多触发一次 React re-render，避免 MarkdownRenderer 每帧重解析全文
+          if (!throttleRef.current) {
+            bUpdate(textAccum.current);
+            throttleRef.current = setTimeout(() => {
+              throttleRef.current = null;
+              bUpdate(textAccum.current);  // flush 最终累积状态
+            }, 100);
+          }
         }
         execPhase({ phase: 'responding', detail: '' });
         if (usage) execTokens(toTokens(usage));
@@ -486,6 +503,7 @@ export default function ChatView() {
         setToolConfirm({ tool, action, input });
       },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency }) => {
+        if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
         bUpdate(null);
         setStreaming(false);
         stopTimer();
@@ -515,6 +533,7 @@ export default function ChatView() {
         if (execIdRef.current !== myExecId) return;
         // AskUserQuestion abort is expected — don't show error
         if (askRef.current) return;
+        if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
         clearPendingQueue();  // 出错时清空排队消息
         setStreaming(false);
         stopTimer();

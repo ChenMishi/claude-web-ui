@@ -37,15 +37,31 @@ function ensureLang(lang) {
   } catch {}
 }
 
+// Prism 高亮缓存 — 流式渲染时已闭合的代码块被反复高亮数百次，
+// 缓存结果可避免重复调用 Prism.highlight（renderMarkdown 的主要耗时操作）。
+const highlightCache = new Map();
+const MAX_CACHE = 50;
+
 function highlightCode(code, lang) {
+  const cacheKey = code;
+  if (highlightCache.has(cacheKey)) return highlightCache.get(cacheKey);
+
   ensureLang(lang);
   const key = (lang || 'text').toLowerCase();
+  let result;
   try {
-    if (!Prism.languages[key]) return escapeHtml(code);
-    return Prism.highlight(code, Prism.languages[key], key);
+    if (!Prism.languages[key]) result = escapeHtml(code);
+    else result = Prism.highlight(code, Prism.languages[key], key);
   } catch {
-    return escapeHtml(code);
+    result = escapeHtml(code);
   }
+
+  // LRU eviction: delete oldest entry if cache is full
+  if (highlightCache.size >= MAX_CACHE) {
+    highlightCache.delete(highlightCache.keys().next().value);
+  }
+  highlightCache.set(cacheKey, result);
+  return result;
 }
 
 // Allowed URL schemes
