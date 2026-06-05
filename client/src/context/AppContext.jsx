@@ -125,7 +125,12 @@ function reducer(state, action) {
       const newCache = { ...state.messageCache };
       const key = state.currentSessionId || '__pending__';
       newCache[key] = newMsgs;
-      saveCache(newCache);
+      // 流式期间不写缓存 — 每条消息 append 都写 localStorage 会造成主线程阻塞。
+      // 重连时更严重：buffer 回放 50+ 事件在同一同步循环里各写一次，页面直接卡死。
+      // 缓存在 done 信号（UPDATE_LAST_MESSAGE null）时统一写入一次完整状态。
+      if (!state.isStreaming) {
+        saveCache(newCache);
+      }
       next = { ...state, chatMessages: newMsgs, messageCache: newCache };
       break;
     }
