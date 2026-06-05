@@ -137,11 +137,9 @@ function reducer(state, action) {
       } else {
         msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: action.payload };
       }
-      const newCache2 = { ...state.messageCache };
-      const k2 = state.currentSessionId || '__pending__';
-      newCache2[k2] = msgs;
-      saveCache(newCache2);
-      next = { ...state, chatMessages: msgs, messageCache: newCache2 };
+      // 不在这里写缓存 — 流式更新每帧触发，频繁 JSON.stringify + localStorage.setItem 会卡死主线程。
+      // 消息在 APPEND_MESSAGE 时已写入缓存，流式中间状态不需持久化（页面关闭后可重连恢复）。
+      next = { ...state, chatMessages: msgs };
       break;
     }
     case 'SET_STREAMING':
