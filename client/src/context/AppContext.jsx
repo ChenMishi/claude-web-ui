@@ -152,6 +152,12 @@ function reducer(state, action) {
       }
       break;
     }
+    case 'FINISH_ALL_STREAMING': {
+      if (state.chatMessages.length === 0) return state;
+      const msgs = state.chatMessages.map(m => m.streaming ? { ...m, streaming: false } : m);
+      next = { ...state, chatMessages: msgs };
+      break;
+    }
     case 'SET_STREAMING':
       next = { ...state, isStreaming: action.payload }; break;
     case 'SET_VIEW':
@@ -250,6 +256,7 @@ export function AppContextProvider({ children }) {
   const execTokens = useCallback((payload) => dispatch({ type: 'EXEC_TOKENS', payload }), []);
   const execDone = useCallback((payload) => dispatch({ type: 'EXEC_DONE', payload }), []);
   const execReset = useCallback(() => dispatch({ type: 'EXEC_RESET' }), []);
+  const finishAllStreaming = useCallback(() => dispatch({ type: 'FINISH_ALL_STREAMING' }), []);
   const addTask = useCallback((subject, description) => dispatch({ type: 'TASK_CREATE', payload: { subject, description } }), []);
   const updateTask = useCallback((taskId, status) => dispatch({ type: 'TASK_UPDATE', payload: { taskId, status } }), []);
   const clearTasks = useCallback(() => dispatch({ type: 'TASKS_CLEAR' }), []);
@@ -375,6 +382,7 @@ export function AppContextProvider({ children }) {
     setUpdateAvailable,
     loadAvailableModels, switchCurrentModel,
     triggerRestart, dismissRestart,
+    finishAllStreaming,
     setNeedInit,
   };
 

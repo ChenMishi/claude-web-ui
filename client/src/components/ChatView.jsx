@@ -63,7 +63,7 @@ export default function ChatView() {
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, updateTask, setMainTask, updateMainTask, execStatus,
-    currentModel,
+    currentModel, finishAllStreaming,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -285,6 +285,7 @@ export default function ChatView() {
                           if (!hasAssistantText.current) {
                             hasAssistantText.current = true;
                             textAccum.current = text;
+                            finishAllStreaming();  // 停止所有 thinking rAF 动画
                             bAppend({ role: 'assistant', content: text, streaming: true, timestamp: Date.now() });
                           } else {
                             textAccum.current += text;
@@ -293,7 +294,7 @@ export default function ChatView() {
                               throttleRef.current = setTimeout(() => {
                                 throttleRef.current = null;
                                 bUpdate(textAccum.current);
-                              }, 100);
+                              }, 150);
                             }
                           }
                           execPhase({ phase: 'responding', detail: '' });
@@ -324,6 +325,7 @@ export default function ChatView() {
                       setToolConfirm({ tool: parsed.tool, action: parsed.action, input: parsed.input });
                     } else if (currentEvent === 'done') {
                       if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
+                      finishAllStreaming();  // 停止所有 rAF 动画
                       bUpdate(null);
                       setStreaming(false);
                       stopTimer();
@@ -387,6 +389,7 @@ export default function ChatView() {
     stopTimer();
     clearPendingQueue();  // 清空排队消息
     if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
+    finishAllStreaming();  // 停止所有 rAF 动画
 
     // End streaming on last assistant message
     bUpdate(null);
@@ -464,6 +467,7 @@ export default function ChatView() {
         if (!hasAssistantText.current) {
           hasAssistantText.current = true;
           textAccum.current = content;
+          finishAllStreaming();  // 思考阶段结束，停止所有 thinking rAF 动画
           bAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
         } else {
           textAccum.current += content;
@@ -473,7 +477,7 @@ export default function ChatView() {
             throttleRef.current = setTimeout(() => {
               throttleRef.current = null;
               bUpdate(textAccum.current);  // flush 最终累积状态
-            }, 100);
+            }, 150);
           }
         }
         execPhase({ phase: 'responding', detail: '' });
@@ -504,7 +508,8 @@ export default function ChatView() {
       },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency }) => {
         if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
-        bUpdate(null);
+        finishAllStreaming();  // 停止所有 rAF 动画
+        bUpdate(null);        // 关最后一条 streaming + 写缓存
         setStreaming(false);
         stopTimer();
         execDone({ tokens: doneTokens, cost, currency });

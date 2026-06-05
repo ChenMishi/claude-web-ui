@@ -90,7 +90,7 @@ export default function MarkdownRenderer({ content, streaming }) {
     }
   }
 
-  const html = DOMPurify.sanitize(renderMarkdown(renderContent), {
+  const html = DOMPurify.sanitize(renderMarkdown(renderContent, !!streaming), {
     ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'h1', 'h2', 'h3', 'h4',
       'ul', 'ol', 'li', 'pre', 'code', 'blockquote', 'hr', 'a', 'img',
       'table', 'thead', 'tbody', 'tr', 'th', 'td',
@@ -150,12 +150,15 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
-function renderMarkdown(text) {
+function renderMarkdown(text, isStreaming) {
   // Step 1: Extract code blocks and highlight them
   const codeBlocks = [];
   let html = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const idx = codeBlocks.length;
-    codeBlocks.push(`<pre><code class="language-${lang || 'text'}">${highlightCode(code.trim(), lang)}</code></pre>`);
+    const rendered = isStreaming
+      ? escapeHtml(code.trim())  // 流式期间跳过 Prism 高亮，done 后 FINISH_ALL_STREAMING 触发最终渲染才高亮
+      : highlightCode(code.trim(), lang);
+    codeBlocks.push(`<pre><code class="language-${lang || 'text'}">${rendered}</code></pre>`);
     return `\x00CB${idx}\x00`;
   });
 
