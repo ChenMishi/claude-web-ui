@@ -134,12 +134,17 @@ function reducer(state, action) {
       const msgs = [...state.chatMessages];
       if (action.payload === null) {
         msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], streaming: false };
+        // 仅在 done 信号（payload=null）时写缓存 —— 每轮对话仅 1 次，不会卡死。
+        // 流式内容更新（payload=string）每帧触发数百次，跳过 localStorage 写入。
+        const newCache = { ...state.messageCache };
+        const key = state.currentSessionId || '__pending__';
+        newCache[key] = msgs;
+        saveCache(newCache);
+        next = { ...state, chatMessages: msgs, messageCache: newCache };
       } else {
         msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: action.payload };
+        next = { ...state, chatMessages: msgs };
       }
-      // 不在这里写缓存 — 流式更新每帧触发，频繁 JSON.stringify + localStorage.setItem 会卡死主线程。
-      // 消息在 APPEND_MESSAGE 时已写入缓存，流式中间状态不需持久化（页面关闭后可重连恢复）。
-      next = { ...state, chatMessages: msgs };
       break;
     }
     case 'SET_STREAMING':
