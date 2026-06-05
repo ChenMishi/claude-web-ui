@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 
 function formatTime(ts) {
@@ -8,7 +8,7 @@ function formatTime(ts) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-export default function ChatMessage({ message }) {
+export default memo(function ChatMessage({ message }) {
   const { role, content, error, toolCall, toolResult, timestamp, streaming } = message;
 
   if (role === 'system') {
@@ -38,18 +38,23 @@ export default function ChatMessage({ message }) {
   const labels = { user: '你', assistant: 'Claude' };
   const safeContent = typeof content === 'string' ? content : '';
 
+  // 用 useMemo 缓存 MarkdownRenderer 输出 — 已完成的消息不应在父组件重渲染时重复解析
+  const messageBody = useMemo(() => (
+    <div className="message-content">
+      <MarkdownRenderer content={safeContent} streaming={streaming} />
+    </div>
+  ), [safeContent, streaming]);
+
   return (
     <div className={`message ${role}`}>
       <div className="message-header">
         <span className="role-label">{labels[role] || role}</span>
         {timestamp && <span className="message-time">{formatTime(timestamp)}</span>}
       </div>
-      <div className="message-content">
-        <MarkdownRenderer content={safeContent} streaming={streaming} />
-      </div>
+      {messageBody}
     </div>
   );
-}
+});
 
 function ThinkingBlock({ content, streaming }) {
   const [expanded, setExpanded] = useState(true);
