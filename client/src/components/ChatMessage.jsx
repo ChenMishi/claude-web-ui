@@ -58,53 +58,7 @@ export default memo(function ChatMessage({ message }) {
 
 function ThinkingBlock({ content, streaming }) {
   const [expanded, setExpanded] = useState(true);
-  const [revealedLen, setRevealedLen] = useState(0);
-  const rafRef = useRef(null);
-  const prevStreaming = useRef(false);
   const safeContent = typeof content === 'string' ? content : '';
-
-  useEffect(() => {
-    const wasStreaming = prevStreaming.current;
-    prevStreaming.current = streaming;
-
-    // Streaming just ended — show everything instantly
-    if (wasStreaming && !streaming) {
-      cancelAnimationFrame(rafRef.current);
-      setRevealedLen(safeContent.length);
-      return;
-    }
-
-    if (!streaming || !safeContent) return;
-
-    // New streaming block — reset
-    if (!wasStreaming) setRevealedLen(0);
-
-    // rAF-based chasing: throttle to ~15fps, advance in large chunks
-    let frame = 0;
-    const tick = () => {
-      frame++;
-      if (frame % 4 !== 0) {
-        rafRef.current = requestAnimationFrame(tick);
-        return;
-      }
-      setRevealedLen(prev => {
-        const total = safeContent.length;
-        if (prev >= total) return prev;
-        // Jump ~5% of remaining each tick, at least 1 char
-        const chunk = Math.max(1, Math.ceil((total - prev) / 20));
-        const next = prev + chunk;
-        if (next >= total) return total;
-        rafRef.current = requestAnimationFrame(tick);
-        return next;
-      });
-    };
-    rafRef.current = requestAnimationFrame(tick);
-
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [streaming, safeContent]);
-
-  const isAnimating = streaming && revealedLen < safeContent.length;
-  const shownContent = streaming ? safeContent.slice(0, revealedLen) : safeContent;
 
   return (
     <div className="thinking-block">
@@ -116,8 +70,8 @@ function ThinkingBlock({ content, streaming }) {
       </div>
       {expanded && (
         <div className="thinking-content">
-          <MarkdownRenderer content={shownContent} />
-          {isAnimating && <span className="live-cursor">▍</span>}
+          <MarkdownRenderer content={safeContent} />
+          {streaming && <span className="live-cursor">▍</span>}
         </div>
       )}
     </div>
