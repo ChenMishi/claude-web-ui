@@ -419,7 +419,8 @@ router.post('/init/check-claude-update', (req, res) => {
   try {
     const raw = getClaudeCodeVersion() || '';
     const current = raw.replace(/^.*?(\d+\.\d+\.\d+).*$/, '$1');
-    const latest = execSync('npm view @anthropic-ai/claude-code version --registry https://registry.npmmirror.com', { encoding: 'utf8', timeout: 10000 }).trim();
+    // 用官方 registry 获取版本号（镜像的 latest tag 可能未同步）
+    const latest = execSync('npm view @anthropic-ai/claude-code version', { encoding: 'utf8', timeout: 15000 }).trim();
     res.json({ current, latest, hasUpdate: current && latest && current !== latest });
   } catch (err) {
     logInit('Error in init route', err);
