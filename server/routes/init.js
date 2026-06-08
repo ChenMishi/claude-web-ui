@@ -448,7 +448,7 @@ router.post('/init/upgrade-claude', (req, res) => {
 
   send('progress', { pct: 10, text: '正在升级 Claude Code...' });
 
-  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code@latest'], { env: process.env });
+  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code@latest', '--force'], { env: process.env });
   let lastPct = 10;
   const onData = (d) => {
     const text = d.toString();
