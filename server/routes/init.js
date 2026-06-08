@@ -363,7 +363,7 @@ router.post('/init/install-claude', (req, res) => {
 
   send('progress', { pct: 10, text: '正在安装 Claude Code...' });
 
-  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code'], { env: process.env });
+  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code', '--registry', 'https://registry.npmmirror.com'], { env: process.env });
   let lastPct = 10;
 
   proc.stdout.on('data', (d) => {
@@ -394,7 +394,7 @@ router.post('/init/install-sdk', (req, res) => {
 
   send('progress', { pct: 5, text: '正在安装 SDK 原生模块...' });
 
-  const proc = spawn('npm', ['rebuild', '@anthropic-ai/claude-agent-sdk'], { cwd: PROJECT_DIR, env: process.env });
+  const proc = spawn('npm', ['rebuild', '@anthropic-ai/claude-agent-sdk', '--registry', 'https://registry.npmmirror.com'], { cwd: PROJECT_DIR, env: process.env });
   let lastPct = 5;
 
   const onData = (d) => {
@@ -419,7 +419,7 @@ router.post('/init/check-claude-update', (req, res) => {
   try {
     const raw = getClaudeCodeVersion() || '';
     const current = raw.replace(/^.*?(\d+\.\d+\.\d+).*$/, '$1');
-    const latest = execSync('npm view @anthropic-ai/claude-code version', { encoding: 'utf8', timeout: 10000 }).trim();
+    const latest = execSync('npm view @anthropic-ai/claude-code version --registry https://registry.npmmirror.com', { encoding: 'utf8', timeout: 10000 }).trim();
     res.json({ current, latest, hasUpdate: current && latest && current !== latest });
   } catch (err) {
     logInit('Error in init route', err);
@@ -448,7 +448,7 @@ router.post('/init/upgrade-claude', (req, res) => {
 
   send('progress', { pct: 10, text: '正在升级 Claude Code...' });
 
-  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code@latest', '--force'], { env: process.env });
+  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code@latest', '--force', '--registry', 'https://registry.npmmirror.com'], { env: process.env });
   let lastPct = 10;
   const onData = (d) => {
     const text = d.toString();
