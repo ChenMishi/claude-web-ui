@@ -438,37 +438,43 @@ router.post('/init/upgrade-claude', (req, res) => {
 
   const REGISTRY = 'https://registry.npmmirror.com';
 
-  const runStep = (cmd, args, opts) => new Promise((resolve) => {
-    const proc = spawn(cmd, args, { env: process.env, ...opts });
-    let out = '';
-    proc.stdout.on('data', (d) => {
-      const t = d.toString().trim();
-      out += t;
-      if (t) send('progress', { pct: null, text: t.slice(0, 80) });
-    });
-    proc.stderr.on('data', (d) => {
-      const t = d.toString().trim();
-      out += t;
-      if (t) send('progress', { pct: null, text: t.slice(0, 80) });
-    });
-    proc.on('close', (code) => resolve({ code, out }));
-    proc.on('error', (e) => resolve({ code: 1, out: e.message }));
+  // 用 fs.rmSync 清模块目录（npm 自己处理不了 ENOTEMPTY）
+  try {
+    const npmRoot = require('child_process').execSync('npm root -g', { encoding: 'utf8' }).trim();
+    const modulePath = path.join(npmRoot, '@anthropic-ai', 'claude-code');
+    if (fs.existsSync(modulePath)) {
+      send('progress', { pct: 5, text: '清理旧版本...' });
+      fs.rmSync(modulePath, { recursive: true, force: true });
+    }
+    // 同时删除可能的残留二进制
+    const binPath = '/usr/local/bin/claude';
+    if (fs.existsSync(binPath)) {
+      try { fs.unlinkSync(binPath); } catch {}
+    }
+  } catch {}
+
+  send('progress', { pct: 15, text: `正在从镜像安装 Claude Code@latest...` });
+
+  // --prefer-online: 强制查 registry 而非用缓存
+  // --force: 即使本地有也重装
+  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code@latest',
+    '--prefer-online', '--force', '--registry', REGISTRY], { env: process.env });
+
+  let lastPct = 15;
+  proc.stdout.on('data', (d) => {
+    lastPct = Math.min(lastPct + 15, 90);
+    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
   });
-
-  (async () => {
-    send('progress', { pct: 5, text: '卸载旧版本...' });
-    await runStep('npm', ['uninstall', '-g', '@anthropic-ai/claude-code']);
-
-    send('progress', { pct: 15, text: '清除 npm 缓存...' });
-    await runStep('npm', ['cache', 'clean', '--force']);
-
-    send('progress', { pct: 25, text: `正在从镜像安装 Claude Code@latest...` });
-    const result = await runStep('npm', ['install', '-g', '@anthropic-ai/claude-code@latest', '--registry', REGISTRY]);
-
+  proc.stderr.on('data', (d) => {
+    lastPct = Math.min(lastPct + 10, 85);
+    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
+  });
+  proc.on('close', (code) => {
     const newVer = getClaudeCodeVersion() || '?';
-    send('done', { success: result.code === 0, pct: 100, text: result.code === 0 ? `升级完成 v${newVer}` : '升级失败' });
+    send('done', { success: code === 0, pct: 100, text: code === 0 ? `升级完成 v${newVer}` : '升级失败' });
     res.end();
-  })();
+  });
+  proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
 });
 
 // Frontend error logging
