@@ -436,34 +436,39 @@ router.post('/init/upgrade-claude', (req, res) => {
     if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  // 先清理旧模块目录，避免 ENOTEMPTY 错误
-  try {
-    const npmRoot = require('child_process').execSync('npm root -g', { encoding: 'utf8' }).trim();
-    const modulePath = path.join(npmRoot, '@anthropic-ai', 'claude-code');
-    if (fs.existsSync(modulePath)) {
-      send('progress', { pct: 5, text: '清理旧版本...' });
-      fs.rmSync(modulePath, { recursive: true, force: true });
-    }
-  } catch {}
+  const REGISTRY = 'https://registry.npmmirror.com';
 
-  send('progress', { pct: 10, text: '正在升级 Claude Code...' });
-
-  const proc = spawn('npm', ['install', '-g', '@anthropic-ai/claude-code@latest', '--force', '--registry', 'https://registry.npmmirror.com'], { env: process.env });
-  let lastPct = 10;
-  const onData = (d) => {
-    const text = d.toString();
-    if (text.includes('added') || text.includes('changed')) lastPct = 90;
-    else lastPct = Math.min(lastPct + 8, 85);
-    send('progress', { pct: lastPct, text: text.trim().slice(0, 80) });
-  };
-  proc.stdout.on('data', onData);
-  proc.stderr.on('data', onData);
-  proc.on('close', (code) => {
-    const newVer = getClaudeCodeVersion() || '?';
-    send('done', { success: code === 0, pct: 100, text: code === 0 ? `升级完成 v${newVer}` : '升级失败' });
-    res.end();
+  const runStep = (cmd, args, opts) => new Promise((resolve) => {
+    const proc = spawn(cmd, args, { env: process.env, ...opts });
+    let out = '';
+    proc.stdout.on('data', (d) => {
+      const t = d.toString().trim();
+      out += t;
+      if (t) send('progress', { pct: null, text: t.slice(0, 80) });
+    });
+    proc.stderr.on('data', (d) => {
+      const t = d.toString().trim();
+      out += t;
+      if (t) send('progress', { pct: null, text: t.slice(0, 80) });
+    });
+    proc.on('close', (code) => resolve({ code, out }));
+    proc.on('error', (e) => resolve({ code: 1, out: e.message }));
   });
-  proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
+
+  (async () => {
+    send('progress', { pct: 5, text: '卸载旧版本...' });
+    await runStep('npm', ['uninstall', '-g', '@anthropic-ai/claude-code']);
+
+    send('progress', { pct: 15, text: '清除 npm 缓存...' });
+    await runStep('npm', ['cache', 'clean', '--force']);
+
+    send('progress', { pct: 25, text: `正在从镜像安装 Claude Code@latest...` });
+    const result = await runStep('npm', ['install', '-g', '@anthropic-ai/claude-code@latest', '--registry', REGISTRY]);
+
+    const newVer = getClaudeCodeVersion() || '?';
+    send('done', { success: result.code === 0, pct: 100, text: result.code === 0 ? `升级完成 v${newVer}` : '升级失败' });
+    res.end();
+  })();
 });
 
 // Frontend error logging
