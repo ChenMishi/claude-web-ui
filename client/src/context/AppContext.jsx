@@ -200,16 +200,18 @@ function reducer(state, action) {
         subject: action.payload.subject || '',
         description: action.payload.description || '',
         status: 'pending',
+        toolUseId: action.payload.toolUseId || null,
         sdkTaskId: null,  // 等 tool result 回来才绑定
       };
       next = { ...state, tasks: [...state.tasks, newTask] }; break;
     }
     case 'TASK_BIND_ID': {
-      // tool result 返回了 SDK taskId → 绑定到最后一个未绑定的任务
-      const sdkTaskId = action.payload;
+      // tool result 返回了 SDK taskId → 用 tool_use_id 精确绑定
+      const { toolUseId, sdkTaskId } = action.payload;
+      if (!toolUseId || sdkTaskId == null) return state;
       const tasks = [...state.tasks];
-      for (let i = tasks.length - 1; i >= 0; i--) {
-        if (tasks[i].sdkTaskId === null) {
+      for (let i = 0; i < tasks.length; i++) {
+        if (tasks[i].toolUseId === toolUseId) {
           tasks[i] = { ...tasks[i], sdkTaskId };
           break;
         }
@@ -290,8 +292,8 @@ export function AppContextProvider({ children }) {
   const execDone = useCallback((payload) => dispatch({ type: 'EXEC_DONE', payload }), []);
   const execReset = useCallback(() => dispatch({ type: 'EXEC_RESET' }), []);
   const finishAllStreaming = useCallback(() => dispatch({ type: 'FINISH_ALL_STREAMING' }), []);
-  const addTask = useCallback((subject, description) => dispatch({ type: 'TASK_CREATE', payload: { subject, description } }), []);
-  const bindTaskId = useCallback((sdkTaskId) => dispatch({ type: 'TASK_BIND_ID', payload: sdkTaskId }), []);
+  const addTask = useCallback((subject, description, toolUseId) => dispatch({ type: 'TASK_CREATE', payload: { subject, description, toolUseId } }), []);
+  const bindTaskId = useCallback((toolUseId, sdkTaskId) => dispatch({ type: 'TASK_BIND_ID', payload: { toolUseId, sdkTaskId } }), []);
   const updateTask = useCallback((taskId, status) => dispatch({ type: 'TASK_UPDATE', payload: { taskId, status } }), []);
   const clearTasks = useCallback(() => dispatch({ type: 'TASKS_CLEAR' }), []);
   const setMainTask = useCallback((subject) => dispatch({ type: 'SET_MAIN_TASK', payload: { subject } }), []);

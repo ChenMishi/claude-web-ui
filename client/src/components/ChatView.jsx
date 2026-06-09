@@ -304,7 +304,7 @@ export default function ChatView() {
                           toolBlocks.forEach(t => {
                             // Track tasks during reconnect
                             if (t.name === 'TaskCreate') {
-                              addTask(t.input?.subject || '', t.input?.description || '');
+                              addTask(t.input?.subject || '', t.input?.description || '', t.id);
                             } else if (t.name === 'TaskUpdate') {
                               updateTask(t.input?.taskId || '', t.input?.status || 'pending');
                             }
@@ -319,7 +319,7 @@ export default function ChatView() {
                         toolResults.forEach(t => {
                           let text = typeof t.content === 'string' ? t.content : JSON.stringify(t.content || '');
                           const taskMatch = typeof text === 'string' && text.match(/^Task #(\d+)/m);
-                          if (taskMatch) bindTaskId(parseInt(taskMatch[1]));
+                          if (taskMatch) bindTaskId(t.tool_use_id, parseInt(taskMatch[1]));
                           bAppend({ role: 'tool', toolResult: { tool_use_id: t.tool_use_id, content: text, is_error: t.is_error }, timestamp: Date.now() });
                         });
                       }
@@ -490,7 +490,7 @@ export default function ChatView() {
         hasThinking.current = false;
         // Track tasks
         if (tool === 'TaskCreate') {
-          addTask(input?.subject || '', input?.description || '');
+          addTask(input?.subject || '', input?.description || '', tool_use_id);
         } else if (tool === 'TaskUpdate') {
           updateTask(input?.taskId || '', input?.status || 'pending');
         }
@@ -503,7 +503,7 @@ export default function ChatView() {
         // 从 TaskCreate 的 result 中解析 SDK 分配的真实 taskId（如 "Task #49"）
         if (typeof content === 'string') {
           const taskMatch = content.match(/^Task #(\d+)/m);
-          if (taskMatch) bindTaskId(parseInt(taskMatch[1]));
+          if (taskMatch) bindTaskId(tool_use_id, parseInt(taskMatch[1]));
         }
         bAppend({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error } });
       },
