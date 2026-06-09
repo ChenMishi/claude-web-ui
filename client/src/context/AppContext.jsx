@@ -200,9 +200,21 @@ function reducer(state, action) {
         subject: action.payload.subject || '',
         description: action.payload.description || '',
         status: 'pending',
-        sdkId: action.payload.sdkId || null,
+        sdkTaskId: null,  // 等 tool result 回来才绑定
       };
       next = { ...state, tasks: [...state.tasks, newTask] }; break;
+    }
+    case 'TASK_BIND_ID': {
+      // tool result 返回了 SDK taskId → 绑定到最后一个未绑定的任务
+      const sdkTaskId = action.payload;
+      const tasks = [...state.tasks];
+      for (let i = tasks.length - 1; i >= 0; i--) {
+        if (tasks[i].sdkTaskId === null) {
+          tasks[i] = { ...tasks[i], sdkTaskId };
+          break;
+        }
+      }
+      next = { ...state, tasks }; break;
     }
     case 'TASK_UPDATE': {
       const rawId = action.payload.taskId;
@@ -210,16 +222,16 @@ function reducer(state, action) {
       let matched = false;
       const updated = state.tasks.map(t => {
         if (matched) return t;
-        // 优先用 SDK 的 tool_use_id 匹配，其次用数字 ID
-        const hit = (t.sdkId && t.sdkId === rawId) || (!isNaN(numId) && t.id === numId);
+        // 优先用 SDK taskId 精确匹配
+        const hit = (!isNaN(numId) && t.sdkTaskId === numId) || (t.sdkTaskId !== null && String(t.sdkTaskId) === rawId);
         if (hit && t.status === 'pending') {
           matched = true;
           return { ...t, status: action.payload.status || 'pending' };
         }
         return t;
       });
-      // 如果 ID 全没匹配上，更新第一个 pending 任务（兜底）
       if (!matched) {
+        // 如果精确匹配失败，更新第一个 pending 任务（兜底）
         const fallback = updated.map(t => {
           if (matched) return t;
           if (t.status === 'pending') {
@@ -278,7 +290,8 @@ export function AppContextProvider({ children }) {
   const execDone = useCallback((payload) => dispatch({ type: 'EXEC_DONE', payload }), []);
   const execReset = useCallback(() => dispatch({ type: 'EXEC_RESET' }), []);
   const finishAllStreaming = useCallback(() => dispatch({ type: 'FINISH_ALL_STREAMING' }), []);
-  const addTask = useCallback((subject, description, sdkId) => dispatch({ type: 'TASK_CREATE', payload: { subject, description, sdkId } }), []);
+  const addTask = useCallback((subject, description) => dispatch({ type: 'TASK_CREATE', payload: { subject, description } }), []);
+  const bindTaskId = useCallback((sdkTaskId) => dispatch({ type: 'TASK_BIND_ID', payload: sdkTaskId }), []);
   const updateTask = useCallback((taskId, status) => dispatch({ type: 'TASK_UPDATE', payload: { taskId, status } }), []);
   const clearTasks = useCallback(() => dispatch({ type: 'TASKS_CLEAR' }), []);
   const setMainTask = useCallback((subject) => dispatch({ type: 'SET_MAIN_TASK', payload: { subject } }), []);
@@ -399,7 +412,7 @@ export function AppContextProvider({ children }) {
     setMessages, appendMessage, updateLastMessage, setStreaming,
     setView, toggleSidebar, setSetting,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
-    addTask, updateTask, clearTasks, setMainTask, updateMainTask,
+    addTask, bindTaskId, updateTask, clearTasks, setMainTask, updateMainTask,
     setUpdateAvailable,
     loadAvailableModels, switchCurrentModel,
     triggerRestart, dismissRestart,

@@ -62,7 +62,7 @@ export default function ChatView() {
     model, systemPrompt, setSessionId, projects,
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
-    addTask, updateTask, setMainTask, updateMainTask, execStatus,
+    addTask, bindTaskId, updateTask, setMainTask, updateMainTask, execStatus,
     currentModel, finishAllStreaming,
   } = useApp();
   const containerRef = useRef(null);
@@ -304,7 +304,7 @@ export default function ChatView() {
                           toolBlocks.forEach(t => {
                             // Track tasks during reconnect
                             if (t.name === 'TaskCreate') {
-                              addTask(t.input?.subject || '', t.input?.description || '', t.id);
+                              addTask(t.input?.subject || '', t.input?.description || '');
                             } else if (t.name === 'TaskUpdate') {
                               updateTask(t.input?.taskId || '', t.input?.status || 'pending');
                             }
@@ -318,6 +318,8 @@ export default function ChatView() {
                         const toolResults = (parsed.message?.content || []).filter(c => c.type === 'tool_result');
                         toolResults.forEach(t => {
                           let text = typeof t.content === 'string' ? t.content : JSON.stringify(t.content || '');
+                          const taskMatch = typeof text === 'string' && text.match(/^Task #(\d+)/m);
+                          if (taskMatch) bindTaskId(parseInt(taskMatch[1]));
                           bAppend({ role: 'tool', toolResult: { tool_use_id: t.tool_use_id, content: text, is_error: t.is_error }, timestamp: Date.now() });
                         });
                       }
@@ -488,7 +490,7 @@ export default function ChatView() {
         hasThinking.current = false;
         // Track tasks
         if (tool === 'TaskCreate') {
-          addTask(input?.subject || '', input?.description || '', tool_use_id);
+          addTask(input?.subject || '', input?.description || '');
         } else if (tool === 'TaskUpdate') {
           updateTask(input?.taskId || '', input?.status || 'pending');
         }
@@ -498,6 +500,11 @@ export default function ChatView() {
         bAppend({ role: 'tool', toolCall: { name: tool, input, tool_use_id }, streaming: true });
       },
       onToolResult: ({ tool_use_id, content, is_error }) => {
+        // 从 TaskCreate 的 result 中解析 SDK 分配的真实 taskId（如 "Task #49"）
+        if (typeof content === 'string') {
+          const taskMatch = content.match(/^Task #(\d+)/m);
+          if (taskMatch) bindTaskId(parseInt(taskMatch[1]));
+        }
         bAppend({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error } });
       },
       onAskUser: ({ questions }) => {
@@ -547,7 +554,7 @@ export default function ChatView() {
         bAppend({ role: 'system', content: `错误: ${err.message}` });
       },
     });
-  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, addTask, updateTask, setMainTask, updateMainTask]);
+  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, addTask, bindTaskId, updateTask, setMainTask, updateMainTask]);
 
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;
