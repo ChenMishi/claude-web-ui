@@ -1,5 +1,123 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
+import { PrismLight as Prism } from 'react-syntax-highlighter';
+
+// ── Language detection from file extension ──
+function detectLang(filePath) {
+  const ext = (filePath || '').split('.').pop().toLowerCase();
+  const map = {
+    js: 'javascript', jsx: 'jsx', ts: 'typescript', tsx: 'tsx',
+    py: 'python', rb: 'ruby', rs: 'rust', go: 'go',
+    java: 'java', c: 'c', cpp: 'cpp', h: 'c', hpp: 'cpp',
+    css: 'css', scss: 'css', less: 'css',
+    html: 'markup', htm: 'markup', xml: 'markup', svg: 'markup',
+    json: 'json', yaml: 'yaml', yml: 'yaml', toml: 'toml',
+    md: 'markdown', sql: 'sql', sh: 'bash', bash: 'bash', zsh: 'bash',
+    dockerfile: 'docker', nginx: 'nginx', graphql: 'graphql', gql: 'graphql',
+    makefile: 'makefile', cmake: 'cmake',
+  };
+  return map[ext] || 'text';
+}
+
+// ── Prism language lazy-registration ──
+const langCache = new Set();
+function ensureLang(lang) {
+  const key = (lang || 'text').toLowerCase();
+  if (langCache.has(key)) return;
+  langCache.add(key);
+  try {
+    switch (key) {
+      case 'javascript': Prism.registerLanguage('javascript', require('react-syntax-highlighter/dist/esm/languages/prism/javascript').default); break;
+      case 'typescript': Prism.registerLanguage('typescript', require('react-syntax-highlighter/dist/esm/languages/prism/typescript').default); break;
+      case 'jsx': Prism.registerLanguage('jsx', require('react-syntax-highlighter/dist/esm/languages/prism/jsx').default); break;
+      case 'tsx': Prism.registerLanguage('tsx', require('react-syntax-highlighter/dist/esm/languages/prism/tsx').default); break;
+      case 'json': Prism.registerLanguage('json', require('react-syntax-highlighter/dist/esm/languages/prism/json').default); break;
+      case 'python': Prism.registerLanguage('python', require('react-syntax-highlighter/dist/esm/languages/prism/python').default); break;
+      case 'bash': Prism.registerLanguage('bash', require('react-syntax-highlighter/dist/esm/languages/prism/bash').default); break;
+      case 'css': Prism.registerLanguage('css', require('react-syntax-highlighter/dist/esm/languages/prism/css').default); break;
+      case 'markup': Prism.registerLanguage('markup', require('react-syntax-highlighter/dist/esm/languages/prism/markup').default); break;
+      case 'sql': Prism.registerLanguage('sql', require('react-syntax-highlighter/dist/esm/languages/prism/sql').default); break;
+      case 'yaml': Prism.registerLanguage('yaml', require('react-syntax-highlighter/dist/esm/languages/prism/yaml').default); break;
+      case 'go': Prism.registerLanguage('go', require('react-syntax-highlighter/dist/esm/languages/prism/go').default); break;
+      case 'rust': Prism.registerLanguage('rust', require('react-syntax-highlighter/dist/esm/languages/prism/rust').default); break;
+      case 'java': Prism.registerLanguage('java', require('react-syntax-highlighter/dist/esm/languages/prism/java').default); break;
+      case 'ruby': Prism.registerLanguage('ruby', require('react-syntax-highlighter/dist/esm/languages/prism/ruby').default); break;
+      case 'c': Prism.registerLanguage('c', require('react-syntax-highlighter/dist/esm/languages/prism/c').default); break;
+      case 'cpp': Prism.registerLanguage('cpp', require('react-syntax-highlighter/dist/esm/languages/prism/cpp').default); break;
+      case 'markdown': Prism.registerLanguage('markdown', require('react-syntax-highlighter/dist/esm/languages/prism/markdown').default); break;
+      case 'diff': Prism.registerLanguage('diff', require('react-syntax-highlighter/dist/esm/languages/prism/diff').default); break;
+      case 'docker': Prism.registerLanguage('docker', require('react-syntax-highlighter/dist/esm/languages/prism/docker').default); break;
+      case 'nginx': Prism.registerLanguage('nginx', require('react-syntax-highlighter/dist/esm/languages/prism/nginx').default); break;
+      case 'makefile': Prism.registerLanguage('makefile', require('react-syntax-highlighter/dist/esm/languages/prism/makefile').default); break;
+      case 'graphql': Prism.registerLanguage('graphql', require('react-syntax-highlighter/dist/esm/languages/prism/graphql').default); break;
+      default: break;
+    }
+  } catch {}
+}
+
+function highlightCode(code, lang) {
+  ensureLang(lang);
+  const key = (lang || 'text').toLowerCase();
+  try {
+    if (!Prism.languages[key]) return escapeHtml(code);
+    return Prism.highlight(code, Prism.languages[key], key);
+  } catch {
+    return escapeHtml(code);
+  }
+}
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Line-by-line diff (LCS-based) ──
+function computeDiff(oldStr, newStr) {
+  const oldLines = oldStr.split('\n');
+  const newLines = newStr.split('\n');
+  const m = oldLines.length;
+  const n = newLines.length;
+
+  // Cap at 800 lines to avoid O(mn) perf issues
+  if (m > 800 || n > 800) {
+    return [{ type: 'too-large', oldLen: m, newLen: n }];
+  }
+
+  // LCS table
+  const dp = new Uint16Array((m + 1) * (n + 1));
+  const idx = (i, j) => i * (n + 1) + j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[idx(i, j)] = dp[idx(i - 1, j - 1)] + 1;
+      } else {
+        dp[idx(i, j)] = Math.max(dp[idx(i - 1, j)], dp[idx(i, j - 1)]);
+      }
+    }
+  }
+
+  // Backtrack to build diff
+  const result = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      result.unshift({ type: 'same', line: oldLines[i - 1], oldNum: i, newNum: j });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[idx(i, j - 1)] >= dp[idx(i - 1, j)])) {
+      result.unshift({ type: 'add', line: newLines[j - 1], newNum: j });
+      j--;
+    } else {
+      result.unshift({ type: 'del', line: oldLines[i - 1], oldNum: i });
+      i--;
+    }
+  }
+
+  return result;
+}
 
 function formatTime(ts) {
   if (!ts) return null;
@@ -90,10 +208,11 @@ function ToolCallBlock({ toolCall, streaming }) {
     ? (toolCall.input?.content || toolCall.input?.new_string || '')
     : '';
   const filePath = isCodeTool ? (toolCall.input?.file_path || '') : '';
+  const lang = isCodeTool ? detectLang(filePath) : 'text';
 
-  // rAF typewriter animation for Write/Edit tools
+  // rAF typewriter animation for Write tools only
   useEffect(() => {
-    if (!streaming || !isCodeTool || !codeContent) {
+    if (!streaming || !isWrite || !codeContent) {
       if (!streaming) setRevealedLen(0);
       return;
     }
@@ -125,6 +244,11 @@ function ToolCallBlock({ toolCall, streaming }) {
   const isAnimating = streaming && isCodeTool && revealedLen < codeContent.length;
   const shownCode = isCodeTool && streaming ? codeContent.slice(0, revealedLen) : '';
 
+  // Diff view for Edit after streaming completes
+  const diffResult = isEdit && !streaming
+    ? computeDiff(toolCall.input?.old_string || '', toolCall.input?.new_string || '')
+    : null;
+
   const getToolLabel = (name) => {
     const map = {
       Bash: '💻', Read: '📖', Write: '✏️', Edit: '🔧',
@@ -141,6 +265,61 @@ function ToolCallBlock({ toolCall, streaming }) {
         ? toolCall.input.slice(0, 120)
         : JSON.stringify(toolCall.input ?? {}).slice(0, 120)) || '');
 
+  const renderCodeContent = () => {
+    // Case 1: Write streaming — typewriter with syntax highlighting
+    if (isWrite && streaming) {
+      return (
+        <pre className="typewriter-code">
+          <code
+            className={`language-${lang}`}
+            dangerouslySetInnerHTML={{
+              __html: highlightCode(shownCode, lang) + (isAnimating ? '<span class="live-cursor">▍</span>' : '')
+            }}
+          />
+        </pre>
+      );
+    }
+
+    // Case 2: Edit streaming — full new_string with syntax highlighting, no typewriter
+    if (isEdit && streaming) {
+      return (
+        <pre><code
+          className={`language-${lang}`}
+          dangerouslySetInnerHTML={{ __html: highlightCode(codeContent, lang) }}
+        /></pre>
+      );
+    }
+
+    // Case 2: Edit complete — show diff view
+    if (isEdit && diffResult) {
+      if (diffResult[0]?.type === 'too-large') {
+        // File too large, fall back to syntax-highlighted new_string
+        return (
+          <pre><code
+            className={`language-${lang}`}
+            dangerouslySetInnerHTML={{ __html: highlightCode(toolCall.input?.new_string || '', lang) }}
+          /></pre>
+        );
+      }
+      return <DiffView diff={diffResult} lang={lang} />;
+    }
+
+    // Case 3: Write complete — show syntax-highlighted code
+    if (isWrite && !streaming) {
+      return (
+        <pre><code
+          className={`language-${lang}`}
+          dangerouslySetInnerHTML={{ __html: highlightCode(codeContent, lang) }}
+        /></pre>
+      );
+    }
+
+    // Case 4: Other tools — JSON dump
+    return (
+      <pre><code>{JSON.stringify(toolCall.input, null, 2)}</code></pre>
+    );
+  };
+
   return (
     <div className="tool-call-block">
       <div className="tool-call-header" onClick={() => setExpanded(!expanded)}>
@@ -151,15 +330,76 @@ function ToolCallBlock({ toolCall, streaming }) {
       </div>
       {expanded && (
         <div className="tool-call-detail">
-          {isCodeTool && streaming ? (
-            <pre className="typewriter-code"><code>{shownCode}{isAnimating && <span className="live-cursor">▍</span>}</code></pre>
-          ) : (
-            <pre><code>{JSON.stringify(toolCall.input, null, 2)}</code></pre>
-          )}
+          {renderCodeContent()}
         </div>
       )}
     </div>
   );
+}
+
+// ── Diff View Component ──
+function DiffView({ diff, lang }) {
+  // Compact: collapse runs of >3 unchanged lines
+  const compacted = [];
+  let sameRun = [];
+  const flushSame = () => {
+    if (sameRun.length === 0) return;
+    if (sameRun.length <= 3) {
+      compacted.push(...sameRun);
+    } else {
+      compacted.push(sameRun[0]);
+      compacted.push(sameRun[1]);
+      compacted.push({ type: 'skip', count: sameRun.length - 2, startOld: sameRun[2].oldNum, startNew: sameRun[2].newNum });
+      compacted.push(sameRun[sameRun.length - 1]);
+    }
+    sameRun = [];
+  };
+
+  for (const d of diff) {
+    if (d.type === 'same') {
+      sameRun.push(d);
+    } else {
+      flushSame();
+      compacted.push(d);
+    }
+  }
+  flushSame();
+
+  // Detect language for the code block
+  const codeLang = (lang || 'text').toLowerCase();
+
+  const renderLine = (d, i) => {
+    if (d.type === 'skip') {
+      return (
+        <div key={i} className="diff-line diff-skip">
+          <span className="diff-num diff-num-old"></span>
+          <span className="diff-num diff-num-new"></span>
+          <span className="diff-sign">···</span>
+          <span className="diff-text">↑ {d.count} unchanged lines ↑</span>
+        </div>
+      );
+    }
+
+    const sign = d.type === 'add' ? '+' : d.type === 'del' ? '-' : ' ';
+    const oldNum = d.oldNum != null ? String(d.oldNum) : '';
+    const newNum = d.newNum != null ? String(d.newNum) : '';
+
+    return (
+      <div key={i} className={`diff-line diff-${d.type}`}>
+        <span className="diff-num diff-num-old">{oldNum}</span>
+        <span className="diff-num diff-num-new">{newNum}</span>
+        <span className="diff-sign">{sign}</span>
+        <span
+          className="diff-text"
+          dangerouslySetInnerHTML={{
+            __html: highlightCode(d.line, codeLang)
+          }}
+        />
+      </div>
+    );
+  };
+
+  return <div className="diff-view">{compacted.map(renderLine)}</div>;
 }
 
 function ToolResultBlock({ toolResult }) {

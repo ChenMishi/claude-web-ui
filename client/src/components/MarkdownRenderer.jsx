@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import { PrismLight as Prism } from 'react-syntax-highlighter';
 
@@ -78,15 +79,70 @@ function safeUrl(url) {
 }
 
 export default function MarkdownRenderer({ content, streaming }) {
+  // ── Typewriter reveal during streaming ──
+  const [revealedLen, setRevealedLen] = useState(0);
+  const rafRef = useRef(null);
+  const fullContent = content || '';
+
+  useEffect(() => {
+    if (!streaming || !fullContent) {
+      if (!streaming) setRevealedLen(0);
+      return;
+    }
+
+    // If new content arrived while we're still animating, don't reset — let the loop catch up
+    const target = fullContent.length;
+    if (revealedLen >= target) return;
+
+    let active = true;
+    let frame = 0;
+    const tick = () => {
+      if (!active) return;
+      frame++;
+      if (frame % 4 !== 0) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      setRevealedLen(prev => {
+        const curTarget = fullContent.length;  // may have grown since loop started
+        if (prev >= curTarget) return curTarget;
+        const remaining = curTarget - prev;
+        const chunk = Math.max(1, Math.ceil(remaining / 20));
+        const next = Math.min(prev + chunk, curTarget);
+        if (next < curTarget) {
+          rafRef.current = requestAnimationFrame(tick);
+        }
+        return next;
+      });
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { active = false; cancelAnimationFrame(rafRef.current); };
+  }, [streaming, fullContent]);
+
   if (!content || typeof content !== 'string') return null;
 
-  // 流式输出时，检测末尾未闭合的代码块
+  const displayContent = streaming ? fullContent.slice(0, revealedLen) : fullContent;
+  const isRevealing = streaming && revealedLen < fullContent.length;
+
+  // 流式输出时，检测末尾未闭合的代码块（基于完整 content）
   let liveCodeBlock = null;
-  let renderContent = content;
+  let renderContent = displayContent;
   if (streaming) {
-    liveCodeBlock = extractLiveCodeBlock(content);
+    liveCodeBlock = extractLiveCodeBlock(fullContent);
     if (liveCodeBlock) {
-      renderContent = liveCodeBlock.before;
+      // Only show live code block if the revealed text has passed the opening ```
+      if (revealedLen <= liveCodeBlock.before.length) {
+        liveCodeBlock = null;
+      } else {
+        renderContent = liveCodeBlock.before;
+        // Truncate the live code to revealed portion
+        const codeRevealed = revealedLen - liveCodeBlock.before.length;
+        if (codeRevealed > 0) {
+          liveCodeBlock = { ...liveCodeBlock, code: liveCodeBlock.code.slice(0, codeRevealed) };
+        } else {
+          liveCodeBlock = { ...liveCodeBlock, code: '' };
+        }
+      }
     }
   }
 
@@ -102,12 +158,17 @@ export default function MarkdownRenderer({ content, streaming }) {
     return (
       <div className="markdown-body">
         <div dangerouslySetInnerHTML={{ __html: html }} />
-        <pre className="live-code-block"><code className={`language-${liveCodeBlock.lang}`}>{liveCodeBlock.code}<span className="live-cursor">▍</span></code></pre>
+        <pre className="live-code-block"><code className={`language-${liveCodeBlock.lang}`}>{liveCodeBlock.code}{isRevealing ? <span className="live-cursor">▍</span> : null}</code></pre>
       </div>
     );
   }
 
-  return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+    <div className="markdown-body">
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+      {isRevealing && !liveCodeBlock && <span className="live-cursor">▍</span>}
+    </div>
+  );
 }
 
 // 检测流式输出中末尾未闭合的代码块

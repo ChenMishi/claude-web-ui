@@ -2523,6 +2523,115 @@ html, body, #root {
   overflow-wrap: break-word;
 }
 
+/* ── Diff View (Edit tool call) ── */
+.diff-view {
+  background: var(--code-block-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.diff-line {
+  display: flex;
+  align-items: flex-start;
+  min-height: 1.8em;
+  padding: 0 8px;
+}
+
+.diff-line.diff-add {
+  background: rgba(76, 175, 80, 0.13);
+}
+.diff-line.diff-del {
+  background: rgba(255, 107, 107, 0.11);
+}
+.diff-line.diff-same {
+  /* no background, neutral */
+}
+.diff-line.diff-skip {
+  background: rgba(108, 99, 255, 0.06);
+  color: var(--text-muted);
+  font-style: italic;
+  justify-content: center;
+}
+
+.diff-num {
+  width: 40px;
+  min-width: 40px;
+  text-align: right;
+  padding-right: 8px;
+  color: var(--text-muted);
+  opacity: 0.5;
+  user-select: none;
+}
+.diff-line.diff-add .diff-num-new {
+  color: var(--success);
+  opacity: 0.7;
+}
+.diff-line.diff-del .diff-num-old {
+  color: var(--danger);
+  opacity: 0.7;
+}
+
+.diff-sign {
+  width: 16px;
+  min-width: 16px;
+  text-align: center;
+  user-select: none;
+  font-weight: 600;
+}
+.diff-line.diff-add .diff-sign {
+  color: var(--success);
+}
+.diff-line.diff-del .diff-sign {
+  color: var(--danger);
+}
+
+.diff-text {
+  flex: 1;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow: hidden;
+}
+
+/* Override Prism background in diff lines */
+.diff-line .token { background: transparent !important; }
+
+/* ── Dark theme diff tweaks ── */
+[data-theme="dark"] .diff-line.diff-add {
+  background: rgba(76, 175, 80, 0.16);
+}
+[data-theme="dark"] .diff-line.diff-del {
+  background: rgba(255, 107, 107, 0.13);
+}
+[data-theme="dark"] .diff-line.diff-skip {
+  background: rgba(108, 99, 255, 0.1);
+}
+
+/* ── Light theme diff tweaks ── */
+[data-theme="light"] .diff-line.diff-add {
+  background: #e6ffec;
+}
+[data-theme="light"] .diff-line.diff-del {
+  background: #ffebe9;
+}
+[data-theme="light"] .diff-line.diff-skip {
+  background: #f0efff;
+}
+
+/* ── Warm theme diff tweaks ── */
+[data-theme="warm"] .diff-line.diff-add {
+  background: #d9f2e6;
+}
+[data-theme="warm"] .diff-line.diff-del {
+  background: #fce4e4;
+}
+[data-theme="warm"] .diff-line.diff-skip {
+  background: #e8f5f0;
+}
+
 /* Tool Result Blocks */
 .tool-result-block {
   align-self: flex-start;
