@@ -226,17 +226,17 @@ function reducer(state, action) {
         if (matched) return t;
         // 优先用 SDK taskId 精确匹配
         const hit = (!isNaN(numId) && t.sdkTaskId === numId) || (t.sdkTaskId !== null && String(t.sdkTaskId) === rawId);
-        if (hit && t.status === 'pending') {
+        if (hit) {
           matched = true;
           return { ...t, status: action.payload.status || 'pending' };
         }
         return t;
       });
       if (!matched) {
-        // 如果精确匹配失败，更新第一个 pending 任务（兜底）
+        // 如果精确匹配失败，更新第一个未完成的任务（兜底）
         const fallback = updated.map(t => {
           if (matched) return t;
-          if (t.status === 'pending') {
+          if (t.status !== 'completed') {
             matched = true;
             return { ...t, status: action.payload.status || 'pending' };
           }
