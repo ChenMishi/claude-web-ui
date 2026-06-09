@@ -8,10 +8,22 @@ export default function TaskPanel() {
   const { tasks, mainTask } = useApp();
   const listRef = useRef(null);
 
-  // Auto-scroll to bottom when new tasks are added
+  // Auto-scroll to the first in-progress/pending task when tasks update
   useEffect(() => {
-    if (listRef.current) {
+    if (!listRef.current || tasks.length === 0) return;
+
+    // Find the first non-completed task — prefer in_progress, then pending
+    const activeIdx = tasks.findIndex(t => t.status !== 'completed');
+    if (activeIdx === -1) {
+      // All done — scroll to bottom
       listRef.current.scrollTop = listRef.current.scrollHeight;
+      return;
+    }
+
+    // Scroll the active task into view, aligning to top for better context
+    const items = listRef.current.querySelectorAll('.task-item.subtask');
+    if (items[activeIdx]) {
+      items[activeIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [tasks]);
 
@@ -39,7 +51,7 @@ export default function TaskPanel() {
               </div>
             )}
             {tasks.map(t => (
-              <div key={t.id} className={`task-item ${t.status}`}>
+              <div key={t.id} className={`task-item subtask ${t.status}`}>
                 <span className="task-item-status">{STATUS_ICON[t.status]}</span>
                 <div className="task-item-body">
                   <span className="task-item-subject">{t.subject}</span>
