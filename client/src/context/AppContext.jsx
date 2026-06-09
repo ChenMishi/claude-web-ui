@@ -200,15 +200,36 @@ function reducer(state, action) {
         subject: action.payload.subject || '',
         description: action.payload.description || '',
         status: 'pending',
+        sdkId: action.payload.sdkId || null,
       };
       next = { ...state, tasks: [...state.tasks, newTask] }; break;
     }
     case 'TASK_UPDATE': {
-      const taskId = parseInt(action.payload.taskId);
-      if (isNaN(taskId)) return state;
-      const updated = state.tasks.map(t =>
-        t.id === taskId ? { ...t, status: action.payload.status } : t
-      );
+      const rawId = action.payload.taskId;
+      const numId = parseInt(rawId);
+      let matched = false;
+      const updated = state.tasks.map(t => {
+        if (matched) return t;
+        // 优先用 SDK 的 tool_use_id 匹配，其次用数字 ID
+        const hit = (t.sdkId && t.sdkId === rawId) || (!isNaN(numId) && t.id === numId);
+        if (hit && t.status === 'pending') {
+          matched = true;
+          return { ...t, status: action.payload.status || 'pending' };
+        }
+        return t;
+      });
+      // 如果 ID 全没匹配上，更新第一个 pending 任务（兜底）
+      if (!matched) {
+        const fallback = updated.map(t => {
+          if (matched) return t;
+          if (t.status === 'pending') {
+            matched = true;
+            return { ...t, status: action.payload.status || 'pending' };
+          }
+          return t;
+        });
+        next = { ...state, tasks: fallback }; break;
+      }
       next = { ...state, tasks: updated }; break;
     }
     case 'TASKS_CLEAR':
@@ -257,7 +278,7 @@ export function AppContextProvider({ children }) {
   const execDone = useCallback((payload) => dispatch({ type: 'EXEC_DONE', payload }), []);
   const execReset = useCallback(() => dispatch({ type: 'EXEC_RESET' }), []);
   const finishAllStreaming = useCallback(() => dispatch({ type: 'FINISH_ALL_STREAMING' }), []);
-  const addTask = useCallback((subject, description) => dispatch({ type: 'TASK_CREATE', payload: { subject, description } }), []);
+  const addTask = useCallback((subject, description, sdkId) => dispatch({ type: 'TASK_CREATE', payload: { subject, description, sdkId } }), []);
   const updateTask = useCallback((taskId, status) => dispatch({ type: 'TASK_UPDATE', payload: { taskId, status } }), []);
   const clearTasks = useCallback(() => dispatch({ type: 'TASKS_CLEAR' }), []);
   const setMainTask = useCallback((subject) => dispatch({ type: 'SET_MAIN_TASK', payload: { subject } }), []);

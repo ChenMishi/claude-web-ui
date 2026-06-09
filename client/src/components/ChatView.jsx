@@ -304,7 +304,7 @@ export default function ChatView() {
                           toolBlocks.forEach(t => {
                             // Track tasks during reconnect
                             if (t.name === 'TaskCreate') {
-                              addTask(t.input?.subject || '', t.input?.description || '');
+                              addTask(t.input?.subject || '', t.input?.description || '', t.id);
                             } else if (t.name === 'TaskUpdate') {
                               updateTask(t.input?.taskId || '', t.input?.status || 'pending');
                             }
@@ -488,7 +488,7 @@ export default function ChatView() {
         hasThinking.current = false;
         // Track tasks
         if (tool === 'TaskCreate') {
-          addTask(input?.subject || '', input?.description || '');
+          addTask(input?.subject || '', input?.description || '', tool_use_id);
         } else if (tool === 'TaskUpdate') {
           updateTask(input?.taskId || '', input?.status || 'pending');
         }
