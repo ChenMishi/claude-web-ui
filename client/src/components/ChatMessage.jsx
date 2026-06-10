@@ -327,6 +327,19 @@ function ToolCallBlock({ toolCall, streaming }) {
     );
   };
 
+  // Result footer (Write/Edit/Task done status bar inside code block)
+  const result = toolCall.result;
+  const renderResultFooter = () => {
+    if (!result) return null;
+    const verb = getStatusVerb(result.toolName || toolCall.name);
+    return (
+      <div className={`code-result-footer ${result.is_error ? 'error' : 'ok'}`}>
+        <span className="code-result-icon">{result.is_error ? '❌' : '✅'}</span>
+        <span className="code-result-text">{result.is_error ? `${verb}失败` : `${verb}成功`}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="tool-call-block">
       <div className="tool-call-header" onClick={() => setExpanded(!expanded)}>
@@ -338,6 +351,7 @@ function ToolCallBlock({ toolCall, streaming }) {
       {expanded && (
         <div className="tool-call-detail">
           {renderCodeContent()}
+          {renderResultFooter()}
         </div>
       )}
     </div>

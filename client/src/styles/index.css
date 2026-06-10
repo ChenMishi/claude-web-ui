@@ -2699,6 +2699,25 @@ html, body, #root {
 
 .tool-result-content code { font-family: var(--font-mono); font-size: 13px; white-space: pre-wrap; overflow-wrap: break-word; }
 
+/* ── Code result footer (embedded inside tool-call-detail, below code block) ── */
+.code-result-footer {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--glass-border);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  padding: 6px 16px;
+  margin: -1px 0 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.code-result-footer.ok { color: var(--success); }
+.code-result-footer.error { color: var(--danger); }
+.code-result-icon { flex-shrink: 0; font-size: 13px; }
+.code-result-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ── Compact inline result (Write / Edit / Task) ── */
 .result-inline {
   align-self: flex-start;
