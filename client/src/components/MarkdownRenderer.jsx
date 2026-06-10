@@ -83,9 +83,9 @@ export default function MarkdownRenderer({ content, streaming }) {
   const [revealedLen, setRevealedLen] = useState(0);
   const rafRef = useRef(null);
   const fullContent = content || '';
-  // Ref to track latest content length — avoids effect restart on every SSE chunk
-  const targetLenRef = useRef(fullContent.length);
-  targetLenRef.current = fullContent.length;
+  // Ref to track latest content — avoids effect restart on every SSE chunk
+  const contentRef = useRef(fullContent);
+  contentRef.current = fullContent;
 
   useEffect(() => {
     if (!streaming || !fullContent) {
@@ -97,27 +97,48 @@ export default function MarkdownRenderer({ content, streaming }) {
     let frame = 0;
     const tick = () => {
       if (!active) return;
-      frame++;
-      if (frame % 4 !== 0) {
-        rafRef.current = requestAnimationFrame(tick);
-        return;
-      }
-      setRevealedLen(prev => {
-        const curTarget = targetLenRef.current;  // always reads latest, not stale closure
-        if (prev >= curTarget) return curTarget;
-        const remaining = curTarget - prev;
-        const chunk = Math.max(1, Math.ceil(remaining / 20));
-        const next = Math.min(prev + chunk, curTarget);
-        if (next < curTarget) {
+      const curContent = contentRef.current;  // always reads latest
+      const isMultiLine = curContent.indexOf('\n') !== -1;
+
+      if (isMultiLine) {
+        // ── Multi-line: line-by-line waterfall ──
+        // Each tick reveals one complete line, much fewer re-renders
+        setRevealedLen(prev => {
+          if (prev >= curContent.length) return curContent.length;
+          const nextNL = curContent.indexOf('\n', prev);
+          if (nextNL === -1) {
+            // No more newlines ahead, reveal everything
+            return curContent.length;
+          }
+          const next = nextNL + 1; // include the newline
+          if (next < curContent.length) {
+            rafRef.current = requestAnimationFrame(tick);
+          }
+          return next;
+        });
+      } else {
+        // ── Single-line: character-based typewriter ──
+        frame++;
+        if (frame % 4 !== 0) {
           rafRef.current = requestAnimationFrame(tick);
+          return;
         }
-        return next;
-      });
+        setRevealedLen(prev => {
+          if (prev >= curContent.length) return curContent.length;
+          const remaining = curContent.length - prev;
+          const chunk = Math.max(1, Math.ceil(remaining / 20));
+          const next = Math.min(prev + chunk, curContent.length);
+          if (next < curContent.length) {
+            rafRef.current = requestAnimationFrame(tick);
+          }
+          return next;
+        });
+      }
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => { active = false; cancelAnimationFrame(rafRef.current); };
     // Only restart when streaming starts/stops — NOT on every content change.
-    // targetLenRef lets the running loop see the latest content length.
+    // contentRef lets the running loop see the latest content.
   }, [streaming, fullContent.length > 0]);  // eslint-disable-line
 
   if (!content || typeof content !== 'string') return null;
