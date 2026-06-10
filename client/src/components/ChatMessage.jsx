@@ -351,9 +351,9 @@ function ToolCallBlock({ toolCall, streaming }) {
       {expanded && (
         <div className="tool-call-detail">
           {renderCodeContent()}
-          {renderResultFooter()}
         </div>
       )}
+      {renderResultFooter()}
     </div>
   );
 }

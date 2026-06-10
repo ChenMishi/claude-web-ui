@@ -2698,19 +2698,31 @@ html, body, #root {
 
 .tool-result-content code { font-family: var(--font-mono); font-size: 13px; white-space: pre-wrap; overflow-wrap: break-word; }
 
-/* ── Code result footer (embedded inside tool-call-detail, below code block) ── */
+/* ── Code result footer (card-level, sibling of tool-call-detail) ── */
 .code-result-footer {
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--glass-border);
-  border-top: none;
-  border-radius: 0 0 6px 6px;
-  padding: 6px 16px;
-  margin: -1px 0 0 0;
+  background: none;
+  border-top: 1px solid rgba(108, 99, 255, 0.15);
+  border-radius: 0 0 10px 10px;
+  padding: 8px 14px;
   font-size: 13px;
   line-height: 1.5;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+/* When footer exists, remove bottom border/radius from code block above */
+.tool-call-detail:has(+ .code-result-footer) pre,
+.tool-call-detail:has(+ .code-result-footer) .typewriter-code {
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+/* Same for diff-view inside detail */
+.tool-call-detail:has(+ .code-result-footer) {
+  padding-bottom: 0;
+}
+.tool-call-detail:has(+ .code-result-footer) .diff-view {
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
 }
 .code-result-footer.ok { color: var(--success); }
 .code-result-footer.error { color: var(--danger); }

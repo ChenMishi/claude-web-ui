@@ -180,20 +180,25 @@ export default function ChatView() {
   }, [currentSessionId, loadingMore, setMessages]);
 
   // ── Scroll behavior ──
-  // Two-tier approach:
-  //   1. useLayoutEffect: auto-scroll ONLY when content grows (scrollHeight delta).
-  //      Does NOT fire on unrelated re-renders (timer ticks, etc.), won't fight user.
-  //   2. useEffect([chatMessages]): sync-scroll when messages replaced/appended.
-  //      Uses atBottomRef so user scroll-up during streaming is respected.
   //
-  // CRITICAL ORDERING: Reset effect MUST be before scroll effect. On session
-  // switch both currentSessionId and chatMessages change in the same dispatch,
-  // and React runs effects in definition order. Reset must set atBottomRef=true
-  // before the scroll effect reads it.
+  // atBottomRef: true when user is at the bottom. ONLY modified by:
+  //   scroll events / session reset / button click.
+  //
+  // Strategy split by streaming state:
+  //   NOT streaming: useLayoutEffect + useEffect handle one-shot scrolls.
+  //                  Instant for session switch, browser-smooth for messages.
+  //   STREAMING:     custom rAF easing loop (scrollRaf). Continuously reads
+  //                  LIVE scrollHeight so typewriter/waterfall growth in
+  //                  MarkdownRenderer is always tracked. Browser smooth scroll
+  //                  targets a stale height — only our own rAF can keep up.
+  //
   const atBottomRef = useRef(true);
   const lastScrollHeightRef = useRef(0);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const btnTimerRef = useRef(null);
+  const lastScrollTopRef = useRef(0);
+  const scrollRafRef = useRef(null);
+  const isAutoScrolling = useRef(false);
 
   // Reset on session switch — always start at bottom (MUST be before scroll effect)
   useEffect(() => {
@@ -204,50 +209,27 @@ export default function ChatView() {
     btnTimerRef.current = null;
   }, [currentSessionId]);
 
-  // Auto-scroll when content grows — only triggers on actual height change.
-  // IMPORTANT: does NOT touch atBottomRef. Only the scroll event handler and the
-  // reset effect may modify atBottomRef. If useLayoutEffect overrides it based on
-  // dist, a large single-frame content growth (e.g. code block rendering) will
-  // falsely set atBottomRef=false even though the user never scrolled up.
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const sh = el.scrollHeight;
-    if (sh === lastScrollHeightRef.current) return; // hasn't grown, skip
-    lastScrollHeightRef.current = sh;
-
-    if (atBottomRef.current) {
-      el.scrollTo({ top: sh, behavior: "instant" });
-    }
-  });
-
-  // Auto-scroll on new messages (skip when loading older messages)
-  // MUST be after the reset effect above
-  useEffect(() => {
-    if (skipScrollRef.current) { skipScrollRef.current = false; return; }
-    if (containerRef.current && atBottomRef.current) {
-      containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: "instant" });
-    }
-  }, [chatMessages]);
-
-  // Restore scroll after prepending (backup for flushSync path)
-  useLayoutEffect(() => {
-    if (!scrollRestoreRef.current) return;
-    const el = containerRef.current;
-    if (el) {
-      const { scrollHeight: oldH, scrollTop: oldS } = scrollRestoreRef.current;
-      el.scrollTo({ top: oldS + (el.scrollHeight - oldH), behavior: "instant" });
-    }
-    scrollRestoreRef.current = null;
-  }, [chatMessages]);
-
   // Scroll event handler — track atBottom + delayed button
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const onScroll = () => {
-      setAtTop(el.scrollTop < 20);
       const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+
+      // During rAF-driven scroll, suppress atBottomRef / lastScrollTopRef to
+      // avoid corrupting the rAF loop's intervention detection. The rAF loop
+      // is the sole authority during auto-scrolling.
+      if (isAutoScrolling.current) {
+        if (dist < 3) {
+          isAutoScrolling.current = false;
+          atBottomRef.current = true;
+        }
+        return;
+      }
+
+      lastScrollTopRef.current = el.scrollTop;
+
+      setAtTop(el.scrollTop < 20);
       atBottomRef.current = dist < 80;
 
       if (dist >= 80) {
@@ -266,6 +248,123 @@ export default function ChatView() {
       clearTimeout(btnTimerRef.current);
     };
   }, []);
+
+  // ── rAF smooth-scroll loop (streaming only) ──
+  // Continuously eases toward LIVE scrollHeight so typewriter/waterfall
+  // growth is always tracked. Browser smooth scroll targets a stale height.
+  // Sets isAutoScrolling while actively scrolling to prevent scroll events
+  // from corrupting atBottomRef (which would stop the chase prematurely).
+  // Detects user intervention via scrollTop decrease and stops.
+  useEffect(() => {
+    if (!isStreaming) {
+      if (scrollRafRef.current) { cancelAnimationFrame(scrollRafRef.current); scrollRafRef.current = null; }
+      isAutoScrolling.current = false;
+      return;
+    }
+    let active = true;
+    const tick = () => {
+      if (!active) return;
+      const el = containerRef.current;
+      if (!el) { scrollRafRef.current = requestAnimationFrame(tick); return; }
+
+      const sh = el.scrollHeight;
+      const st = el.scrollTop;
+
+      // User scrolled up — stop auto-following, but keep polling
+      if (st < lastScrollTopRef.current - 3) {
+        isAutoScrolling.current = false;
+        atBottomRef.current = false;
+        if (!btnTimerRef.current) {
+          btnTimerRef.current = setTimeout(() => setShowScrollBtn(true), 300);
+        }
+        lastScrollTopRef.current = st;
+        scrollRafRef.current = requestAnimationFrame(tick);
+        return; // skip this tick, keep polling
+      }
+      lastScrollTopRef.current = st;
+
+      // At bottom flag is false — user scrolled up, idle until they scroll back
+      if (!atBottomRef.current) {
+        scrollRafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      const dist = sh - st - el.clientHeight;
+      if (dist < 1) {
+        // At bottom — clear auto-scroll flag, scroll event will confirm
+        isAutoScrolling.current = false;
+        lastScrollHeightRef.current = sh;
+        scrollRafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      // Custom easing toward live scrollHeight
+      isAutoScrolling.current = true;
+      lastScrollHeightRef.current = sh;
+      const step = Math.max(2, Math.ceil(dist * 0.12));
+      el.scrollTop = st + step;
+
+      scrollRafRef.current = requestAnimationFrame(tick);
+    };
+    scrollRafRef.current = requestAnimationFrame(tick);
+    return () => { active = false; cancelAnimationFrame(scrollRafRef.current); };
+  }, [isStreaming]);
+
+  // ── Helper: instant scroll to bottom ──
+  const scrollToBottomInstant = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'instant' });
+  };
+
+  // Auto-scroll on content growth (non-streaming: session switch, etc.)
+  // During streaming, the rAF loop above handles everything; we only handle
+  // the first-frame instant jump after session switch.
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const sh = el.scrollHeight;
+    if (sh === lastScrollHeightRef.current) return;
+
+    const isFirstScroll = lastScrollHeightRef.current === 0;
+    lastScrollHeightRef.current = sh;
+
+    // During streaming, rAF loop handles it — skip except first scroll
+    if (isStreaming) {
+      if (isFirstScroll && atBottomRef.current) {
+        el.scrollTo({ top: sh, behavior: 'instant' });
+      }
+      return;
+    }
+
+    if (atBottomRef.current) {
+      if (isFirstScroll) {
+        el.scrollTo({ top: sh, behavior: 'instant' });
+      } else {
+        el.scrollTo({ top: sh, behavior: 'smooth' });
+      }
+    }
+  });
+
+  // Auto-scroll on new messages (non-streaming path; streaming uses rAF)
+  useEffect(() => {
+    if (skipScrollRef.current) { skipScrollRef.current = false; return; }
+    if (isStreaming) return; // rAF loop handles streaming
+    if (containerRef.current && atBottomRef.current) {
+      containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [chatMessages]);
+
+  // Restore scroll after prepending (backup for flushSync path)
+  useLayoutEffect(() => {
+    if (!scrollRestoreRef.current) return;
+    const el = containerRef.current;
+    if (el) {
+      const { scrollHeight: oldH, scrollTop: oldS } = scrollRestoreRef.current;
+      el.scrollTo({ top: oldS + (el.scrollHeight - oldH), behavior: 'instant' });
+    }
+    scrollRestoreRef.current = null;
+  }, [chatMessages]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -756,11 +855,9 @@ export default function ChatView() {
           <button
             className="scroll-to-bottom-btn"
             onClick={() => {
-              if (containerRef.current) {
-                containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: "instant" });
-              }
               atBottomRef.current = true;
               setShowScrollBtn(false);
+              scrollToBottomInstant();
             }}
           >
             ↓ 查看最新消息
