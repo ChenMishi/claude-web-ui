@@ -198,38 +198,24 @@ export default function ChatView() {
     scrollRestoreRef.current = null;
   }, [chatMessages]);
 
-  // Auto-scroll when content height grows — respects user scroll position
-  const [atBottom, setAtBottom] = useState(true);
+  // ── Scroll behavior ──
+  // userScrolledUp: only set by real user scroll events, never by auto-scroll.
+  // This ensures the "scroll to bottom" button never flashes during auto-scroll.
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
+  const userScrolledUpRef = useRef(false);
+  // atBottomRef: quick check for auto-scroll effects (avoiding state read)
   const atBottomRef = useRef(true);
 
-  // Auto-scroll when DOM content grows (covers animations: typewriter, waterfall)
-  // Uses MutationObserver because ResizeObserver only watches content-box,
-  // not scrollHeight — and the chat container has overflow:auto so its
-  // content-box never changes.
-  useEffect(() => {
+  // Core auto-scroll: runs after every render, synchronously before paint.
+  // This is the only reliable way to catch ALL content growth (SSE streaming,
+  // MarkdownRenderer typewriter, ToolResultBlock waterfall, status line reveal).
+  useLayoutEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
-    // Throttle: at most once per frame
-    let pending = false;
-    const mo = new MutationObserver(() => {
-      if (pending) return;
-      pending = true;
-      requestAnimationFrame(() => {
-        pending = false;
-        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-        const near = distFromBottom < 80;
-        atBottomRef.current = near;
-        setAtBottom(near);
-        if (near) {
-          el.scrollTop = el.scrollHeight;
-        }
-      });
-    });
-    mo.observe(el, { subtree: true, characterData: true, childList: true });
-    return () => mo.disconnect();
-  }, []);
+    if (!el || userScrolledUpRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  });
 
-  // Detect scroll position — track atTop and atBottom
+  // Detect scroll position — only userScroll events set userScrolledUp
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -238,7 +224,15 @@ export default function ChatView() {
       const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       const near = distFromBottom < 80;
       atBottomRef.current = near;
-      setAtBottom(near);
+      // userScrolledUp is sticky: once set to true, only cleared by explicit
+      // scroll-to-bottom action, not by auto-scroll
+      if (!near) {
+        userScrolledUpRef.current = true;
+        setUserScrolledUp(true);
+      } else {
+        userScrolledUpRef.current = false;
+        setUserScrolledUp(false);
+      }
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
@@ -728,16 +722,16 @@ export default function ChatView() {
             </div>
           )}
         </div>
-        {/* Scroll-to-bottom button — appears when user scrolls up */}
-        {hasMessages && !atBottom && (
+        {/* Scroll-to-bottom button — only when user manually scrolled up */}
+        {hasMessages && userScrolledUp && (
           <button
             className="scroll-to-bottom-btn"
             onClick={() => {
               if (containerRef.current) {
                 containerRef.current.scrollTop = containerRef.current.scrollHeight;
               }
-              atBottomRef.current = true;
-              setAtBottom(true);
+              userScrolledUpRef.current = false;
+              setUserScrolledUp(false);
             }}
           >
             ↓ 查看最新消息
