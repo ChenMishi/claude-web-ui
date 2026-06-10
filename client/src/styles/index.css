@@ -2702,23 +2702,22 @@ html, body, #root {
 /* ── Compact inline result (Write / Edit / Task) ── */
 .result-inline {
   align-self: flex-start;
-  margin: 0 0 8px 28px;
+  margin: -10px 0 12px 28px;
   font-size: 13px;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 3px 0;
+  border-radius: 0;
   max-width: 100%;
   overflow: hidden;
+  background: none;
 }
 .result-inline.ok {
   color: var(--success);
-  background: rgba(76, 175, 80, 0.07);
 }
 .result-inline.error {
   color: var(--danger);
-  background: var(--danger-bg);
 }
 .result-inline-icon {
   flex-shrink: 0;
