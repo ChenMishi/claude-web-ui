@@ -83,16 +83,15 @@ export default function MarkdownRenderer({ content, streaming }) {
   const [revealedLen, setRevealedLen] = useState(0);
   const rafRef = useRef(null);
   const fullContent = content || '';
+  // Ref to track latest content length — avoids effect restart on every SSE chunk
+  const targetLenRef = useRef(fullContent.length);
+  targetLenRef.current = fullContent.length;
 
   useEffect(() => {
     if (!streaming || !fullContent) {
       if (!streaming) setRevealedLen(0);
       return;
     }
-
-    // If new content arrived while we're still animating, don't reset — let the loop catch up
-    const target = fullContent.length;
-    if (revealedLen >= target) return;
 
     let active = true;
     let frame = 0;
@@ -104,7 +103,7 @@ export default function MarkdownRenderer({ content, streaming }) {
         return;
       }
       setRevealedLen(prev => {
-        const curTarget = fullContent.length;  // may have grown since loop started
+        const curTarget = targetLenRef.current;  // always reads latest, not stale closure
         if (prev >= curTarget) return curTarget;
         const remaining = curTarget - prev;
         const chunk = Math.max(1, Math.ceil(remaining / 20));
@@ -117,7 +116,9 @@ export default function MarkdownRenderer({ content, streaming }) {
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => { active = false; cancelAnimationFrame(rafRef.current); };
-  }, [streaming, fullContent]);
+    // Only restart when streaming starts/stops — NOT on every content change.
+    // targetLenRef lets the running loop see the latest content length.
+  }, [streaming, fullContent.length > 0]);  // eslint-disable-line
 
   if (!content || typeof content !== 'string') return null;
 
