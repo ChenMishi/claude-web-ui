@@ -169,7 +169,7 @@ export default function ChatView() {
         // Immediately correct scroll (useLayoutEffect also does this as backup)
         if (containerRef.current && scrollRestoreRef.current) {
           const { scrollHeight: oldH, scrollTop: oldS } = scrollRestoreRef.current;
-          containerRef.current.scrollTop = oldS + (containerRef.current.scrollHeight - oldH);
+          containerRef.current.scrollTo({ top: oldS + (containerRef.current.scrollHeight - oldH), behavior: "instant" });
         }
         scrollRestoreRef.current = null; // consumed
       } else {
@@ -217,7 +217,7 @@ export default function ChatView() {
     lastScrollHeightRef.current = sh;
 
     if (atBottomRef.current) {
-      el.scrollTop = sh;
+      el.scrollTo({ top: sh, behavior: "instant" });
     }
   });
 
@@ -226,7 +226,7 @@ export default function ChatView() {
   useEffect(() => {
     if (skipScrollRef.current) { skipScrollRef.current = false; return; }
     if (containerRef.current && atBottomRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: "instant" });
     }
   }, [chatMessages]);
 
@@ -236,7 +236,7 @@ export default function ChatView() {
     const el = containerRef.current;
     if (el) {
       const { scrollHeight: oldH, scrollTop: oldS } = scrollRestoreRef.current;
-      el.scrollTop = oldS + (el.scrollHeight - oldH);
+      el.scrollTo({ top: oldS + (el.scrollHeight - oldH), behavior: "instant" });
     }
     scrollRestoreRef.current = null;
   }, [chatMessages]);
@@ -757,7 +757,7 @@ export default function ChatView() {
             className="scroll-to-bottom-btn"
             onClick={() => {
               if (containerRef.current) {
-                containerRef.current.scrollTop = containerRef.current.scrollHeight;
+                containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: "instant" });
               }
               atBottomRef.current = true;
               setShowScrollBtn(false);
