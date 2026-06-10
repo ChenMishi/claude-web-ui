@@ -202,21 +202,31 @@ export default function ChatView() {
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useRef(true);
 
-  // Auto-scroll when content height grows (covers all animations: typewriter, waterfall, etc.)
+  // Auto-scroll when DOM content grows (covers animations: typewriter, waterfall)
+  // Uses MutationObserver because ResizeObserver only watches content-box,
+  // not scrollHeight — and the chat container has overflow:auto so its
+  // content-box never changes.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      const near = distFromBottom < 80;
-      atBottomRef.current = near;
-      setAtBottom(near);
-      if (near) {
-        el.scrollTop = el.scrollHeight;
-      }
+    // Throttle: at most once per frame
+    let pending = false;
+    const mo = new MutationObserver(() => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        pending = false;
+        const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        const near = distFromBottom < 80;
+        atBottomRef.current = near;
+        setAtBottom(near);
+        if (near) {
+          el.scrollTop = el.scrollHeight;
+        }
+      });
     });
-    ro.observe(el);
-    return () => ro.disconnect();
+    mo.observe(el, { subtree: true, characterData: true, childList: true });
+    return () => mo.disconnect();
   }, []);
 
   // Detect scroll position — track atTop and atBottom
