@@ -211,6 +211,10 @@ function ToolCallBlock({ toolCall, streaming }) {
   const lang = isCodeTool ? detectLang(filePath) : 'text';
 
   // rAF typewriter animation for Write tools only
+  // Uses targetLenRef to avoid restarting the rAF loop on every SSE chunk
+  const targetLenRef = useRef(codeContent.length);
+  targetLenRef.current = codeContent.length;
+
   useEffect(() => {
     if (!streaming || !isWrite || !codeContent) {
       if (!streaming) setRevealedLen(0);
@@ -219,27 +223,30 @@ function ToolCallBlock({ toolCall, streaming }) {
 
     setRevealedLen(0);
     let frame = 0;
-    const totalLen = codeContent.length;
+    let active = true;
 
     const tick = () => {
+      if (!active) return;
       frame++;
       if (frame % 4 !== 0) {
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
       setRevealedLen(prev => {
+        const totalLen = targetLenRef.current;  // always reads latest
         if (prev >= totalLen) return totalLen;
         const chunk = Math.max(1, Math.ceil((totalLen - prev) / 25));
-        const next = prev + chunk;
-        if (next >= totalLen) return totalLen;
-        rafRef.current = requestAnimationFrame(tick);
+        const next = Math.min(prev + chunk, totalLen);
+        if (next < totalLen) {
+          rafRef.current = requestAnimationFrame(tick);
+        }
         return next;
       });
     };
     rafRef.current = requestAnimationFrame(tick);
 
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [streaming, isCodeTool, codeContent]);
+    return () => { active = false; cancelAnimationFrame(rafRef.current); };
+  }, [streaming, isCodeTool]);  // Only restart on streaming start/stop, NOT on content changes
 
   const isAnimating = streaming && isCodeTool && revealedLen < codeContent.length;
   const shownCode = isCodeTool && streaming ? codeContent.slice(0, revealedLen) : '';
