@@ -502,6 +502,43 @@ function ToolResultBlock({ toolResult }) {
   const animating = showContent && revealedLen < content.length;
   const displayContent = showContent ? content.slice(0, revealedLen) : '';
 
+  // ── Status line typewriter (single-line, >10 lines) ──
+  const [statusRevealed, setStatusRevealed] = useState(0);
+  const statusRafRef = useRef(null);
+  const statusText = `${isError ? '❌' : '✅'} ${isError ? `${verb}失败` : `${verb}成功`} (${lines.length} 行)`;
+  const statusTextRef = useRef(statusText);
+  statusTextRef.current = statusText;
+
+  useEffect(() => {
+    if (showContent || isCompact || !statusText) {
+      setStatusRevealed(0);
+      return;
+    }
+
+    setStatusRevealed(0);
+    let active = true;
+    let frame = 0;
+
+    const tick = () => {
+      if (!active) return;
+      frame++;
+      if (frame % 3 !== 0) {
+        statusRafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      setStatusRevealed(prev => {
+        const cur = statusTextRef.current;
+        if (prev >= cur.length) return cur.length;
+        const next = prev + 1;
+        if (next < cur.length) statusRafRef.current = requestAnimationFrame(tick);
+        return next;
+      });
+    };
+
+    statusRafRef.current = requestAnimationFrame(tick);
+    return () => { active = false; cancelAnimationFrame(statusRafRef.current); };
+  }, [showContent, isCompact, statusText]);
+
   // ── Compact inline for Write/Edit/Task ──
   if (isCompact) {
     return (
@@ -529,7 +566,8 @@ function ToolResultBlock({ toolResult }) {
             <pre><code>{displayContent}{animating && <span className="live-cursor">▍</span>}</code></pre>
           ) : (
             <div className={`result-status-line ${isError ? 'error' : 'ok'}`}>
-              {isError ? `❌ ${verb}失败` : `✅ ${verb}成功`} ({lines.length} 行)
+              {statusText.slice(0, statusRevealed)}
+              {statusRevealed < statusText.length && <span className="live-cursor">▍</span>}
             </div>
           )}
         </div>
