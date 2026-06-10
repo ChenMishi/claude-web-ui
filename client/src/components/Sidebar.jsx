@@ -163,7 +163,7 @@ export default function Sidebar() {
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
         <h2>AI IntelliWork Hub</h2>
-        <div className="sidebar-version">v2.1.0</div>
+        <div className="sidebar-version">v2.1.2</div>
       </div>
 
       <div className="sidebar-body">
