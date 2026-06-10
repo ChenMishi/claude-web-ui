@@ -198,6 +198,21 @@ export default function ChatView() {
     scrollRestoreRef.current = null;
   }, [chatMessages]);
 
+  // Auto-scroll when content height grows (covers all animations: typewriter, waterfall, etc.)
+  // Only scrolls if user is near the bottom — doesn't steal scroll control
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distFromBottom < 80) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Detect scroll to top
   useEffect(() => {
     const el = containerRef.current;
