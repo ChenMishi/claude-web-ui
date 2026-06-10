@@ -73,6 +73,7 @@ export default function ChatView() {
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
   const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
   const throttleRef = useRef(null);  // setTimeout id for bUpdate throttling during responding phase
+  const toolNameMap = useRef(new Map());  // tool_use_id → tool name, for result display
   const [askUser, setAskUser] = useState(null);
   const [toolConfirm, setToolConfirm] = useState(null); // { tool, action, input } — separate from askUser
   const [loadingMore, setLoadingMore] = useState(false);
@@ -302,6 +303,8 @@ export default function ChatView() {
                         if (toolBlocks.length > 0) {
                           hasAssistantText.current = false;
                           toolBlocks.forEach(t => {
+                            // Track tool name for result display
+                            toolNameMap.current.set(t.id, t.name);
                             // Track tasks during reconnect
                             if (t.name === 'TaskCreate') {
                               addTask(t.input?.subject || '', t.input?.description || '', t.id);
@@ -320,7 +323,8 @@ export default function ChatView() {
                           let text = typeof t.content === 'string' ? t.content : JSON.stringify(t.content || '');
                           const taskMatch = typeof text === 'string' && text.match(/^Task #(\d+)/m);
                           if (taskMatch) bindTaskId(t.tool_use_id, parseInt(taskMatch[1]));
-                          bAppend({ role: 'tool', toolResult: { tool_use_id: t.tool_use_id, content: text, is_error: t.is_error }, timestamp: Date.now() });
+                          const tName = toolNameMap.current.get(t.tool_use_id) || '';
+                          bAppend({ role: 'tool', toolResult: { tool_use_id: t.tool_use_id, content: text, is_error: t.is_error, toolName: tName }, timestamp: Date.now() });
                         });
                       }
                     } else if (currentEvent === 'tool_confirm') {
@@ -488,6 +492,8 @@ export default function ChatView() {
       onToolUse: ({ tool, input, tool_use_id, usage }) => {
         hasAssistantText.current = false;
         hasThinking.current = false;
+        // Track tool name for result display
+        toolNameMap.current.set(tool_use_id, tool);
         // Track tasks
         if (tool === 'TaskCreate') {
           addTask(input?.subject || '', input?.description || '', tool_use_id);
@@ -505,7 +511,8 @@ export default function ChatView() {
           const taskMatch = content.match(/^Task #(\d+)/m);
           if (taskMatch) bindTaskId(tool_use_id, parseInt(taskMatch[1]));
         }
-        bAppend({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error } });
+        const toolName = toolNameMap.current.get(tool_use_id) || '';
+        bAppend({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error, toolName } });
       },
       onAskUser: ({ questions }) => {
         setAskUser({ questions });

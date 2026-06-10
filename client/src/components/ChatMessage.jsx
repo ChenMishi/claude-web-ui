@@ -404,87 +404,47 @@ function DiffView({ diff, lang }) {
 
 function ToolResultBlock({ toolResult }) {
   const [expanded, setExpanded] = useState(true);
-  const [revealedLines, setRevealedLines] = useState(0);
-  const [waterfallDone, setWaterfallDone] = useState(false);
-  const scrollRef = useRef(null);
-  const rafRef = useRef(null);
+  const toolName = toolResult.toolName || '';
+  const isCompact = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(toolName);
 
-  const preview = typeof toolResult.content === 'string'
+  const content = typeof toolResult.content === 'string'
     ? toolResult.content
     : JSON.stringify(toolResult.content ?? '');
 
-  const lines = preview.split('\n');
-  const totalLines = lines.length;
-  const MAX_LINES = 500; // safety cap: skip animation beyond this
+  const lines = content.split('\n');
+  const isError = toolResult.is_error;
+  const showContent = !isCompact && lines.length <= 10;  // ≤10 行才展示内容
 
-  // ── Waterfall line-by-line reveal ──
-  useEffect(() => {
-    if (!expanded || totalLines === 0) {
-      setRevealedLines(0);
-      setWaterfallDone(false);
-      return;
-    }
+  // ── Compact inline for Write/Edit/Task ──
+  if (isCompact) {
+    return (
+      <div className={`result-inline ${isError ? 'error' : 'ok'}`}>
+        <span className="result-inline-icon">{isError ? '❌' : '✅'}</span>
+        <span className="result-inline-text">{content.slice(0, 240)}{content.length > 240 ? '…' : ''}</span>
+      </div>
+    );
+  }
 
-    if (totalLines > MAX_LINES) {
-      setRevealedLines(totalLines);
-      setWaterfallDone(true);
-      return;
-    }
-
-    let active = true;
-    let frame = 0;
-    const tick = () => {
-      if (!active) return;
-      frame++;
-      // ~20fps
-      if (frame % 3 !== 0) {
-        rafRef.current = requestAnimationFrame(tick);
-        return;
-      }
-      setRevealedLines(prev => {
-        if (prev >= totalLines) { setWaterfallDone(true); return totalLines; }
-        // 1 line per tick for short, 2+ for long outputs
-        const chunk = totalLines > 60 ? Math.ceil(totalLines / 40) : 1;
-        const next = Math.min(prev + chunk, totalLines);
-        if (next >= totalLines) { setWaterfallDone(true); return totalLines; }
-        rafRef.current = requestAnimationFrame(tick);
-        return next;
-      });
-    };
-    // Small delay before starting the waterfall
-    const timer = setTimeout(() => { rafRef.current = requestAnimationFrame(tick); }, 60);
-    return () => { active = false; clearTimeout(timer); cancelAnimationFrame(rafRef.current); };
-  }, [expanded, totalLines]);
-
-  // ── Auto-scroll to bottom as lines appear ──
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [revealedLines]);
-
-  const displayText = lines.slice(0, revealedLines).join('\n');
-  const isAnimating = !waterfallDone && revealedLines < totalLines && totalLines <= MAX_LINES;
-
-  const copyToClipboard = (e) => {
-    e.stopPropagation();
-    navigator.clipboard?.writeText(preview).catch(() => {});
-  };
+  // ── Normal card for Bash/Read/Grep/etc ──
+  const label = toolName ? `${toolName} 结果` : '结果';
 
   return (
-    <div className={`tool-result-block terminal-result ${toolResult.is_error ? 'error' : ''}`}>
+    <div className={`tool-result-block ${isError ? 'error' : ''}`}>
       <div className="tool-result-header" onClick={() => setExpanded(!expanded)}>
-        <span className="tool-result-icon">{toolResult.is_error ? '❌' : '✅'}</span>
-        <span className="tool-result-label">结果</span>
-        <span className="tool-result-size">({totalLines} 行)</span>
-        <button className="tool-result-copy" onClick={copyToClipboard} title="复制全部">📋</button>
+        <span className="tool-result-icon">{isError ? '❌' : '✅'}</span>
+        <span className="tool-result-label">{label}</span>
+        <span className="tool-result-size">({lines.length} 行)</span>
         <span className="tool-call-toggle">{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && (
-        <div className="tool-result-content terminal-body">
-          <div className="terminal-scroll" ref={scrollRef}>
-            <pre className="terminal-lines"><code>{displayText}{isAnimating && <span className="live-cursor">▍</span>}</code></pre>
-          </div>
+        <div className="tool-result-content">
+          {showContent ? (
+            <pre><code>{content}</code></pre>
+          ) : (
+            <div className={`result-status-line ${isError ? 'error' : 'ok'}`}>
+              {isError ? '❌ 执行失败' : '✅ 执行成功'} ({lines.length} 行)
+            </div>
+          )}
         </div>
       )}
     </div>
