@@ -97,12 +97,16 @@ export default function MarkdownRenderer({ content, streaming }) {
     let frame = 0;
     const tick = () => {
       if (!active) return;
+      frame++;
       const curContent = contentRef.current;  // always reads latest
       const isMultiLine = curContent.indexOf('\n') !== -1;
 
       if (isMultiLine) {
-        // ── Multi-line: line-by-line waterfall ──
-        // Each tick reveals one complete line, much fewer re-renders
+        // ── Multi-line: paced waterfall (one line every 3 frames ≈ 20 lps) ──
+        if (frame % 10 !== 0) {
+          rafRef.current = requestAnimationFrame(tick);
+          return;
+        }
         setRevealedLen(prev => {
           if (prev >= curContent.length) return curContent.length;
           const nextNL = curContent.indexOf('\n', prev);
@@ -118,7 +122,6 @@ export default function MarkdownRenderer({ content, streaming }) {
         });
       } else {
         // ── Single-line: character-based typewriter ──
-        frame++;
         if (frame % 4 !== 0) {
           rafRef.current = requestAnimationFrame(tick);
           return;
