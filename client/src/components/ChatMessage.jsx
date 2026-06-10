@@ -402,6 +402,22 @@ function DiffView({ diff, lang }) {
   return <div className="diff-view">{compacted.map(renderLine)}</div>;
 }
 
+// ── Tool-specific status verb mapping ──
+function getStatusVerb(toolName) {
+  const map = {
+    Bash: '执行',
+    Read: '读取',
+    Write: '写入',
+    Edit: '修改',
+    Grep: '获取',
+    Glob: '检索',
+    TaskCreate: '执行',
+    TaskUpdate: '执行',
+    Task: '执行',
+  };
+  return map[toolName] || '执行';
+}
+
 function ToolResultBlock({ toolResult }) {
   const [expanded, setExpanded] = useState(true);
   const toolName = toolResult.toolName || '';
@@ -414,13 +430,14 @@ function ToolResultBlock({ toolResult }) {
   const lines = content.split('\n');
   const isError = toolResult.is_error;
   const showContent = !isCompact && lines.length <= 10;  // ≤10 行才展示内容
+  const verb = getStatusVerb(toolName);
 
   // ── Compact inline for Write/Edit/Task ──
   if (isCompact) {
     return (
       <div className={`result-inline ${isError ? 'error' : 'ok'}`}>
         <span className="result-inline-icon">{isError ? '❌' : '✅'}</span>
-        <span className="result-inline-text">{isError ? '执行失败' : '执行成功'}</span>
+        <span className="result-inline-text">{isError ? `${verb}失败` : `${verb}成功`}</span>
       </div>
     );
   }
@@ -442,7 +459,7 @@ function ToolResultBlock({ toolResult }) {
             <pre><code>{content}</code></pre>
           ) : (
             <div className={`result-status-line ${isError ? 'error' : 'ok'}`}>
-              {isError ? '❌ 执行失败' : '✅ 执行成功'} ({lines.length} 行)
+              {isError ? `❌ ${verb}失败` : `✅ ${verb}成功`} ({lines.length} 行)
             </div>
           )}
         </div>
