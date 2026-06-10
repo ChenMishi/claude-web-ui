@@ -179,37 +179,23 @@ export default function ChatView() {
     setLoadingMore(false);
   }, [currentSessionId, loadingMore, setMessages]);
 
-  // Auto-scroll on new messages (skip when loading older messages)
-  useEffect(() => {
-    if (skipScrollRef.current) { skipScrollRef.current = false; return; }
-    if (containerRef.current && atBottomRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  }, [chatMessages]);
-
-  // Restore scroll after prepending (backup for flushSync path)
-  useLayoutEffect(() => {
-    if (!scrollRestoreRef.current) return;
-    const el = containerRef.current;
-    if (el) {
-      const { scrollHeight: oldH, scrollTop: oldS } = scrollRestoreRef.current;
-      el.scrollTop = oldS + (el.scrollHeight - oldH);
-    }
-    scrollRestoreRef.current = null;
-  }, [chatMessages]);
-
   // ── Scroll behavior ──
   // Two-tier approach:
   //   1. useLayoutEffect: auto-scroll ONLY when content grows (scrollHeight delta).
   //      Does NOT fire on unrelated re-renders (timer ticks, etc.), won't fight user.
   //   2. useEffect([chatMessages]): sync-scroll when messages replaced/appended.
   //      Uses atBottomRef so user scroll-up during streaming is respected.
+  //
+  // CRITICAL ORDERING: Reset effect MUST be before scroll effect. On session
+  // switch both currentSessionId and chatMessages change in the same dispatch,
+  // and React runs effects in definition order. Reset must set atBottomRef=true
+  // before the scroll effect reads it.
   const atBottomRef = useRef(true);
   const lastScrollHeightRef = useRef(0);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const btnTimerRef = useRef(null);
 
-  // Reset on session switch — always start at bottom
+  // Reset on session switch — always start at bottom (MUST be before scroll effect)
   useEffect(() => {
     atBottomRef.current = true;
     lastScrollHeightRef.current = 0;
@@ -232,6 +218,26 @@ export default function ChatView() {
       el.scrollTop = sh;
     }
   });
+
+  // Auto-scroll on new messages (skip when loading older messages)
+  // MUST be after the reset effect above
+  useEffect(() => {
+    if (skipScrollRef.current) { skipScrollRef.current = false; return; }
+    if (containerRef.current && atBottomRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  // Restore scroll after prepending (backup for flushSync path)
+  useLayoutEffect(() => {
+    if (!scrollRestoreRef.current) return;
+    const el = containerRef.current;
+    if (el) {
+      const { scrollHeight: oldH, scrollTop: oldS } = scrollRestoreRef.current;
+      el.scrollTop = oldS + (el.scrollHeight - oldH);
+    }
+    scrollRestoreRef.current = null;
+  }, [chatMessages]);
 
   // Scroll event handler — track atBottom + delayed button
   useEffect(() => {
