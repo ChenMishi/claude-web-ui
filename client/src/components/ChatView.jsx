@@ -199,33 +199,41 @@ export default function ChatView() {
   }, [chatMessages]);
 
   // ── Scroll behavior ──
+  // Two-tier approach:
+  //   1. useLayoutEffect: auto-scroll ONLY when content grows (scrollHeight delta).
+  //      Does NOT fire on unrelated re-renders (timer ticks, etc.), won't fight user.
+  //   2. useEffect([chatMessages]): sync-scroll when messages replaced/appended.
+  //      Uses atBottomRef so user scroll-up during streaming is respected.
   const atBottomRef = useRef(true);
+  const lastScrollHeightRef = useRef(0);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const btnTimerRef = useRef(null);
 
-  // Reset scroll state on session switch — always start at bottom
+  // Reset on session switch — always start at bottom
   useEffect(() => {
     atBottomRef.current = true;
+    lastScrollHeightRef.current = 0;
     setShowScrollBtn(false);
     clearTimeout(btnTimerRef.current);
     btnTimerRef.current = null;
   }, [currentSessionId]);
 
-  // Core auto-scroll: runs after every render, synchronously before paint.
-  // Simple distance check — if user is near bottom, scroll. No sticky state.
+  // Auto-scroll when content grows — only triggers on actual height change
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const sh = el.scrollHeight;
+    if (sh === lastScrollHeightRef.current) return; // hasn't grown, skip
+    lastScrollHeightRef.current = sh;
+
+    const dist = sh - el.scrollTop - el.clientHeight;
     atBottomRef.current = dist < 80;
     if (dist < 80) {
-      el.scrollTop = el.scrollHeight;
+      el.scrollTop = sh;
     }
   });
 
-  // Detect scroll position — manage button with 300ms debounce
-  // Brief "not at bottom" moments (e.g. during auto-scroll overshoot) are
-  // filtered out — button only appears after user intentionally scrolls up.
+  // Scroll event handler — track atBottom + delayed button
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
