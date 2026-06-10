@@ -204,7 +204,11 @@ export default function ChatView() {
     btnTimerRef.current = null;
   }, [currentSessionId]);
 
-  // Auto-scroll when content grows — only triggers on actual height change
+  // Auto-scroll when content grows — only triggers on actual height change.
+  // IMPORTANT: does NOT touch atBottomRef. Only the scroll event handler and the
+  // reset effect may modify atBottomRef. If useLayoutEffect overrides it based on
+  // dist, a large single-frame content growth (e.g. code block rendering) will
+  // falsely set atBottomRef=false even though the user never scrolled up.
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -212,9 +216,7 @@ export default function ChatView() {
     if (sh === lastScrollHeightRef.current) return; // hasn't grown, skip
     lastScrollHeightRef.current = sh;
 
-    const dist = sh - el.scrollTop - el.clientHeight;
-    atBottomRef.current = dist < 80;
-    if (dist < 80) {
+    if (atBottomRef.current) {
       el.scrollTop = sh;
     }
   });
