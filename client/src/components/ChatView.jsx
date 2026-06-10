@@ -203,6 +203,14 @@ export default function ChatView() {
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const btnTimerRef = useRef(null);
 
+  // Reset scroll state on session switch — always start at bottom
+  useEffect(() => {
+    atBottomRef.current = true;
+    setShowScrollBtn(false);
+    clearTimeout(btnTimerRef.current);
+    btnTimerRef.current = null;
+  }, [currentSessionId]);
+
   // Core auto-scroll: runs after every render, synchronously before paint.
   // Simple distance check — if user is near bottom, scroll. No sticky state.
   useLayoutEffect(() => {
