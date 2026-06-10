@@ -420,7 +420,7 @@ function ToolResultBlock({ toolResult }) {
     return (
       <div className={`result-inline ${isError ? 'error' : 'ok'}`}>
         <span className="result-inline-icon">{isError ? '❌' : '✅'}</span>
-        <span className="result-inline-text">{content.slice(0, 240)}{content.length > 240 ? '…' : ''}</span>
+        <span className="result-inline-text">{isError ? '执行失败' : '执行成功'}</span>
       </div>
     );
   }
