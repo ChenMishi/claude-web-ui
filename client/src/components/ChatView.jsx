@@ -199,43 +199,48 @@ export default function ChatView() {
   }, [chatMessages]);
 
   // ── Scroll behavior ──
-  // userScrolledUp: only set by real user scroll events, never by auto-scroll.
-  // This ensures the "scroll to bottom" button never flashes during auto-scroll.
-  const [userScrolledUp, setUserScrolledUp] = useState(false);
-  const userScrolledUpRef = useRef(false);
-  // atBottomRef: quick check for auto-scroll effects (avoiding state read)
   const atBottomRef = useRef(true);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const btnTimerRef = useRef(null);
 
   // Core auto-scroll: runs after every render, synchronously before paint.
-  // This is the only reliable way to catch ALL content growth (SSE streaming,
-  // MarkdownRenderer typewriter, ToolResultBlock waterfall, status line reveal).
+  // Simple distance check — if user is near bottom, scroll. No sticky state.
   useLayoutEffect(() => {
     const el = containerRef.current;
-    if (!el || userScrolledUpRef.current) return;
-    el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    atBottomRef.current = dist < 80;
+    if (dist < 80) {
+      el.scrollTop = el.scrollHeight;
+    }
   });
 
-  // Detect scroll position — only userScroll events set userScrolledUp
+  // Detect scroll position — manage button with 300ms debounce
+  // Brief "not at bottom" moments (e.g. during auto-scroll overshoot) are
+  // filtered out — button only appears after user intentionally scrolls up.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const onScroll = () => {
       setAtTop(el.scrollTop < 20);
-      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      const near = distFromBottom < 80;
-      atBottomRef.current = near;
-      // userScrolledUp is sticky: once set to true, only cleared by explicit
-      // scroll-to-bottom action, not by auto-scroll
-      if (!near) {
-        userScrolledUpRef.current = true;
-        setUserScrolledUp(true);
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      atBottomRef.current = dist < 80;
+
+      if (dist >= 80) {
+        if (!btnTimerRef.current) {
+          btnTimerRef.current = setTimeout(() => setShowScrollBtn(true), 300);
+        }
       } else {
-        userScrolledUpRef.current = false;
-        setUserScrolledUp(false);
+        clearTimeout(btnTimerRef.current);
+        btnTimerRef.current = null;
+        setShowScrollBtn(false);
       }
     };
     el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      clearTimeout(btnTimerRef.current);
+    };
   }, []);
 
   // Cleanup timer on unmount
@@ -722,16 +727,16 @@ export default function ChatView() {
             </div>
           )}
         </div>
-        {/* Scroll-to-bottom button — only when user manually scrolled up */}
-        {hasMessages && userScrolledUp && (
+        {/* Scroll-to-bottom button — 300ms delayed, won't flash */}
+        {hasMessages && showScrollBtn && (
           <button
             className="scroll-to-bottom-btn"
             onClick={() => {
               if (containerRef.current) {
                 containerRef.current.scrollTop = containerRef.current.scrollHeight;
               }
-              userScrolledUpRef.current = false;
-              setUserScrolledUp(false);
+              atBottomRef.current = true;
+              setShowScrollBtn(false);
             }}
           >
             ↓ 查看最新消息
