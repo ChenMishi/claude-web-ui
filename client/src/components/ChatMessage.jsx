@@ -404,25 +404,87 @@ function DiffView({ diff, lang }) {
 
 function ToolResultBlock({ toolResult }) {
   const [expanded, setExpanded] = useState(true);
-  const MAX_PREVIEW = 2000;
+  const [revealedLines, setRevealedLines] = useState(0);
+  const [waterfallDone, setWaterfallDone] = useState(false);
+  const scrollRef = useRef(null);
+  const rafRef = useRef(null);
 
   const preview = typeof toolResult.content === 'string'
     ? toolResult.content
     : JSON.stringify(toolResult.content ?? '');
 
-  const truncated = preview.length > MAX_PREVIEW;
+  const lines = preview.split('\n');
+  const totalLines = lines.length;
+  const MAX_LINES = 500; // safety cap: skip animation beyond this
+
+  // ── Waterfall line-by-line reveal ──
+  useEffect(() => {
+    if (!expanded || totalLines === 0) {
+      setRevealedLines(0);
+      setWaterfallDone(false);
+      return;
+    }
+
+    if (totalLines > MAX_LINES) {
+      setRevealedLines(totalLines);
+      setWaterfallDone(true);
+      return;
+    }
+
+    let active = true;
+    let frame = 0;
+    const tick = () => {
+      if (!active) return;
+      frame++;
+      // ~20fps
+      if (frame % 3 !== 0) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      setRevealedLines(prev => {
+        if (prev >= totalLines) { setWaterfallDone(true); return totalLines; }
+        // 1 line per tick for short, 2+ for long outputs
+        const chunk = totalLines > 60 ? Math.ceil(totalLines / 40) : 1;
+        const next = Math.min(prev + chunk, totalLines);
+        if (next >= totalLines) { setWaterfallDone(true); return totalLines; }
+        rafRef.current = requestAnimationFrame(tick);
+        return next;
+      });
+    };
+    // Small delay before starting the waterfall
+    const timer = setTimeout(() => { rafRef.current = requestAnimationFrame(tick); }, 60);
+    return () => { active = false; clearTimeout(timer); cancelAnimationFrame(rafRef.current); };
+  }, [expanded, totalLines]);
+
+  // ── Auto-scroll to bottom as lines appear ──
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [revealedLines]);
+
+  const displayText = lines.slice(0, revealedLines).join('\n');
+  const isAnimating = !waterfallDone && revealedLines < totalLines && totalLines <= MAX_LINES;
+
+  const copyToClipboard = (e) => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(preview).catch(() => {});
+  };
 
   return (
-    <div className={`tool-result-block ${toolResult.is_error ? 'error' : ''}`}>
+    <div className={`tool-result-block terminal-result ${toolResult.is_error ? 'error' : ''}`}>
       <div className="tool-result-header" onClick={() => setExpanded(!expanded)}>
         <span className="tool-result-icon">{toolResult.is_error ? '❌' : '✅'}</span>
         <span className="tool-result-label">结果</span>
-        <span className="tool-result-size">({preview.length} 字符)</span>
+        <span className="tool-result-size">({totalLines} 行)</span>
+        <button className="tool-result-copy" onClick={copyToClipboard} title="复制全部">📋</button>
         <span className="tool-call-toggle">{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && (
-        <div className="tool-result-content">
-          <pre><code>{truncated ? preview.slice(0, MAX_PREVIEW) + '\n... (截断)' : preview}</code></pre>
+        <div className="tool-result-content terminal-body">
+          <div className="terminal-scroll" ref={scrollRef}>
+            <pre className="terminal-lines"><code>{displayText}{isAnimating && <span className="live-cursor">▍</span>}</code></pre>
+          </div>
         </div>
       )}
     </div>
