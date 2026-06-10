@@ -182,7 +182,7 @@ export default function ChatView() {
   // Auto-scroll on new messages (skip when loading older messages)
   useEffect(() => {
     if (skipScrollRef.current) { skipScrollRef.current = false; return; }
-    if (containerRef.current) {
+    if (containerRef.current && atBottomRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [chatMessages]);
@@ -198,14 +198,20 @@ export default function ChatView() {
     scrollRestoreRef.current = null;
   }, [chatMessages]);
 
+  // Auto-scroll when content height grows — respects user scroll position
+  const [atBottom, setAtBottom] = useState(true);
+  const atBottomRef = useRef(true);
+
   // Auto-scroll when content height grows (covers all animations: typewriter, waterfall, etc.)
-  // Only scrolls if user is near the bottom — doesn't steal scroll control
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
       const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (distFromBottom < 80) {
+      const near = distFromBottom < 80;
+      atBottomRef.current = near;
+      setAtBottom(near);
+      if (near) {
         el.scrollTop = el.scrollHeight;
       }
     });
@@ -213,14 +219,18 @@ export default function ChatView() {
     return () => ro.disconnect();
   }, []);
 
-  // Detect scroll to top
+  // Detect scroll position — track atTop and atBottom
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const onScroll = () => {
       setAtTop(el.scrollTop < 20);
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const near = distFromBottom < 80;
+      atBottomRef.current = near;
+      setAtBottom(near);
     };
-    el.addEventListener('scroll', onScroll);
+    el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
 
@@ -708,6 +718,21 @@ export default function ChatView() {
             </div>
           )}
         </div>
+        {/* Scroll-to-bottom button — appears when user scrolls up */}
+        {hasMessages && !atBottom && (
+          <button
+            className="scroll-to-bottom-btn"
+            onClick={() => {
+              if (containerRef.current) {
+                containerRef.current.scrollTop = containerRef.current.scrollHeight;
+              }
+              atBottomRef.current = true;
+              setAtBottom(true);
+            }}
+          >
+            ↓ 查看最新消息
+          </button>
+        )}
         </div>
         </div>
         <div className="right-panels">

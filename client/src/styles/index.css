@@ -2987,6 +2987,24 @@ html, body, #root {
 .load-more-btn:hover { border-color: var(--accent); color: var(--accent); }
 .load-more-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Scroll-to-bottom floating button */
+.scroll-to-bottom-btn {
+  position: sticky; bottom: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 10;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 20px;
+  font-size: 13px; padding: 8px 20px; cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  transition: opacity 0.2s, transform 0.2s;
+  animation: fadeInUp 0.2s ease;
+}
+.scroll-to-bottom-btn:hover { opacity: 0.9; transform: translateX(-50%) translateY(-1px); }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* ── Version Panel ── */
 .version-panel {
   padding: 32px;
