@@ -453,6 +453,55 @@ function ToolResultBlock({ toolResult }) {
   const showContent = !isCompact && lines.length <= 10;  // ≤10 行才展示内容
   const verb = getStatusVerb(toolName);
 
+  // ── Reveal animation for card-mode content ──
+  const [revealedLen, setRevealedLen] = useState(0);
+  const rafRef = useRef(null);
+  const contentRef = useRef(content);
+  contentRef.current = content;
+
+  useEffect(() => {
+    if (!showContent || !content) {
+      setRevealedLen(0);
+      return;
+    }
+
+    setRevealedLen(0);
+    let active = true;
+
+    const tick = () => {
+      if (!active) return;
+      const cur = contentRef.current;
+      const isMultiLine = cur.indexOf('\n') !== -1;
+
+      if (isMultiLine) {
+        // Line-by-line waterfall
+        setRevealedLen(prev => {
+          if (prev >= cur.length) return cur.length;
+          const nextNL = cur.indexOf('\n', prev);
+          if (nextNL === -1) return cur.length;
+          const next = nextNL + 1;
+          if (next < cur.length) rafRef.current = requestAnimationFrame(tick);
+          return next;
+        });
+      } else {
+        // Single-line typewriter
+        setRevealedLen(prev => {
+          if (prev >= cur.length) return cur.length;
+          const chunk = Math.max(1, Math.ceil((cur.length - prev) / 10));
+          const next = Math.min(prev + chunk, cur.length);
+          if (next < cur.length) rafRef.current = requestAnimationFrame(tick);
+          return next;
+        });
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { active = false; cancelAnimationFrame(rafRef.current); };
+  }, [showContent, content]);
+
+  const animating = showContent && revealedLen < content.length;
+  const displayContent = showContent ? content.slice(0, revealedLen) : '';
+
   // ── Compact inline for Write/Edit/Task ──
   if (isCompact) {
     return (
@@ -477,7 +526,7 @@ function ToolResultBlock({ toolResult }) {
       {expanded && (
         <div className="tool-result-content">
           {showContent ? (
-            <pre><code>{content}</code></pre>
+            <pre><code>{displayContent}{animating && <span className="live-cursor">▍</span>}</code></pre>
           ) : (
             <div className={`result-status-line ${isError ? 'error' : 'ok'}`}>
               {isError ? `❌ ${verb}失败` : `✅ ${verb}成功`} ({lines.length} 行)
