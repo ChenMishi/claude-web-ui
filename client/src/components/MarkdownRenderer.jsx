@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import DOMPurify from 'dompurify';
 import { PrismLight as Prism } from 'react-syntax-highlighter';
 
@@ -171,13 +171,20 @@ export default function MarkdownRenderer({ content, streaming }) {
     }
   }
 
-  const html = DOMPurify.sanitize(renderMarkdown(renderContent, !!streaming), {
-    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'h1', 'h2', 'h3', 'h4',
-      'ul', 'ol', 'li', 'pre', 'code', 'blockquote', 'hr', 'a', 'img',
-      'table', 'thead', 'tbody', 'tr', 'th', 'td',
-      'span'],
-    ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'class'],
-  });
+  const html = useMemo(() => {
+    try {
+      return DOMPurify.sanitize(renderMarkdown(renderContent, !!streaming), {
+        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'h1', 'h2', 'h3', 'h4',
+          'ul', 'ol', 'li', 'pre', 'code', 'blockquote', 'hr', 'a', 'img',
+          'table', 'thead', 'tbody', 'tr', 'th', 'td',
+          'span'],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'class'],
+      });
+    } catch (e) {
+      console.error('MarkdownRenderer render error:', e);
+      return '<p style="color:red">⚠️ 渲染错误</p>';
+    }
+  }, [renderContent, streaming]);
 
   if (liveCodeBlock) {
     return (

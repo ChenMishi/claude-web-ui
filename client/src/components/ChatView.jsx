@@ -72,6 +72,7 @@ export default function ChatView() {
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
   const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
+  const isActiveStream = useRef(false);  // true during active SSE stream, guards cleanup abort
   const throttleRef = useRef(null);  // setTimeout id for bUpdate throttling during responding phase
   const toolNameMap = useRef(new Map());  // tool_use_id → tool name, for result display
   const [askUser, setAskUser] = useState(null);
@@ -374,6 +375,9 @@ export default function ChatView() {
   // Abort SSE stream when switching to a different session
   useEffect(() => {
     return () => {
+      // 如果当前正在执行流（例如新会话从 onAssistant 中 setSessionId 触发），
+      // 不中止流 — abortRef 指向的是同一个执行流自己的 AbortController
+      if (isActiveStream.current) return;
       abortRef.current?.abort();
       // 切换会话时清空排队消息和节流定时器
       if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
@@ -615,6 +619,7 @@ export default function ChatView() {
     const abort = new AbortController();
     abortRef.current = abort;
 
+    isActiveStream.current = true;
     runAgent({
       sessionId,
       cwd,
@@ -698,6 +703,7 @@ export default function ChatView() {
         setToolConfirm({ tool, action, input });
       },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency }) => {
+        isActiveStream.current = false;
         if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
         finishAllStreaming();  // 停止所有 rAF 动画
         bUpdate(null);        // 关最后一条 streaming + 写缓存
@@ -725,6 +731,7 @@ export default function ChatView() {
         if (title) updateMainTask(title);
       },
       onError: (err) => {
+        isActiveStream.current = false;
         // Ignore errors from previous (aborted) executions
         if (execIdRef.current !== myExecId) return;
         // AskUserQuestion abort is expected — don't show error
