@@ -78,7 +78,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="login-footer">
-          <span>v2.1.4</span>
+          <span>v2.1.5</span>
           <span>Secure · Private</span>
         </div>
       </div>
