@@ -110,18 +110,23 @@ function createProxy() {
       res.writeHead(upstream.status, responseHeaders);
 
       // 流式转发响应体（ReadableStream → Node.js res）
-      const reader = upstream.body.getReader();
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          // value is Uint8Array — write raw bytes
-          res.write(Buffer.from(value));
+      // HEAD / 204 / 304 等响应没有 body，直接结束
+      if (!upstream.body) {
+        res.end();
+      } else {
+        const reader = upstream.body.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            // value is Uint8Array — write raw bytes
+            res.write(Buffer.from(value));
+          }
+        } finally {
+          reader.releaseLock();
         }
-      } finally {
-        reader.releaseLock();
+        res.end();
       }
-      res.end();
     } catch (err) {
       if (err.name === 'AbortError' || err.name === 'TimeoutError') {
         proxyLog(`上游超时: ${req.method} ${req.url}`);

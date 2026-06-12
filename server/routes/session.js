@@ -617,6 +617,59 @@ router.patch('/session/:id', (req, res) => {
 });
 
 // Get session messages
+// 从文件末尾倒读，避免把整个大文件（可能几十 MB）一次读入内存
+function readLastUserAssistantRecords(jsonlPath, needed) {
+  const CHUNK_SIZE = 65536; // 64KB 块
+  let fd;
+  try {
+    fd = fs.openSync(jsonlPath, 'r');
+    const stat = fs.fstatSync(fd);
+    const records = [];
+    let pos = stat.size;
+    let leftover = '';
+
+    while (pos > 0 && records.length < needed) {
+      const readSize = Math.min(CHUNK_SIZE, pos);
+      pos -= readSize;
+      const buf = Buffer.alloc(readSize);
+      fs.readSync(fd, buf, 0, readSize, pos);
+      const chunk = buf.toString('utf8') + leftover;
+      const lines = chunk.split('\n');
+      // 第一段可能是不完整的行，留给下一轮拼接到 chunk 前面
+      leftover = lines.shift() || '';
+
+      // 从后往前解析，尽早凑够 needed 条
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        try {
+          const rec = JSON.parse(line);
+          if (rec.type === 'user' || rec.type === 'assistant') {
+            records.unshift(rec);
+            if (records.length >= needed) break;
+          }
+        } catch { /* 跳过损坏行 */ }
+      }
+    }
+
+    // 文件开头剩余的第一行
+    if (leftover.trim() && records.length < needed) {
+      try {
+        const rec = JSON.parse(leftover);
+        if (rec.type === 'user' || rec.type === 'assistant') {
+          records.unshift(rec);
+        }
+      } catch {}
+    }
+
+    return records;
+  } finally {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch {}
+    }
+  }
+}
+
 router.get('/session/:id/message', (req, res) => {
   const { id } = req.params;
   const limit = 200;
@@ -632,22 +685,11 @@ router.get('/session/:id/message', (req, res) => {
 
   const messages = [];
   try {
-    const allLines = fs.readFileSync(jsonlPath, 'utf8').split('\n').filter(Boolean);
-    // Collect all user/assistant records
-    const msgRecords = [];
-    for (let i = 0; i < allLines.length; i++) {
-      try {
-        const rec = JSON.parse(allLines[i]);
-        if (rec.type === 'user' || rec.type === 'assistant') {
-          msgRecords.push(rec);
-        }
-      } catch {}
-    }
-    // offset = how many of the LATEST messages to skip (reverse pagination).
-    // Default 0: return the last <limit> messages.
-    // offset=200: skip the last 200, return the 200 before them, etc.
     const reqOffset = req.query.offset !== undefined ? parseInt(req.query.offset) : null;
     const skip = reqOffset !== null && !isNaN(reqOffset) ? reqOffset : 0;
+    const needed = skip + limit;
+    // 从文件末尾倒读，只解析需要的行数
+    const msgRecords = readLastUserAssistantRecords(jsonlPath, needed);
     const start = Math.max(0, msgRecords.length - skip - limit);
     const end = Math.max(0, msgRecords.length - skip);
     messages.push(...msgRecords.slice(start, end));
