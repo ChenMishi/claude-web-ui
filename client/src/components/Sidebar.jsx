@@ -32,6 +32,10 @@ export default function Sidebar() {
   const streamingRef = useRef(false);
   streamingRef.current = isStreaming;
 
+  // Track whether initial load has already happened to prevent effect chains
+  const initialLoadRef = useRef(false);
+  const lastLoadedSessionRef = useRef(null);
+
   // Close user menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
@@ -44,80 +48,100 @@ export default function Sidebar() {
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
 
-  // Load projects on mount, restore saved project
+  // Consolidated initialization: load projects → sessions → messages in ONE sequence
+  // This replaces three separate useEffect hooks that were triggering each other in a chain,
+  // causing duplicate API calls and browser connection pool exhaustion.
   useEffect(() => {
-    getProjects().then(projects => {
-      setProjects(projects);
-      if (projects.length > 0) {
-        // Non-admin users: auto-select their homeDir project
-        let targetId;
+    if (initialLoadRef.current) return;
+    initialLoadRef.current = true;
+
+    let cancelled = false;
+
+    async function init() {
+      try {
+        const projects = await getProjects();
+        if (cancelled) return;
+        setProjects(projects);
+        if (projects.length === 0) return;
+
+        // Determine target project
+        let targetProjectId;
         if (user && user.role !== 'admin' && user.homeDir) {
           const homeProject = projects.find(p => p.cwd === user.homeDir);
-          targetId = homeProject ? homeProject.id : projects[0].id;
+          targetProjectId = homeProject ? homeProject.id : projects[0].id;
         } else {
           const saved = projects.find(p => p.id === currentProjectId);
-          targetId = saved ? saved.id : projects[0].id;
+          targetProjectId = saved ? saved.id : projects[0].id;
         }
-        if (targetId !== currentProjectId) {
-          selectProject(targetId);
-        } else {
-          // Saved project matches — load sessions and auto-select latest if none saved
-          getProjectSessions(targetId).then(sessions => {
-            setSessions(sessions);
-            if (!currentSessionId && sessions.length > 0) {
-              selectSession(sessions[0].id);
-            }
-          }).catch(() => {});
+
+        // If project needs to change, update it first
+        if (targetProjectId !== currentProjectId) {
+          selectProject(targetProjectId);
+          // selectProject clears currentSessionId and chatMessages, so we don't need
+          // to load messages here — the next render will trigger another init if needed.
+          // But since initialLoadRef is already true, we load directly.
         }
+
+        // Load sessions
+        const sessions = await getProjectSessions(targetProjectId);
+        if (cancelled) return;
+        setSessions(sessions);
+
+        // Determine target session
+        const targetSessionId = currentSessionId || (sessions.length > 0 ? sessions[0].id : null);
+        if (!targetSessionId) return;
+
+        // Select session if needed
+        if (!currentSessionId) {
+          selectSession(targetSessionId);
+        }
+
+        // Load messages (only if different from last loaded to avoid duplicates)
+        if (lastLoadedSessionRef.current === targetSessionId) return;
+        lastLoadedSessionRef.current = targetSessionId;
+
+        const msgs = await getSessionMessages(targetSessionId);
+        if (cancelled || msgs.length === 0) return;
+
+        const chatMsgs = [];
+        for (const m of msgs) {
+          const content = m.message?.content;
+          const ts = m.timestamp ? new Date(m.timestamp).getTime() : null;
+          if (typeof content === 'string' && content.trim()) {
+            chatMsgs.push({ role: 'user', content, ...(ts && { timestamp: ts }) });
+            continue;
+          }
+          if (!Array.isArray(content)) continue;
+          const textBlocks = content.filter(c => c.type === 'text');
+          if (textBlocks.length > 0) {
+            const text = textBlocks.map(c => c.text).join('');
+            chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text, ...(ts && { timestamp: ts }) });
+          }
+        }
+        if (!cancelled) setMessages(chatMsgs);
+      } catch (err) {
+        if (!cancelled) console.error('[init] Failed:', err.message);
       }
-    }).catch(() => {});
+    }
+
+    init();
+
+    return () => { cancelled = true; };
   }, []);
 
-  // When project changes, load sessions and reload latest messages
+  // When user manually switches sessions, load messages from server
   useEffect(() => {
-    if (currentProjectId) {
-      getProjectSessions(currentProjectId).then(sessions => {
-        setSessions(sessions);
-        // Always load messages for the most recent (or current) session from server
-        const targetId = currentSessionId || (sessions.length > 0 ? sessions[0].id : null);
-        if (!targetId) return;
-        if (!currentSessionId && sessions.length > 0) {
-          selectSession(targetId);
-        }
-        getSessionMessages(targetId).then(msgs => {
-          if (msgs.length === 0) return;
-          const chatMsgs = [];
-          for (const m of msgs) {
-            const content = m.message?.content;
-            const ts = m.timestamp ? new Date(m.timestamp).getTime() : null;
-            if (typeof content === 'string' && content.trim()) {
-              chatMsgs.push({ role: 'user', content, ...(ts && { timestamp: ts }) });
-              continue;
-            }
-            if (!Array.isArray(content)) continue;
-            const textBlocks = content.filter(c => c.type === 'text');
-            if (textBlocks.length > 0) {
-              const text = textBlocks.map(c => c.text).join('');
-              chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text, ...(ts && { timestamp: ts }) });
-            }
-          }
-          setMessages(chatMsgs);
-        }).catch(() => {});
-      }).catch(() => {});
-    }
-  }, [currentProjectId]);
+    if (!currentSessionId || !currentProjectId) return;
+    if (streamingRef.current) return;
+    // Skip initial load — already handled by the consolidated init effect
+    if (!initialLoadRef.current) return;
+    if (lastLoadedSessionRef.current === currentSessionId) return;
+    lastLoadedSessionRef.current = currentSessionId;
 
-  // When session changes, load from server (skip while streaming to avoid overwriting live SSE messages)
-  useEffect(() => {
-    if (!currentSessionId || !currentProjectId || streamingRef.current) return;
-    console.log('[loadMessages] loading from server:', currentSessionId);
-    console.log('[loadMessages] fetching for session:', currentSessionId);
+    let cancelled = false;
+
     getSessionMessages(currentSessionId).then(msgs => {
-      console.log('[loadMessages] got', msgs.length, 'raw records from server');
-      if (msgs.length === 0) {
-        console.warn('[loadMessages] server returned 0 records!');
-        return;
-      }
+      if (cancelled || msgs.length === 0) return;
       const chatMsgs = [];
       for (const m of msgs) {
         const content = m.message?.content;
@@ -126,26 +150,23 @@ export default function Sidebar() {
           chatMsgs.push({ role: 'user', content, ...(ts && { timestamp: ts }) });
           continue;
         }
-        if (!Array.isArray(content)) { console.log('[loadMessages] skipping non-array content:', typeof content); continue; }
+        if (!Array.isArray(content)) continue;
         const textBlocks = content.filter(c => c.type === 'text');
         if (textBlocks.length > 0) {
           const text = textBlocks.map(c => c.text).join('');
           chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text, ...(ts && { timestamp: ts }) });
         }
       }
-      console.log('[loadMessages] converted to', chatMsgs.length, 'text messages');
-      if (chatMsgs.length > 0) {
-        console.log('[loadMessages] first:', chatMsgs[0].content.slice(0, 50));
-        console.log('[loadMessages] last:', chatMsgs[chatMsgs.length - 1].content.slice(0, 50));
-      }
-      setMessages(chatMsgs);
+      if (!cancelled) setMessages(chatMsgs);
     }).catch((err) => {
-      console.error('[loadMessages] FAILED:', err.message);
-      setMessages([{ role: 'system', content: `加载失败: ${err.message}` }]);
+      if (!cancelled) {
+        console.error('[loadMessages] FAILED:', err.message);
+        setMessages([{ role: 'system', content: `加载失败: ${err.message}` }]);
+      }
     });
-  }, [currentSessionId, currentProjectId]);
 
-  // Check init status on mount for admin users — show hint if not yet configured
+    return () => { cancelled = true; };
+  }, [currentSessionId]);
   useEffect(() => {
     if (!isAdmin) return;
     getInitStatus().then(d => {

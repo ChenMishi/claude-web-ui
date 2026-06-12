@@ -387,10 +387,20 @@ export default function ChatView() {
   }, [currentSessionId]);
 
   // Reconnect to running session after page refresh
+  // Skip initial load — only check when session was manually selected or after reconnect
+  const reconnectGuardRef = useRef(true); // true = skip first N seconds
+  useEffect(() => {
+    // Allow reconnect checks after initial page load settles
+    const timer = setTimeout(() => { reconnectGuardRef.current = false; }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     if (!currentSessionId) return;
     // Already streaming (e.g. handleSend), don't reconnect
     if (isStreaming) return;
+    // Skip reconnect check during initial page load to avoid adding to connection pool
+    if (reconnectGuardRef.current) return;
     let cancelled = false;
 
     getSessionInfo(currentSessionId).then(info => {
