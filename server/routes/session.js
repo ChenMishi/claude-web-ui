@@ -325,11 +325,22 @@ function buildSDKOptions(runtime, body, authUser) {
 
     if (toolName === 'AskUserQuestion') {
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      // Abort after ensuring broadcast reaches client
-      setTimeout(() => {
-        try { runtime.abort?.abort(); } catch {}
-      }, 500);
-      return { behavior: 'allow', updatedInput: input };
+      // Store resolver so frontend can resolve via /session/:id/message/resolve
+      // Return a Promise that waits for the user's answers (with 2-minute timeout)
+      const sessionKey = runtime.sessionId || 'pending';
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          askQuestionContext.delete(sessionKey);
+          console.log('[AskUserQuestion] 超时，自动允许继续');
+          // Timeout: allow with empty answers so the model can continue
+          resolve({ behavior: 'allow', updatedInput: { ...input, answers: {} } });
+        }, 120000); // 2 minute timeout
+        askQuestionContext.set(sessionKey, (result) => {
+          clearTimeout(timeout);
+          // Inject user answers into the tool input
+          resolve({ behavior: 'allow', updatedInput: { ...input, answers: result.answers || {} } });
+        });
+      });
     }
 
     // ── Sandbox checks for non-admin users ──
@@ -373,7 +384,19 @@ function buildSDKOptions(runtime, body, authUser) {
     const desc = input?.description || input?.command || input?.file_path || '';
     const action = desc ? `${toolName}: ${desc}`.slice(0, 80) : toolName;
     return new Promise((resolve) => {
-      setPendingApproval(runtime.sessionId || 'pending', (result) => {
+      const sessionKey = runtime.sessionId || 'pending';
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        pendingApprovals.delete(sessionKey); // clean up without calling resolver
+        console.log('[canUseTool] 用户确认超时，自动允许:', action);
+        resolve({ behavior: 'allow', updatedInput: input });
+      }, 120000); // 2 minute timeout
+      setPendingApproval(sessionKey, (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         console.log('[canUseTool] user answered:', JSON.stringify(result));
         resolve(result);
       }, 'confirm', input);
