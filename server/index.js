@@ -14,6 +14,18 @@ try { WebSocket = require('ws'); } catch(e) { console.error('[终端] ws 加载�
 function createApp() {
   const app = express();
 
+  // Request logger for debugging — logs all requests (first 100 chars of path)
+  app.use((req, _res, next) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const logDir = require('./config').LOG_DIR || '/tmp';
+      fs.appendFileSync(path.join(logDir, 'access.log'),
+        `${new Date().toISOString()} ${req.method} ${req.originalUrl.slice(0, 120)} ${req.headers['user-agent']?.slice(0, 60) || '-'}\n`);
+    } catch {}
+    next();
+  });
+
   // CORS: allow localhost, Vite dev server, and any private-network origin
   app.use(cors({
     origin(origin, cb) {
