@@ -491,26 +491,39 @@ router.post('/init/log-error', (req, res) => {
 });
 
 // Get all error logs (frontend + backend + init + proxy + syslog)
-router.get('/init/log-errors', (req, res) => {
+router.get('/init/log-errors', async (req, res) => {
   try {
-    const readLog = (name) => {
-      const p = path.join(PROJECT_DIR, 'logs', name);
-      return fs.existsSync(p) ? fs.readFileSync(p, 'utf8').split('\n').filter(Boolean).slice(-30) : [];
-    };
-    const syslog = () => {
+    const fsPromises = require('fs').promises;
+    const { exec } = require('child_process');
+
+    const readLog = async (name) => {
       try {
-        const p = '/var/log/syslog';
-        if (!fs.existsSync(p)) return [];
-        return require('child_process').execSync(`tail -30 "${p}"`, { encoding: 'utf8', timeout: 3000 }).split('\n').filter(Boolean);
+        const p = path.join(PROJECT_DIR, 'logs', name);
+        const data = await fsPromises.readFile(p, 'utf8');
+        return data.split('\n').filter(Boolean).slice(-30);
       } catch { return []; }
     };
-    res.json({
-      server: readLog('server-error.log'),
-      frontend: readLog('frontend-error.log'),
-      init: readLog('init.log'),
-      proxy: readLog('proxy.log'),
-      syslog: syslog(),
+
+    const syslog = () => new Promise((resolve) => {
+      const p = '/var/log/syslog';
+      try {
+        if (!require('fs').existsSync(p)) return resolve([]);
+        exec(`tail -30 "${p}"`, { encoding: 'utf8', timeout: 3000 }, (err, stdout) => {
+          if (err) return resolve([]);
+          resolve(stdout.split('\n').filter(Boolean));
+        });
+      } catch { resolve([]); }
     });
+
+    const [server, frontend, init, proxy, sys] = await Promise.all([
+      readLog('server-error.log'),
+      readLog('frontend-error.log'),
+      readLog('init.log'),
+      readLog('proxy.log'),
+      syslog(),
+    ]);
+
+    res.json({ server, frontend, init, proxy, syslog: sys });
   } catch { res.json({ frontend: [], server: [], init: [], proxy: [], syslog: [] }); }
 });
 

@@ -6,12 +6,16 @@ const BASE = '/api';
 export default function LogPanel() {
   const [logs, setLogs] = useState({ frontend: [], server: [], init: [], proxy: [], syslog: [] });
   const [tab, setTab] = useState('server');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const load = () => {
+    setLoading(true);
+    setError('');
     fetch(`${BASE}/init/log-errors`, { headers: authHeaders() })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => setLogs(d))
-      .catch(err => console.error('Log load error:', err));
+      .then(d => { setLogs(d); setLoading(false); })
+      .catch(err => { setError(err.message); setLoading(false); });
   };
 
   useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, []);
@@ -37,17 +41,23 @@ export default function LogPanel() {
         <button className="log-tab log-refresh" onClick={load}>刷新</button>
       </div>
       <div className="log-content">
-        <div className="log-scroll">
-        {lines.length === 0 ? (
-          <div className="log-empty">暂无日志</div>
+        {loading && lines.length === 0 ? (
+          <div className="log-empty">加载中...</div>
+        ) : error ? (
+          <div className="log-empty" style={{ color: 'var(--danger)' }}>加载失败: {error}</div>
         ) : (
-          lines.map((l, i) => (
-            <div key={i} className={`log-line ${l.includes('ERROR') || l.includes('FATAL') ? 'error' : ''}`}>
-              {l}
-            </div>
-          ))
+          <div className="log-scroll">
+          {lines.length === 0 ? (
+            <div className="log-empty">暂无日志</div>
+          ) : (
+            lines.map((l, i) => (
+              <div key={i} className={`log-line ${/[error]|[fatal]/i.test(l) ? 'error' : ''}`}>
+                {l}
+              </div>
+            ))
+          )}
+          </div>
         )}
-        </div>
       </div>
     </div>
   );

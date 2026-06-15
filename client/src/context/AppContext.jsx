@@ -12,12 +12,12 @@ function loadState(key, fallback) {
 
 function saveCache(cache) {
   try {
-    // Keep at most 10 sessions, 200 messages each to avoid localStorage overflow
+    // Keep at most 10 sessions, 100 messages each to avoid localStorage overflow
     const trimmed = {};
     const keys = Object.keys(cache).slice(-10);
     for (const k of keys) {
       const msgs = cache[k];
-      trimmed[k] = msgs.length > 200 ? msgs.slice(-200) : msgs;
+      trimmed[k] = msgs.length > 100 ? msgs.slice(-100) : msgs;
     }
     localStorage.setItem('claude-ui:messageCache', JSON.stringify(trimmed));
   } catch {}
@@ -26,7 +26,9 @@ function saveCache(cache) {
 // Strip tool call/result blocks and thinking when restoring a session — only show text conversation
 function textOnly(msgs) {
   if (!msgs || !msgs.length) return [];
-  return msgs.filter(m => m.role !== 'tool' && m.role !== 'thinking');
+  const filtered = msgs.filter(m => m.role !== 'tool' && m.role !== 'thinking');
+  // 防止大型会话切换时渲染过多消息导致页面卡死（200 条 × 数 KB Markdown = 数十秒阻塞）
+  return filtered.length > 50 ? filtered.slice(-50) : filtered;
 }
 
 const initMessageCache = loadState('messageCache', {});
