@@ -655,7 +655,6 @@ export default function ChatView() {
         if (!hasAssistantText.current) {
           hasAssistantText.current = true;
           textAccum.current = content;
-          finishAllStreaming();  // 思考阶段结束，停止所有 thinking rAF 动画
           bAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
         } else {
           textAccum.current += content;
