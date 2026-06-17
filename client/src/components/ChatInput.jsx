@@ -384,7 +384,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           multiple
           style={{ display: 'none' }}
           onChange={handleFileChange}
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml,.html,.md,.py,.js,.ts,.css,.zip,.tar,.gz"
+          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml,.html,.md,.py,.js,.ts,.css,.zip,.tar,.gz,.tgz,.7z,.rar"
         />
         <textarea
           ref={inputRef}

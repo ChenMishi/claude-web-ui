@@ -399,4 +399,39 @@ router.post('/fs/chat-upload', requireAuth, (req, res) => {
   }
 });
 
+// ── Periodic cleanup of old uploads (>24h) ──
+
+const UPLOADS_DIR = path.join(os.homedir(), '.claude-web-ui', 'uploads');
+const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function cleanOldUploads() {
+  if (!fs.existsSync(UPLOADS_DIR)) return;
+  const now = Date.now();
+  const entries = fs.readdirSync(UPLOADS_DIR, { withFileTypes: true });
+  let deletedCount = 0;
+  for (const entry of entries) {
+    if (!entry.name.startsWith('chat_')) continue;
+    const fullPath = path.join(UPLOADS_DIR, entry.name);
+    try {
+      const stat = fs.statSync(fullPath);
+      if (now - stat.mtimeMs > MAX_AGE_MS) {
+        fs.rmSync(fullPath, { recursive: true, force: true });
+        deletedCount++;
+      }
+    } catch {}
+  }
+  if (deletedCount > 0) {
+    console.log(`[uploads] 清理了 ${deletedCount} 个过期文件（>24h）`);
+  }
+}
+
+// Run cleanup on startup and every hour
+cleanOldUploads();
+const cleanupInterval = setInterval(cleanOldUploads, 60 * 60 * 1000);
+
+// Allow graceful shutdown of the interval
+if (typeof cleanupInterval.unref === 'function') {
+  cleanupInterval.unref();
+}
+
 module.exports = router;
