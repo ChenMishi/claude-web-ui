@@ -32,6 +32,7 @@
 ### 环境要求
 
 - Linux 服务器（Ubuntu/Debian/CentOS/Alpine/Arch）
+- **Windows 10/11 通过 WSL 2 部署**（详见下文 Windows 部署章节）
 - 推荐 Node.js >= 20（脚本会自动安装）
 - Claude Code CLI（Agent SDK 通过内置代理连接 API）
 
@@ -78,6 +79,94 @@ cd claude-web-ui
    - 配置内部代理监听地址
    - 创建项目 CLAUDE.md 文档
 3. 进入 **设置 → 🔄 升级** 可配置 Git 仓库地址用于在线更新
+
+---
+
+## Windows 部署（WSL 2）
+
+Windows 上无需任何代码改动，项目以标准 Linux 方式运行在 WSL 2 中，前端浏览器直接访问 `localhost` 即可。
+
+### 为什么用 WSL 2
+
+Claude Code 在 Windows 上本身就运行在 WSL 里。本项目后端全部基于 Linux 命令（`ps`、`pkill`、`tar`、`useradd`、`systemctl` 等），原生 Windows 运行需要大量改动。放在 WSL 2 里零代码修改，且保留了完整的 OS 用户同步安全沙箱。
+
+### 1. 安装 WSL 2
+
+以管理员身份打开 **PowerShell**：
+
+```powershell
+# 安装 WSL（默认版本就是 WSL 2）
+wsl --install
+```
+
+重启电脑后打开 WSL（开始菜单搜索 "WSL" 或终端里输入 `wsl`），首次进入会提示创建 Linux 用户名和密码。
+
+### 2. 开启 systemd（推荐）
+
+WSL 2 默认不开 systemd，但项目依赖它管理服务。在 WSL 终端里：
+
+```bash
+sudo tee -a /etc/wsl.conf << 'EOF'
+[boot]
+systemd=true
+EOF
+```
+
+然后切回 PowerShell 重启 WSL：
+
+```powershell
+wsl --shutdown
+```
+
+重新打开 WSL 终端生效。
+
+### 3. 部署项目
+
+> ⚠️ **重要**：项目文件必须放在 WSL 自己的文件系统里（如 `~/claude-web-ui`），**不要**放在 `/mnt/c/` 下面。跨文件系统读写（Windows ↔ WSL）IO 性能极差，`npm install` 会非常慢甚至失败。
+
+```bash
+# 在 WSL 终端里
+cd ~
+git clone <仓库地址>
+cd claude-web-ui
+./deploy.sh
+```
+
+后续步骤和 Linux 部署完全一致。
+
+### 4. 从外部访问 WSL 服务
+
+WSL 2 有独立的虚拟网卡（IP 为 `172.x.x.x`），和 Windows 主机通过 NAT 隔离：
+
+| 访问地址 | 来源 | 能否访问 |
+|---------|------|:--:|
+| `http://127.0.0.1:3000` | Windows 本机 | ✅ localhost 自动转发 |
+| `http://<WSL_IP>:3000` | Windows 本机 | ✅ 同机器内路由 |
+| `http://<Windows_IP>:3000` | 局域网其他机器 | ❌ 默认被隔离 |
+
+**要让局域网其他机器也能访问**，在 Windows 上管理员 PowerShell 执行：
+
+```powershell
+# 1. 端口转发（把 <WSL_IP> 换成部署输出中的 IP）
+netsh interface portproxy add v4tov4 listenport=3000 listenaddress=0.0.0.0 connectport=3000 connectaddress=<WSL_IP>
+
+# 2. 开放防火墙
+netsh advfirewall firewall add rule name="WSL Web UI" dir=in action=allow protocol=tcp localport=3000
+```
+
+> **注意**：WSL 2 重启后 IP 会变动，需重新设置第一条转发规则。可写脚本自动获取 WSL IP 并更新，或考虑用 `wsl hostname -I` 配合计划任务。
+
+### 5. WSL 1 和 WSL 2 的区别
+
+| | WSL 1 | WSL 2 |
+|--|-------|-------|
+| systemd 支持 | ❌ | ✅（需手动开启） |
+| IO 性能（跨 `/mnt/c/`） | 快 | 慢（应避免跨文件系统） |
+| 网络模式 | NAT 共享，无需端口转发 | 独立虚拟网卡，外部访问需转发 |
+| 完整 Linux 内核 | ❌ | ✅ |
+| 推荐 | ❌ | ✅ |
+
+---
 
 ### 管理命令
 
