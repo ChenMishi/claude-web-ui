@@ -615,21 +615,9 @@ export default function ChatView() {
 
     setMainTask(promptText.length > 30 ? promptText.slice(0, 30) + '…' : promptText);
     startTimer();
-    // Build user message content with attachment info
-    let userContent = promptText;
-    if (attachments && attachments.length > 0) {
-      const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
-      const fileLines = attachments.map(a => {
-        const ext = (a.fileName || '').toLowerCase();
-        const isImage = imageExts.some(ie => ext.endsWith(ie));
-        const label = isImage ? '🖼' : '📄';
-        const sizeStr = a.size ? formatSize(a.size) : '';
-        return `${label} ${a.fileName || a.originalName}${sizeStr ? ' (' + sizeStr + ')' : ''}`;
-      }).join('\n');
-      // If no text prompt, use attachment list as content; otherwise append
-      userContent = promptText ? promptText + '\n\n📎 附件:\n' + fileLines : '📎 附件:\n' + fileLines;
-    }
-    bAppend({ role: 'user', content: userContent, timestamp: Date.now() });
+    // Build user message content — attachment metadata rendered separately in ChatMessage
+    let userContent = promptText || '📎 发送了附件';
+    bAppend({ role: 'user', content: userContent, attachments: attachments || null, timestamp: Date.now() });
     hasAssistantText.current = false;
     hasThinking.current = false;
     textAccum.current = '';
