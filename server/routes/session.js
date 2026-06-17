@@ -145,13 +145,20 @@ function extractBashFilePaths(command, resultContent, cwd) {
     const p = m[1];
     if (!p.startsWith('-')) {
       paths.push(p);
-      // Also check if the compressed file exists (e.g. file.gz from gzip file)
       const extMap = { gzip: '.gz', bzip2: '.bz2', xz: '.xz' };
       const cmdName = m[0].trim().split(/\s+/)[0];
       const ext = extMap[cmdName];
       if (ext) paths.push(p + ext);
     }
   }
+
+  // 6f. convert/magick input [options] output  (ImageMagick)
+  const convertM = command.match(/(?:^|\s)(?:convert|magick)\s+(?:\S+\s+)+(?:-[a-zA-Z]+\s+\S+\s+)*(\S+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
+  if (convertM && !convertM[1].startsWith('-')) paths.push(convertM[1]);
+
+  // 6g. ffmpeg -i input ... output  (ffmpeg output is last non-flag arg)
+  const ffmpegM = command.match(/(?:^|\s)ffmpeg\s+(?:-[a-zA-Z0-9]+\s+\S+\s+)*.*?(\S+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
+  if (ffmpegM && !ffmpegM[1].startsWith('-') && ffmpegM[1] !== '2') paths.push(ffmpegM[1]);
 
   // 7. cp/mv destination (last arg before && / ; / |)
   const cpMvM = command.match(/(?:^|;\s*)(?:cp|mv)\s+(?:-[a-zA-Z]+\s+)*(?:\S+\s+)+?(\S+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
@@ -169,6 +176,13 @@ function extractBashFilePaths(command, resultContent, cwd) {
 
   // 10. From result: "create mode 100644 path/to/file" (git output)
   for (const m of (resultContent || '').matchAll(/create mode \d+ (.+)/g)) {
+    paths.push(m[1]);
+  }
+
+  // 11. Scan result content for absolute paths with common file extensions
+  //     Catches Python/openpyxl/docx/ImageMagick/ffmpeg/etc output
+  const resultExtRe = /(\/(?:[^\s"'`]+\/)*[^\s"'`]+\.(?:png|jpe?g|gif|webp|bmp|svg|ico|pdf|docx?|xlsx?|pptx?|zip|tar|gz|tgz|bz2|xz|7z|rar|csv|tsv|txt|md|json|yaml|yml|xml|html?|css|py|js|ts|sh|sql|db|sqlite3?|pkl|h5|pt|onnx|npy|npz|env|cfg|ini|toml|lock|log))(?:\b|$)/gi;
+  for (const m of (resultContent || '').matchAll(resultExtRe)) {
     paths.push(m[1]);
   }
 
