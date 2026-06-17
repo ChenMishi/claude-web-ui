@@ -126,6 +126,33 @@ export const getPricing = () => fetchJSON('/init/pricing');
 export const savePricing = (models) => fetchJSON('/init/pricing', { method: 'POST', body: JSON.stringify({ models }) });
 export const fetchModels = (baseUrl, token) => fetchJSON('/init/fetch-models', { method: 'POST', body: JSON.stringify({ baseUrl, token }) });
 
+// Upload chat attachment (base64 JSON)
+export function uploadChatAttachment(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1];
+      const body = JSON.stringify({ fileName: file.name, content: base64 });
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/fs/chat-upload');
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      const headers = authHeaders({});
+      Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300 && data.ok) resolve(data);
+          else reject(new Error(data.error || `HTTP ${xhr.status}`));
+        } catch { reject(new Error('解析响应失败')); }
+      };
+      xhr.onerror = () => reject(new Error('上传失败'));
+      xhr.send(body);
+    };
+    reader.onerror = () => reject(new Error('读取文件失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
 // File system (write / delete)
 export const writeFile = (filePath, content) => fetchJSON('/fs/write', { method: 'POST', body: JSON.stringify({ filePath, content }) });
 export const deleteFileOrDir = (filePath) => fetchJSON('/fs/delete', { method: 'DELETE', body: JSON.stringify({ filePath }) });
@@ -208,8 +235,11 @@ export const getSessionMessages = (id, offset) => fetchJSON(`/session/${id}/mess
 export const resolveQuestion = (id, answers) => fetchJSON(`/session/${id}/message/resolve`, { method: 'POST', body: JSON.stringify(answers) });
 
 // Agent SDK chat (full tool calling via session endpoint)
-export async function runAgent({ sessionId, cwd, prompt, options = {}, signal, onSystem, onAssistant, onToolResult, onToolUse, onAskUser, onToolConfirm, onThinking, onDone, onError, onTitle }) {
+export async function runAgent({ sessionId, cwd, prompt, options = {}, attachments, signal, onSystem, onAssistant, onToolResult, onToolUse, onAskUser, onToolConfirm, onThinking, onDone, onError, onTitle }) {
   const body = { prompt, cwd, options };
+  if (attachments && attachments.length > 0) {
+    body.attachments = attachments;
+  }
 
   let response;
   try {

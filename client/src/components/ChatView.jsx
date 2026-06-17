@@ -14,6 +14,13 @@ const PHASE_LABELS = {
   responding: '生成回复',
 };
 
+function formatSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 function buildAbortSummary(execStatus) {
   const { phase, detail, elapsed, tokens, cost } = execStatus;
   const parts = [];
@@ -589,8 +596,8 @@ export default function ChatView() {
     execReset();
   }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset, clearPendingQueue]);
 
-  const handleSend = useCallback((text) => {
-    if (!text.trim()) return;
+  const handleSend = useCallback((text, attachments) => {
+    if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
     // 如果正在执行中，不中断，改为排队等待
     if (isStreaming) {
@@ -615,7 +622,21 @@ export default function ChatView() {
 
     setMainTask(promptText.length > 30 ? promptText.slice(0, 30) + '…' : promptText);
     startTimer();
-    bAppend({ role: 'user', content: promptText, timestamp: Date.now() });
+    // Build user message content with attachment info
+    let userContent = promptText;
+    if (attachments && attachments.length > 0) {
+      const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+      const fileLines = attachments.map(a => {
+        const ext = (a.fileName || '').toLowerCase();
+        const isImage = imageExts.some(ie => ext.endsWith(ie));
+        const label = isImage ? '🖼' : '📄';
+        const sizeStr = a.size ? formatSize(a.size) : '';
+        return `${label} ${a.fileName || a.originalName}${sizeStr ? ' (' + sizeStr + ')' : ''}`;
+      }).join('\n');
+      // If no text prompt, use attachment list as content; otherwise append
+      userContent = promptText ? promptText + '\n\n📎 附件:\n' + fileLines : '📎 附件:\n' + fileLines;
+    }
+    bAppend({ role: 'user', content: userContent, timestamp: Date.now() });
     hasAssistantText.current = false;
     hasThinking.current = false;
     textAccum.current = '';
@@ -635,6 +656,7 @@ export default function ChatView() {
       cwd,
       signal: abort.signal,
       prompt: promptText,
+      attachments: attachments || undefined,
       options: { model: currentModel || model, systemPrompt: systemPrompt || undefined, permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
       onThinking: ({ text: thinkingText, usage }) => {
         execPhase({ phase: 'thinking', detail: thinkingText });

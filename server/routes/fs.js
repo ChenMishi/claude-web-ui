@@ -148,4 +148,50 @@ router.post('/fs/copy', requireAuth, (req, res) => {
   }
 });
 
+// Chat attachment upload — accepts base64 JSON (used by ChatInput drag/paste)
+router.post('/fs/chat-upload', requireAuth, (req, res) => {
+  try {
+    const { fileName, content, dir } = req.body;
+    if (!fileName || !content) {
+      return res.status(400).json({ error: '缺少参数: fileName, content' });
+    }
+    const targetDir = path.resolve(dir || path.join(os.homedir(), '.claude-web-ui', 'uploads'));
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    // Sanitize filename, keep extension
+    const ext = path.extname(fileName);
+    const baseName = path.basename(fileName, ext).replace(/[^a-zA-Z0-9_\-一-鿿]/g, '_');
+    const safeName = `chat_${Date.now()}_${baseName}${ext}`;
+    const targetPath = path.join(targetDir, safeName);
+    fs.writeFileSync(targetPath, Buffer.from(content, 'base64'));
+
+    // Determine MIME type
+    const mimeTypes = {
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+      '.pdf': 'application/pdf', '.txt': 'text/plain', '.md': 'text/markdown',
+      '.csv': 'text/csv', '.json': 'application/json', '.xml': 'text/xml',
+      '.html': 'text/html', '.htm': 'text/html', '.css': 'text/css',
+      '.js': 'text/javascript', '.ts': 'text/typescript', '.py': 'text/x-python',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      '.zip': 'application/zip', '.tar': 'application/x-tar', '.gz': 'application/gzip',
+    };
+    const mimeType = mimeTypes[ext.toLowerCase()] || 'application/octet-stream';
+
+    res.json({
+      ok: true,
+      path: targetPath,
+      fileName: safeName,
+      originalName: fileName,
+      size: Buffer.byteLength(Buffer.from(content, 'base64')),
+      mimeType,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

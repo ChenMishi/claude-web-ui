@@ -1,6 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { abortSession, listSkills } from '../api';
+import { abortSession, listSkills, uploadChatAttachment } from '../api';
 import ExecutionBar from './ExecutionBar';
 
 const COMMANDS = [
@@ -34,6 +34,13 @@ const COMMANDS = [
   { cmd: '/perm all', desc: '所有工具操作需确认', action: 'perm-all' },
 ];
 
+function formatSizeLocal(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, queuedMessages, onRemoveQueued }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
     setView, setMessages, currentProjectId, selectProject, theme, chatMessages, projects,
@@ -48,6 +55,12 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [skills, setSkills] = useState([]);
 
+  // Attachment state
+  const [attachments, setAttachments] = useState([]); // { id, file, uploading, metadata }
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+  const attachIdRef = useRef(0);
+
   // Load skills from API
   useEffect(() => {
     const project = projects.find(p => p.id === currentProjectId);
@@ -55,6 +68,87 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
       .then(d => setSkills(d.skills || []))
       .catch(() => {});
   }, [currentProjectId, projects]);
+
+  // ── Attachment handlers ──
+  const addAttachments = useCallback((files) => {
+    const newAttachments = [];
+    for (const file of files) {
+      const id = ++attachIdRef.current;
+      const attachment = { id, file, uploading: true, metadata: null };
+      newAttachments.push(attachment);
+      // Auto-upload each file
+      uploadChatAttachment(file)
+        .then(data => {
+          setAttachments(prev => prev.map(a => a.id === id ? { ...a, uploading: false, metadata: data } : a));
+        })
+        .catch(err => {
+          setAttachments(prev => prev.map(a => a.id === id ? { ...a, uploading: false, error: err.message } : a));
+        });
+    }
+    setAttachments(prev => [...prev, ...newAttachments]);
+  }, []);
+
+  const removeAttachment = useCallback((id) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  }, []);
+
+  const clearAttachments = useCallback(() => {
+    setAttachments([]);
+  }, []);
+
+  // Paste handler
+  const handlePaste = useCallback((e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files = [];
+    for (const item of items) {
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      addAttachments(files);
+    }
+  }, [addAttachments]);
+
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (files.length > 0) {
+      addAttachments(files);
+    }
+  }, [addAttachments]);
+
+  // File picker
+  const handleFilePick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback((e) => {
+    const files = Array.from(e.target?.files || []);
+    if (files.length > 0) {
+      addAttachments(files);
+    }
+    // Reset input so same file can be selected again
+    if (e.target) e.target.value = '';
+  }, [addAttachments]);
 
   // Auto-scroll selected command into view
   useEffect(() => {
@@ -66,15 +160,22 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
 
   const handleSend = useCallback(() => {
     const text = inputRef.current?.value?.trim();
-    if (!text) return;
-    onSend(text);
+    const hasAttachments = attachments.some(a => a.metadata && !a.uploading);
+    const stillUploading = attachments.some(a => a.uploading);
+    if (!text && !hasAttachments) return;
+    if (stillUploading) return; // wait for uploads
+    const uploadedAttachments = attachments
+      .filter(a => a.metadata)
+      .map(a => a.metadata);
+    onSend(text, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
     inputRef.current.value = '';
     if (activeSkill) {
       inputRef.current.value = '/' + activeSkill.name + ' ';
     }
     inputRef.current.style.height = 'auto';
     setShowCommands(false);
-  }, [onSend, activeSkill]);
+    clearAttachments();
+  }, [onSend, activeSkill, attachments, clearAttachments]);
 
   const handleStop = useCallback(() => {
     if (!isStreaming) return;
@@ -205,8 +306,14 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
   }, [showCommands, showSkills]);
 
   return (
-    <div className="input-area">
+    <div className="input-area" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       <ExecutionBar />
+      {/* Drag overlay */}
+      {dragOver && (
+        <div className="attach-drop-overlay">
+          <span>📎 释放文件以上传</span>
+        </div>
+      )}
       {queuedMessages && queuedMessages.length > 0 && (
         <div className="queued-messages">
           {queuedMessages.map((item, idx) => (
@@ -218,6 +325,28 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
                 onClick={() => onRemoveQueued && onRemoveQueued(idx)}
                 title="取消排队"
               >✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Attachment previews */}
+      {attachments.length > 0 && (
+        <div className="attach-previews">
+          {attachments.map(a => (
+            <div key={a.id} className={`attach-preview ${a.uploading ? 'uploading' : a.error ? 'error' : ''}`}>
+              {a.uploading ? (
+                <span className="attach-preview-spinner" />
+              ) : a.error ? (
+                <span className="attach-preview-icon" title={a.error}>❌</span>
+              ) : (
+                <span className="attach-preview-icon">
+                  {/\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(a.file.name) ? '🖼' : '📄'}
+                </span>
+              )}
+              <span className="attach-preview-name" title={a.file.name}>{a.file.name}</span>
+              {a.metadata && <span className="attach-preview-size">{formatSizeLocal(a.metadata.size)}</span>}
+              {a.error && <span className="attach-preview-error">{a.error}</span>}
+              <button className="attach-preview-remove" onClick={() => removeAttachment(a.id)} title="移除">✕</button>
             </div>
           ))}
         </div>
@@ -240,12 +369,24 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
         </div>
       )}
       <div className="input-wrapper">
+        <button className="attach-btn" onClick={handleFilePick} title="添加附件 (Ctrl+V 粘贴图片)">
+          📎
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml,.html,.md,.py,.js,.ts,.css,.zip,.tar,.gz"
+        />
         <textarea
           ref={inputRef}
           rows="1"
           placeholder={isStreaming ? '输入消息中途插入... (Enter 发送)' : '输入消息... (Shift+Enter 换行) 输入 / 查看快捷指令'}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
+          onPaste={handlePaste}
           disabled={false}
         />
         <div className="input-select-group">

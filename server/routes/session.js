@@ -82,6 +82,12 @@ function logError(msg, err) {
   } catch {}
 }
 
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 function handleSDKMessage(message, runtime, isStreaming) {
 
   if (message.type === 'system') {
@@ -797,7 +803,25 @@ router.post('/session/:id/message', async (req, res) => {
   }
 
   const prompt = (body.prompt || '').trim();
-  if (!prompt) return res.status(400).json({ error: 'prompt is required' });
+  if (!prompt && (!body.attachments || body.attachments.length === 0)) {
+    return res.status(400).json({ error: 'prompt is required' });
+  }
+
+  // ── Attachments: prepend file info to prompt so Claude knows to Read them ──
+  const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+  let fullPrompt = prompt || '';
+  if (attachments.length > 0) {
+    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+    const fileLines = attachments.map(a => {
+      const ext = (a.fileName || '').toLowerCase();
+      const isImage = imageExts.some(ie => ext.endsWith(ie));
+      const label = isImage ? '🖼 图片' : '📄 文件';
+      return `- ${label}: ${a.path} (${a.mimeType || 'unknown'}, ${formatSize(a.size || 0)})`;
+    }).join('\n');
+    const imageHint = attachments.some(a => imageExts.some(ie => (a.fileName || '').toLowerCase().endsWith(ie)))
+      ? '\n（图片文件请使用 Read 工具的 base64 编码模式读取，以便查看图片内容）' : '';
+    fullPrompt = `用户上传了以下文件：\n${fileLines}${imageHint}\n\n---\n\n${prompt}`;
+  }
 
   const wantsStream = req.headers.accept?.includes('text/event-stream') || req.query.stream === '1';
 
@@ -853,7 +877,7 @@ router.post('/session/:id/message', async (req, res) => {
     let result;
     const allMessages = [];
 
-    for await (const message of query({ prompt, options })) {
+    for await (const message of query({ prompt: fullPrompt, options })) {
       const info = handleSDKMessage(message, runtime, wantsStream);
       if (message.type === 'assistant' || message.type === 'user') {
         allMessages.push(message);
