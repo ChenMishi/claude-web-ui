@@ -93,8 +93,8 @@ function extractBashFilePaths(command, resultContent, cwd) {
   const paths = [];
   if (!command || !cwd) return paths;
 
-  // 1. Output redirection: > file, >> file, 2> file, &> file
-  for (const m of command.matchAll(/(?:^|\s)(?:[12]?>>?|&>)\s*(\S+)/g)) {
+  // 1. Output redirection: > file (creating new, NOT >> which is appending)
+  for (const m of command.matchAll(/(?:^|\s)(?:[12]?>|&>)\s*(\S+)/g)) {
     const p = m[1].replace(/^['"]|['"]$/g, '');
     if (p && !p.startsWith('/dev/')) paths.push(p);
   }
@@ -160,9 +160,9 @@ function extractBashFilePaths(command, resultContent, cwd) {
   const ffmpegM = command.match(/(?:^|\s)ffmpeg\s+(?:-[a-zA-Z0-9]+\s+\S+\s+)*.*?(\S+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
   if (ffmpegM && !ffmpegM[1].startsWith('-') && ffmpegM[1] !== '2') paths.push(ffmpegM[1]);
 
-  // 7. cp/mv destination (last arg before && / ; / |)
-  const cpMvM = command.match(/(?:^|;\s*)(?:cp|mv)\s+(?:-[a-zA-Z]+\s+)*(?:\S+\s+)+?(\S+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
-  if (cpMvM && !cpMvM[1].match(/^-[a-zA-Z]/)) paths.push(cpMvM[1]);
+  // 7. cp destination (last arg before && / ; / |) — copying is creating a new file
+  const cpM = command.match(/(?:^|;\s*)cp\s+(?:-[a-zA-Z]+\s+)*(?:\S+\s+)+?(\S+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
+  if (cpM && !cpM[1].match(/^-[a-zA-Z]/)) paths.push(cpM[1]);
 
   // 8. From result: "The file /path has been updated successfully."
   for (const m of (resultContent || '').matchAll(/(?:^|\n)The file (\S+) has been updated/gm)) {

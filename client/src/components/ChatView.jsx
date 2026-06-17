@@ -506,8 +506,8 @@ export default function ChatView() {
                           const extractedPaths = sseExtractedPaths[t.tool_use_id] || [];
                           const isCompactTool = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(tName);
                           const hasBashPaths = tName === 'Bash' && extractedPaths.length > 0;
-                          // Collect artifact files for end-of-session summary
-                          if (tName === 'Write' || tName === 'Edit') {
+                          // Collect artifact files for end-of-session summary (Write only, not Edit)
+                          if (tName === 'Write') {
                             const fp = (chatMessagesRef.current.find(m => m.role === 'tool' && m.toolCall?.tool_use_id === t.tool_use_id) || {}).toolCall?.input?.file_path;
                             if (fp && !t.is_error) artifactFilesRef.current.set(fp, fp.split('/').pop() || fp);
                           }
@@ -719,8 +719,8 @@ export default function ChatView() {
         const toolName = toolNameMap.current.get(tool_use_id) || '';
         const isCompactTool = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(toolName);
         const hasBashPaths = toolName === 'Bash' && extractedPaths && extractedPaths.length > 0;
-        // Collect artifact files for end-of-session summary
-        if ((toolName === 'Write' || toolName === 'Edit') && !is_error) {
+        // Collect artifact files for end-of-session summary (Write only, not Edit)
+        if (toolName === 'Write' && !is_error) {
           const fp = (chatMessagesRef.current.find(m => m.role === 'tool' && m.toolCall?.tool_use_id === tool_use_id) || {}).toolCall?.input?.file_path;
           if (fp) artifactFilesRef.current.set(fp, fp.split('/').pop() || fp);
         }
