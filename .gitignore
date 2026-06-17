@@ -24,3 +24,4 @@ backups/
 # 二进制包
 packages/*.deb
 stats/
+uploads/
