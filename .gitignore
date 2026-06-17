@@ -25,3 +25,16 @@ backups/
 packages/*.deb
 stats/
 uploads/
+
+# 测试/演示脚本（Claude 会话中常见的临时产物）
+/test-*.py
+/test-*.sh
+/test_*.py
+/test_*.sh
+/demo-*.py
+/demo-*.sh
+/check_*.py
+/test.sql
+/test*.zip
+/test*.tar*
+/*.sample.*
