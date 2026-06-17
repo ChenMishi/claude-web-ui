@@ -126,27 +126,57 @@ export const getPricing = () => fetchJSON('/init/pricing');
 export const savePricing = (models) => fetchJSON('/init/pricing', { method: 'POST', body: JSON.stringify({ models }) });
 export const fetchModels = (baseUrl, token) => fetchJSON('/init/fetch-models', { method: 'POST', body: JSON.stringify({ baseUrl, token }) });
 
+// ── XHR helper with 401 refresh + retry ──
+
+function xhrWithAuth(method, url, body, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    const headers = authHeaders({});
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = onProgress;
+    }
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else if (xhr.status === 401) reject({ code: 401, message: data.error || 'Unauthorized' });
+        else reject(new Error(data.error || `HTTP ${xhr.status}`));
+      } catch { reject(new Error('解析响应失败')); }
+    };
+    xhr.onerror = () => reject(new Error('请求失败'));
+    xhr.send(body);
+  });
+}
+
+async function xhrUploadWithRetry(method, url, body, onProgress) {
+  try {
+    return await xhrWithAuth(method, url, body, onProgress);
+  } catch (err) {
+    if (err.code === 401 && refreshToken) {
+      const ok = await tryRefresh();
+      if (ok) {
+        return await xhrWithAuth(method, url, body, onProgress);
+      }
+    }
+    throw err;
+  }
+}
+
 // Upload chat attachment (base64 JSON)
 export function uploadChatAttachment(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const base64 = reader.result.split(',')[1];
       const body = JSON.stringify({ fileName: file.name, content: base64 });
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/fs/chat-upload');
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      const headers = authHeaders({});
-      Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
-      xhr.onload = () => {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (xhr.status >= 200 && xhr.status < 300 && data.ok) resolve(data);
-          else reject(new Error(data.error || `HTTP ${xhr.status}`));
-        } catch { reject(new Error('解析响应失败')); }
-      };
-      xhr.onerror = () => reject(new Error('上传失败'));
-      xhr.send(body);
+      try {
+        const data = await xhrUploadWithRetry('POST', '/api/fs/chat-upload', body);
+        if (data.ok) resolve(data);
+        else reject(new Error(data.error || '上传失败'));
+      } catch (err) { reject(err); }
     };
     reader.onerror = () => reject(new Error('读取文件失败'));
     reader.readAsDataURL(file);
@@ -161,26 +191,17 @@ export const deleteFileOrDir = (filePath) => fetchJSON('/fs/delete', { method: '
 export function uploadFile(dir, file, onProgress) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const base64 = reader.result.split(',')[1];
       const body = JSON.stringify({ dir, fileName: file.name, content: base64 });
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/fs/upload');
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      const headers = authHeaders({});
-      Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable && onProgress) onProgress({ loaded: e.loaded, total: e.total, fileName: file.name });
-      };
-      xhr.onload = () => {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (xhr.status >= 200 && xhr.status < 300) resolve(data);
-          else reject(new Error(data.error || `HTTP ${xhr.status}`));
-        } catch { reject(new Error('解析响应失败')); }
-      };
-      xhr.onerror = () => reject(new Error('上传失败'));
-      xhr.send(body);
+      try {
+        const data = await xhrUploadWithRetry('POST', '/api/fs/upload', body,
+          onProgress ? (e) => {
+            if (e.lengthComputable) onProgress({ loaded: e.loaded, total: e.total, fileName: file.name });
+          } : undefined
+        );
+        resolve(data);
+      } catch (err) { reject(err); }
     };
     reader.onerror = () => reject(new Error('读取文件失败'));
     reader.readAsDataURL(file);
