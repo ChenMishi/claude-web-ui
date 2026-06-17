@@ -136,7 +136,7 @@ function getFileIcon(fileName) {
   const n = fileName.toLowerCase();
   // Image
   if (/\.(png|jpg|jpeg|gif|webp|bmp|svg|ico)$/i.test(n)) {
-    return Svg(<><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></>);
+    return Svg(<><rect x="1" y="6" width="22" height="16" rx="2" ry="2" /><circle cx="12" cy="14" r="4" /><path d="M9 3h6l2 3h4a2 2 0 0 1 2 2" /></>);
   }
   // Archive / compressed
   if (/\.(zip|tar|gz|tgz|7z|rar|bz2|xz)$/i.test(n) || /\.tar\.\w+$/i.test(n)) {
