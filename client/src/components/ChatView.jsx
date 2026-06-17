@@ -506,7 +506,8 @@ export default function ChatView() {
                             const msgs = [...chatMessagesRef.current];
                             const idx = msgs.findIndex(m => m.role === 'tool' && m.toolCall?.tool_use_id === t.tool_use_id);
                             if (idx >= 0) {
-                              msgs[idx] = { ...msgs[idx], streaming: false, toolCall: { ...msgs[idx].toolCall, result: { content: text, is_error: t.is_error, toolName: tName } } };
+                              const filePath = msgs[idx].toolCall?.input?.file_path || null;
+                              msgs[idx] = { ...msgs[idx], streaming: false, toolCall: { ...msgs[idx].toolCall, result: { content: text, is_error: t.is_error, toolName: tName, filePath } } };
                               setMessages(msgs);
                               return;
                             }
@@ -701,7 +702,8 @@ export default function ChatView() {
           const msgs = [...chatMessagesRef.current];
           const idx = msgs.findIndex(m => m.role === 'tool' && m.toolCall?.tool_use_id === tool_use_id);
           if (idx >= 0) {
-            msgs[idx] = { ...msgs[idx], streaming: false, toolCall: { ...msgs[idx].toolCall, result: { content: content || '', is_error, toolName } } };
+            const filePath = msgs[idx].toolCall?.input?.file_path || null;
+            msgs[idx] = { ...msgs[idx], streaming: false, toolCall: { ...msgs[idx].toolCall, result: { content: content || '', is_error, toolName, filePath } } };
             setMessages(msgs);
             return;
           }

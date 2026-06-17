@@ -2921,6 +2921,39 @@ html, body, #root {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.result-inline-sep {
+  color: var(--text-muted);
+  margin: 0 1px;
+  flex-shrink: 0;
+}
+.result-inline-path {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+  flex-shrink: 1;
+}
+.result-inline-dl {
+  background: none;
+  border: 1px solid var(--glass-border);
+  border-radius: 4px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 1px 5px;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-left: 2px;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.result-inline-dl:hover {
+  background: var(--accent-light);
+  border-color: var(--accent);
+}
 
 /* ── Status line (card mode, >10 lines) ── */
 .result-status-line {

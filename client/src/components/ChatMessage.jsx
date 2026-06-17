@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 import { PrismLight as Prism } from 'react-syntax-highlighter';
+import { downloadFile } from '../api';
 
 // ── Language detection from file extension ──
 function detectLang(filePath) {
@@ -559,10 +560,18 @@ function ToolResultBlock({ toolResult }) {
 
   // ── Compact inline for Write/Edit/Task ──
   if (isCompact) {
+    const fp = toolResult.filePath;
     return (
       <div className={`result-inline ${isError ? 'error' : 'ok'}`}>
         <span className="result-inline-icon">{isError ? '❌' : '✅'}</span>
         <span className="result-inline-text">{isError ? `${verb}失败` : `${verb}成功`}</span>
+        {fp && !isError && (
+          <>
+            <span className="result-inline-sep">·</span>
+            <span className="result-inline-path" title={fp}>{fp.split('/').pop() || fp}</span>
+            <button className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>📥</button>
+          </>
+        )}
       </div>
     );
   }
