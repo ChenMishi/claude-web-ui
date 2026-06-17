@@ -146,7 +146,7 @@ export default memo(function ChatMessage({ message }) {
             <div className="msg-artifacts-item" key={i}>
               <span className="msg-artifacts-icon">{getFileIcon(f.name)}</span>
               <span className="msg-artifacts-name" title={f.path}>{f.name}</span>
-              <button className="msg-artifacts-dl" title="下载" onClick={(e) => { e.stopPropagation(); downloadFile(f.path); }}>📥 下载</button>
+              <button type="button" className="msg-artifacts-dl" title="下载" onClick={(e) => { e.stopPropagation(); downloadFile(f.path); }}>📥 下载</button>
             </div>
           ))}
         </div>
@@ -371,10 +371,26 @@ function ToolCallBlock({ toolCall, streaming }) {
   const renderResultFooter = () => {
     if (!result) return null;
     const verb = getStatusVerb(result.toolName || toolCall.name);
+    const fp = result.filePath;
+    const epaths = result.extractedPaths || [];
     return (
       <div className={`code-result-footer ${result.is_error ? 'error' : 'ok'}`}>
         <span className="code-result-icon">{result.is_error ? '❌' : '✅'}</span>
         <span className="code-result-text">{result.is_error ? `${verb}失败` : `${verb}成功`}</span>
+        {!result.is_error && fp && (
+          <>
+            <span className="result-inline-sep">·</span>
+            <span className="result-inline-path" title={fp}>{fp.split('/').pop() || fp}</span>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>📥</button>
+          </>
+        )}
+        {!result.is_error && epaths.map((p, i) => (
+          <Fragment key={i}>
+            <span className="result-inline-sep">·</span>
+            <span className="result-inline-path" title={p}>{p.split('/').pop() || p}</span>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>📥</button>
+          </Fragment>
+        ))}
       </div>
     );
   };
@@ -591,14 +607,14 @@ function ToolResultBlock({ toolResult }) {
           <>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={fp}>{fp.split('/').pop() || fp}</span>
-            <button className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>📥</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>📥</button>
           </>
         )}
         {!isError && epaths.map((p, i) => (
           <Fragment key={i}>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={p}>{p.split('/').pop() || p}</span>
-            <button className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>📥</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>📥</button>
           </Fragment>
         ))}
       </div>
