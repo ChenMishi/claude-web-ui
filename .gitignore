@@ -38,3 +38,9 @@ uploads/
 /test*.zip
 /test*.tar*
 /*.sample.*
+/gen_*.py
+/*.docx
+
+# Python 虚拟环境及本地模型缓存
+venv/
+.vision_cache/

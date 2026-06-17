@@ -1009,59 +1009,46 @@ router.post('/session/:id/message', async (req, res) => {
     ].filter(Boolean).join('\n');
 
     if (imageAttachments.length > 0) {
-      // ── Images present: build SDKUserMessage with embedded image blocks ──
-      const contentBlocks = [];
+      // ── Images present: analyze with Florence-2 for text description + OCR ──
+      const visionScript = path.join(path.resolve(__dirname, '..', '..'), 'vision_analyze.py');
+      const venvPython = path.join(path.resolve(__dirname, '..', '..'), 'venv', 'bin', 'python3');
+      const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python3';
 
-      // Text block: attachment info + user prompt
-      const textContent = [textPrefix, prompt].filter(Boolean).join('\n\n---\n\n');
-      contentBlocks.push({ type: 'text', text: textContent });
-
-      // Image blocks: read from disk, convert to base64
-      const MAX_IMG_SIZE = 20 * 1024 * 1024; // 20MB limit for base64 embedding
+      const imageAnalysisBlocks = [];
       for (const img of imageAttachments) {
         try {
           const imgData = fs.readFileSync(img.path);
+          const MAX_IMG_SIZE = 20 * 1024 * 1024;
           if (imgData.length > MAX_IMG_SIZE) {
-            contentBlocks.push({
-              type: 'text',
-              text: `\n⚠️ 图片 ${img.fileName || img.originalName} 过大 (${formatSize(imgData.length)})，已跳过内嵌预览。请用 Read 工具查看。`
-            });
+            imageAnalysisBlocks.push(`[图片 ${img.fileName || img.originalName} 过大 (${formatSize(imgData.length)})，跳过分析]`);
             continue;
           }
-          const base64 = imgData.toString('base64');
-          contentBlocks.push({
-            type: 'image',
-            source: { type: 'base64', media_type: img.mimeType, data: base64 }
+          // Run vision analysis (Florence-2 ~300MB, loads once then caches)
+          const { execFileSync } = require('child_process');
+          const result = execFileSync(pythonBin, [visionScript, img.path], {
+            encoding: 'utf-8',
+            timeout: 300000,
+            env: { ...process.env, PYTHONUNBUFFERED: '1' }
           });
+          const analysis = JSON.parse(result);
+          if (analysis.ok) {
+            const parts = [];
+            if (analysis.caption) parts.push(`📷 画面描述：${analysis.caption}`);
+            if (analysis.ocr && analysis.ocr !== 'No text found' && analysis.ocr.trim()) {
+              parts.push(`📝 图中文字：${analysis.ocr}`);
+            }
+            imageAnalysisBlocks.push(parts.join('\n'));
+          } else {
+            imageAnalysisBlocks.push(`[图片分析失败: ${analysis.error}]`);
+          }
         } catch (e) {
-          contentBlocks.push({
-            type: 'text',
-            text: `\n⚠️ 无法读取图片 ${img.fileName || img.originalName}: ${e.message}`
-          });
+          imageAnalysisBlocks.push(`[图片分析异常: ${e.message}]`);
         }
       }
 
-      // Build SDKUserMessage and wrap in AsyncIterable
-      const sdkMessage = {
-        type: 'user',
-        message: { role: 'user', content: contentBlocks },
-        parent_tool_use_id: null
-      };
-
-      // Use a simple async iterator (compatible with SDK's AsyncIterable<SDKUserMessage>)
-      promptArg = {
-        [Symbol.asyncIterator]() {
-          let done = false;
-          return {
-            async next() {
-              if (done) return { done: true };
-              done = true;
-              return { value: sdkMessage, done: false };
-            }
-          };
-        }
-      };
-      fullPrompt = prompt; // for compatibility: title generation uses `prompt` var, not fullPrompt
+      const analysisText = imageAnalysisBlocks.join('\n\n');
+      fullPrompt = [textPrefix, analysisText, '---', prompt].filter(Boolean).join('\n\n');
+      promptArg = fullPrompt;
     } else {
       // ── No images: keep existing text-only prompt ──
       fullPrompt = [textPrefix, prompt].filter(Boolean).join('\n\n---\n\n');
