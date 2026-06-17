@@ -813,12 +813,18 @@ router.post('/session/:id/message', async (req, res) => {
   if (attachments.length > 0) {
     const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
     const officeExts = ['.docx', '.xlsx', '.pptx'];
+    const archiveExts = ['.zip', '.tar', '.gz', '.tgz', '.7z', '.rar'];
     const fileLines = attachments.map(a => {
-      const ext = (a.fileName || a.originalName || '').toLowerCase();
+      const name = a.fileName || a.originalName || '';
+      const ext = name.toLowerCase();
       const isImage = imageExts.some(ie => ext.endsWith(ie));
       const isOffice = officeExts.some(oe => ext.endsWith(oe));
+      const isArchive = archiveExts.some(ae => ext.endsWith(ae)) || ext.endsWith('.tar.gz');
+      if (isArchive && a.extractedPath) {
+        return `- 📦 ${a.fileName || a.originalName}: 已解压至 ${a.extractedPath}（见下方文件树）`;
+      }
       if (isOffice && a.extractedText) {
-        const label = ext === '.xlsx' ? '📊' : '📄';
+        const label = ext.endsWith('.xlsx') ? '📊' : '📄';
         return `- ${label} ${a.fileName || a.originalName}: 文本已提取（见下方内容）`;
       }
       const label = isImage ? '🖼 图片' : '📄 文件';
@@ -827,17 +833,26 @@ router.post('/session/:id/message', async (req, res) => {
     const imageHint = attachments.some(a => imageExts.some(ie => (a.fileName || a.originalName || '').toLowerCase().endsWith(ie)))
       ? '\n（图片文件请使用 Read 工具的 base64 编码模式读取，以便查看图片内容）' : '';
 
-    // Include extracted text from Office documents directly in prompt
+    // Include extracted text from Office documents / archive file trees directly in prompt
     const extractedBlocks = attachments
       .filter(a => a.extractedText)
       .map(a => {
         const name = a.fileName || a.originalName || 'unknown';
+        const isArchive = archiveExts.some(ae => (a.fileName || a.originalName || '').toLowerCase().endsWith(ae))
+          || (a.fileName || a.originalName || '').toLowerCase().endsWith('.tar.gz');
+        const label = isArchive ? '📦' : '📄';
         const maxLen = 8000; // prevent prompt from becoming too large
         const text = a.extractedText.length > maxLen
-          ? a.extractedText.slice(0, maxLen) + '\n\n...（内容过长，已截断，完整文件请使用 Read 工具读取）'
+          ? a.extractedText.slice(0, maxLen) + '\n\n...（内容过长，已截断）'
           : a.extractedText;
-        return `\n── 📄 ${name} ──\n${text}`;
-      });
+        return `\n── ${label} ${name} ──\n${text}`;
+      })
+      .concat(attachments
+        .filter(a => a.extractedPath && !a.extractedText)
+        .map(a => {
+          const name = a.fileName || a.originalName || 'unknown';
+          return `\n── 📦 ${name} ──\n文件已解压至: ${a.extractedPath}\n请用 Read 工具读取其中的文件`;
+        }));
 
     fullPrompt = `用户上传了以下文件：\n${fileLines}${imageHint}${extractedBlocks.join('\n')}\n\n---\n\n${prompt}`;
   }

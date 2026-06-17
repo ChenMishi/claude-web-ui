@@ -109,6 +109,90 @@ function extractOfficeText(filePath, ext) {
   }
 }
 
+// ── Archive extraction ──
+
+function walkDir(dir, maxDepth = 5, depth = 0) {
+  if (depth > maxDepth) return [];
+  const entries = [];
+  try {
+    const items = fs.readdirSync(dir, { withFileTypes: true });
+    // Directories first, then files
+    items.sort((a, b) => {
+      if (a.isDirectory() && !b.isDirectory()) return -1;
+      if (!a.isDirectory() && b.isDirectory()) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    for (const item of items) {
+      if (item.name.startsWith('.')) continue;
+      const fp = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        entries.push({ type: 'dir', name: item.name, path: fp });
+        entries.push(...walkDir(fp, maxDepth, depth + 1));
+      } else {
+        try {
+          const s = fs.statSync(fp);
+          entries.push({ type: 'file', name: item.name, path: fp, size: s.size });
+        } catch { entries.push({ type: 'file', name: item.name, path: fp, size: 0 }); }
+      }
+    }
+  } catch {}
+  return entries;
+}
+
+function formatFileTree(entries, basePath) {
+  const lines = [];
+  for (const e of entries) {
+    const indent = '  '.repeat(e.path.replace(basePath, '').split(path.sep).filter(Boolean).length - 1);
+    if (e.type === 'dir') {
+      lines.push(`${indent}📁 ${e.name}/`);
+    } else {
+      const sizeStr = e.size ? ` (${e.size < 1024 ? e.size + 'B' : e.size < 1048576 ? (e.size / 1024).toFixed(1) + 'KB' : (e.size / 1048576).toFixed(1) + 'MB'})` : '';
+      lines.push(`${indent}📄 ${e.name}${sizeStr}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+function extractArchive(sourcePath, ext) {
+  const extractDir = sourcePath + '_extracted';
+  try {
+    if (fs.existsSync(extractDir)) {
+      fs.rmSync(extractDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(extractDir, { recursive: true });
+
+    const lowerExt = ext.toLowerCase();
+    if (lowerExt === '.zip') {
+      const zip = new AdmZip(sourcePath);
+      zip.extractAllTo(extractDir, true);
+    } else if (['.tar', '.gz', '.tgz', '.tar.gz'].includes(lowerExt) ||
+               (lowerExt === '.gz' && !sourcePath.endsWith('.tar.gz'))) {
+      // Handle .tar.gz / .tgz / .tar / .gz
+      execSync(`tar xf "${sourcePath}" -C "${extractDir}"`, { timeout: 30000 });
+    } else if (lowerExt === '.7z') {
+      execSync(`7z x "${sourcePath}" -o"${extractDir}" -y`, { timeout: 30000 });
+    } else if (lowerExt === '.rar') {
+      execSync(`unrar x -y "${sourcePath}" "${extractDir}/"`, { timeout: 30000 });
+    } else {
+      return null;
+    }
+
+    const entries = walkDir(extractDir);
+    if (entries.length === 0) return null;
+
+    return {
+      extractDir,
+      fileTree: formatFileTree(entries, extractDir),
+      fileCount: entries.filter(e => e.type === 'file').length,
+      dirCount: entries.filter(e => e.type === 'dir').length,
+    };
+  } catch (e) {
+    // Clean up on failure
+    try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch {}
+    return null;
+  }
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB per file
@@ -284,9 +368,20 @@ router.post('/fs/chat-upload', requireAuth, (req, res) => {
 
     // Extract text from Office documents (docx/xlsx/pptx are zip+XML)
     let extractedText = null;
+    let extractedPath = null;
     const officeExts = ['.docx', '.xlsx', '.pptx'];
+    const archiveExts = ['.zip', '.tar', '.gz', '.tgz', '.7z', '.rar'];
     if (officeExts.includes(ext.toLowerCase())) {
       extractedText = extractOfficeText(targetPath, ext.toLowerCase());
+    } else if (archiveExts.includes(ext.toLowerCase()) || fileName.toLowerCase().endsWith('.tar.gz')) {
+      // Handle .tar.gz double extension
+      const effectiveExt = fileName.toLowerCase().endsWith('.tar.gz') ? '.tar.gz'
+        : fileName.toLowerCase().endsWith('.tgz') ? '.tgz' : ext.toLowerCase();
+      const result = extractArchive(targetPath, effectiveExt);
+      if (result) {
+        extractedText = `压缩包内容（${result.fileCount} 个文件，${result.dirCount} 个目录）：\n${result.fileTree}`;
+        extractedPath = result.extractDir;
+      }
     }
 
     res.json({
@@ -297,6 +392,7 @@ router.post('/fs/chat-upload', requireAuth, (req, res) => {
       size: Buffer.byteLength(Buffer.from(content, 'base64')),
       mimeType,
       extractedText,
+      extractedPath,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
