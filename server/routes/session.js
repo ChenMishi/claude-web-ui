@@ -127,6 +127,32 @@ function extractBashFilePaths(command, resultContent, cwd) {
     paths.push(m[1]);
   }
 
+  // 6b. tar -czf / -cf / -xf etc (output follows -f)
+  for (const m of command.matchAll(/tar\s+(?:-[a-zA-Z]*f\s*)(\S+)/g)) {
+    if (!m[1].startsWith('-')) paths.push(m[1]);
+  }
+
+  // 6c. zip output.zip files... (first positional arg after flags is output)
+  const zipM = command.match(/(?:^|\s)zip\s+(?:-[a-zA-Z0-9]+\s+)*(\S+)/);
+  if (zipM && !zipM[1].startsWith('-')) paths.push(zipM[1]);
+
+  // 6d. 7z a output.7z files... (arg after 'a' is output)
+  const sevenZM = command.match(/(?:^|\s)7z\s+a\s+(\S+)/);
+  if (sevenZM) paths.push(sevenZM[1]);
+
+  // 6e. gzip / bzip2 / xz file (output is file.gz / file.bz2 / file.xz)
+  for (const m of command.matchAll(/(?:^|\s)(?:gzip|bzip2|xz)\s+(?:-[a-zA-Z0-9]+\s+)*(\S+)/g)) {
+    const p = m[1];
+    if (!p.startsWith('-')) {
+      paths.push(p);
+      // Also check if the compressed file exists (e.g. file.gz from gzip file)
+      const extMap = { gzip: '.gz', bzip2: '.bz2', xz: '.xz' };
+      const cmdName = m[0].trim().split(/\s+/)[0];
+      const ext = extMap[cmdName];
+      if (ext) paths.push(p + ext);
+    }
+  }
+
   // 7. cp/mv destination (last arg before && / ; / |)
   const cpMvM = command.match(/(?:^|;\s*)(?:cp|mv)\s+(?:-[a-zA-Z]+\s+)*(?:\S+\s+)+?(\S+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
   if (cpMvM && !cpMvM[1].match(/^-[a-zA-Z]/)) paths.push(cpMvM[1]);
