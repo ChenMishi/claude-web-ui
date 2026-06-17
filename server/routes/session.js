@@ -974,6 +974,13 @@ router.post('/session/:id/message', async (req, res) => {
       return `- 📄 文件: ${a.path} (${a.mimeType || 'unknown'}, ${formatSize(a.size || 0)})`;
     }).join('\n');
 
+    // Also list image attachments in text (for transparency, even though they're embedded)
+    const imageLines = imageAttachments.map(a =>
+      `- 🖼 图片: ${a.fileName || a.originalName} (${a.mimeType || 'unknown'}, ${formatSize(a.size || 0)})`
+    ).join('\n');
+
+    const allFileLines = [fileLines, imageLines].filter(Boolean).join('\n');
+
     // Include extracted text from Office documents / archive file trees directly in prompt
     const extractedBlocks = attachments
       .filter(a => a.extractedText)
@@ -997,7 +1004,7 @@ router.post('/session/:id/message', async (req, res) => {
 
     const textPrefix = [
       '用户上传了以下文件：',
-      fileLines,
+      allFileLines,
       extractedBlocks.join('\n')
     ].filter(Boolean).join('\n');
 
@@ -1041,10 +1048,19 @@ router.post('/session/:id/message', async (req, res) => {
         parent_tool_use_id: null
       };
 
-      async function* promptIterable() {
-        yield sdkMessage;
-      }
-      promptArg = promptIterable();
+      // Use a simple async iterator (compatible with SDK's AsyncIterable<SDKUserMessage>)
+      promptArg = {
+        [Symbol.asyncIterator]() {
+          let done = false;
+          return {
+            async next() {
+              if (done) return { done: true };
+              done = true;
+              return { value: sdkMessage, done: false };
+            }
+          };
+        }
+      };
       fullPrompt = prompt; // for compatibility: title generation uses `prompt` var, not fullPrompt
     } else {
       // ── No images: keep existing text-only prompt ──
