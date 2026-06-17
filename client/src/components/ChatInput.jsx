@@ -74,10 +74,14 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     const newAttachments = [];
     for (const file of files) {
       const id = ++attachIdRef.current;
-      const attachment = { id, file, uploading: true, metadata: null };
+      const attachment = { id, file, uploading: true, progress: 0, metadata: null };
       newAttachments.push(attachment);
-      // Auto-upload each file
-      uploadChatAttachment(file)
+      // Auto-upload each file with progress
+      uploadChatAttachment(file, (ev) => {
+        if (ev.lengthComputable) {
+          setAttachments(prev => prev.map(a => a.id === id ? { ...a, progress: Math.round((ev.loaded / ev.total) * 100) } : a));
+        }
+      })
         .then(data => {
           setAttachments(prev => prev.map(a => a.id === id ? { ...a, uploading: false, metadata: data } : a));
         })
@@ -335,7 +339,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           {attachments.map(a => (
             <div key={a.id} className={`attach-preview ${a.uploading ? 'uploading' : a.error ? 'error' : ''}`}>
               {a.uploading ? (
-                <span className="attach-preview-spinner" />
+                <span className="attach-preview-progress">{a.progress}%</span>
               ) : a.error ? (
                 <span className="attach-preview-icon" title={a.error}>❌</span>
               ) : (

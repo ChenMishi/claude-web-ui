@@ -166,14 +166,14 @@ async function xhrUploadWithRetry(method, url, body, onProgress) {
 }
 
 // Upload chat attachment (base64 JSON)
-export function uploadChatAttachment(file) {
+export function uploadChatAttachment(file, onProgress) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async () => {
       const base64 = reader.result.split(',')[1];
       const body = JSON.stringify({ fileName: file.name, content: base64 });
       try {
-        const data = await xhrUploadWithRetry('POST', '/api/fs/chat-upload', body);
+        const data = await xhrUploadWithRetry('POST', '/api/fs/chat-upload', body, onProgress);
         if (data.ok) resolve(data);
         else reject(new Error(data.error || '上传失败'));
       } catch (err) { reject(err); }
