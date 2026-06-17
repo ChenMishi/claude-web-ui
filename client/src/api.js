@@ -128,11 +128,13 @@ export const fetchModels = (baseUrl, token) => fetchJSON('/init/fetch-models', {
 
 // ── XHR helper with 401 refresh + retry ──
 
-function xhrWithAuth(method, url, body, onProgress) {
+function xhrWithAuth(method, url, body, onProgress, isFormData) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
-    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (!isFormData) {
+      xhr.setRequestHeader('Content-Type', 'application/json');
+    }
     const headers = authHeaders({});
     Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
     if (onProgress && xhr.upload) {
@@ -151,35 +153,31 @@ function xhrWithAuth(method, url, body, onProgress) {
   });
 }
 
-async function xhrUploadWithRetry(method, url, body, onProgress) {
+async function xhrUploadWithRetry(method, url, body, onProgress, isFormData) {
   try {
-    return await xhrWithAuth(method, url, body, onProgress);
+    return await xhrWithAuth(method, url, body, onProgress, isFormData);
   } catch (err) {
     if (err.code === 401 && refreshToken) {
       const ok = await tryRefresh();
       if (ok) {
-        return await xhrWithAuth(method, url, body, onProgress);
+        return await xhrWithAuth(method, url, body, onProgress, isFormData);
       }
     }
     throw err;
   }
 }
 
-// Upload chat attachment (base64 JSON)
+// Upload chat attachment (multipart FormData, 500MB limit)
 export function uploadChatAttachment(file, onProgress) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result.split(',')[1];
-      const body = JSON.stringify({ fileName: file.name, content: base64 });
-      try {
-        const data = await xhrUploadWithRetry('POST', '/api/fs/chat-upload', body, onProgress);
+    const formData = new FormData();
+    formData.append('file', file);
+    xhrUploadWithRetry('POST', '/api/fs/chat-upload', formData, onProgress, true)
+      .then(data => {
         if (data.ok) resolve(data);
         else reject(new Error(data.error || '上传失败'));
-      } catch (err) { reject(err); }
-    };
-    reader.onerror = () => reject(new Error('读取文件失败'));
-    reader.readAsDataURL(file);
+      })
+      .catch(reject);
   });
 }
 
