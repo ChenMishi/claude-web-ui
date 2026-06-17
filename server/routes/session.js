@@ -944,17 +944,24 @@ router.post('/session/:id/message', async (req, res) => {
     return res.status(400).json({ error: 'prompt is required' });
   }
 
-  // ── Attachments: prepend file info to prompt so Claude knows to Read them ──
+  // ── Attachments: prepend file info to prompt; embed images as content blocks ──
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
   let fullPrompt = prompt || '';
+  let promptArg = fullPrompt; // string (no images) or AsyncIterable<SDKUserMessage> (with images)
+
   if (attachments.length > 0) {
-    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+    const SUPPORTED_IMAGE_MIME = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
     const officeExts = ['.docx', '.xlsx', '.pptx'];
     const archiveExts = ['.zip', '.tar', '.gz', '.tgz', '.7z', '.rar'];
-    const fileLines = attachments.map(a => {
+
+    // Separate image attachments (supported MIME types) from others
+    const imageAttachments = attachments.filter(a => SUPPORTED_IMAGE_MIME.includes(a.mimeType));
+    const nonImageAttachments = attachments.filter(a => !SUPPORTED_IMAGE_MIME.includes(a.mimeType));
+
+    // Build text info for non-image attachments
+    const fileLines = nonImageAttachments.map(a => {
       const name = a.fileName || a.originalName || '';
       const ext = name.toLowerCase();
-      const isImage = imageExts.some(ie => ext.endsWith(ie));
       const isOffice = officeExts.some(oe => ext.endsWith(oe));
       const isArchive = archiveExts.some(ae => ext.endsWith(ae)) || ext.endsWith('.tar.gz');
       if (isArchive && a.extractedPath) {
@@ -964,11 +971,8 @@ router.post('/session/:id/message', async (req, res) => {
         const label = ext.endsWith('.xlsx') ? '📊' : '📄';
         return `- ${label} ${a.fileName || a.originalName}: 文本已提取（见下方内容）`;
       }
-      const label = isImage ? '🖼 图片' : '📄 文件';
-      return `- ${label}: ${a.path} (${a.mimeType || 'unknown'}, ${formatSize(a.size || 0)})`;
+      return `- 📄 文件: ${a.path} (${a.mimeType || 'unknown'}, ${formatSize(a.size || 0)})`;
     }).join('\n');
-    const imageHint = attachments.some(a => imageExts.some(ie => (a.fileName || a.originalName || '').toLowerCase().endsWith(ie)))
-      ? '\n（图片文件请使用 Read 工具的 base64 编码模式读取，以便查看图片内容）' : '';
 
     // Include extracted text from Office documents / archive file trees directly in prompt
     const extractedBlocks = attachments
@@ -991,7 +995,62 @@ router.post('/session/:id/message', async (req, res) => {
           return `\n── 📦 ${name} ──\n文件已解压至: ${a.extractedPath}\n请用 Read 工具读取其中的文件`;
         }));
 
-    fullPrompt = `用户上传了以下文件：\n${fileLines}${imageHint}${extractedBlocks.join('\n')}\n\n---\n\n${prompt}`;
+    const textPrefix = [
+      '用户上传了以下文件：',
+      fileLines,
+      extractedBlocks.join('\n')
+    ].filter(Boolean).join('\n');
+
+    if (imageAttachments.length > 0) {
+      // ── Images present: build SDKUserMessage with embedded image blocks ──
+      const contentBlocks = [];
+
+      // Text block: attachment info + user prompt
+      const textContent = [textPrefix, prompt].filter(Boolean).join('\n\n---\n\n');
+      contentBlocks.push({ type: 'text', text: textContent });
+
+      // Image blocks: read from disk, convert to base64
+      const MAX_IMG_SIZE = 20 * 1024 * 1024; // 20MB limit for base64 embedding
+      for (const img of imageAttachments) {
+        try {
+          const imgData = fs.readFileSync(img.path);
+          if (imgData.length > MAX_IMG_SIZE) {
+            contentBlocks.push({
+              type: 'text',
+              text: `\n⚠️ 图片 ${img.fileName || img.originalName} 过大 (${formatSize(imgData.length)})，已跳过内嵌预览。请用 Read 工具查看。`
+            });
+            continue;
+          }
+          const base64 = imgData.toString('base64');
+          contentBlocks.push({
+            type: 'image',
+            source: { type: 'base64', media_type: img.mimeType, data: base64 }
+          });
+        } catch (e) {
+          contentBlocks.push({
+            type: 'text',
+            text: `\n⚠️ 无法读取图片 ${img.fileName || img.originalName}: ${e.message}`
+          });
+        }
+      }
+
+      // Build SDKUserMessage and wrap in AsyncIterable
+      const sdkMessage = {
+        type: 'user',
+        message: { role: 'user', content: contentBlocks },
+        parent_tool_use_id: null
+      };
+
+      async function* promptIterable() {
+        yield sdkMessage;
+      }
+      promptArg = promptIterable();
+      fullPrompt = prompt; // for compatibility: title generation uses `prompt` var, not fullPrompt
+    } else {
+      // ── No images: keep existing text-only prompt ──
+      fullPrompt = [textPrefix, prompt].filter(Boolean).join('\n\n---\n\n');
+      promptArg = fullPrompt;
+    }
   }
 
   const wantsStream = req.headers.accept?.includes('text/event-stream') || req.query.stream === '1';
@@ -1048,7 +1107,7 @@ router.post('/session/:id/message', async (req, res) => {
     let result;
     const allMessages = [];
 
-    for await (const message of query({ prompt: fullPrompt, options })) {
+    for await (const message of query({ prompt: promptArg, options })) {
       const info = handleSDKMessage(message, runtime, wantsStream);
       if (message.type === 'assistant' || message.type === 'user') {
         allMessages.push(message);
