@@ -1043,17 +1043,19 @@ html, body, #root {
 
 /* ── Attachment previews & drop zone ── */
 .attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 6px 10px;
   background: var(--input-bg);
   border: 1px solid var(--glass-border);
   border-radius: 10px;
   color: var(--text-muted);
-  font-size: 16px;
   cursor: pointer;
   height: 36px;
+  min-width: 38px;
   align-self: center;
   transition: all 0.2s;
-  line-height: 1;
 }
 .attach-btn:hover {
   border-color: var(--accent);
