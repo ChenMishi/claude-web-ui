@@ -496,18 +496,22 @@ export default function ChatView() {
                         if (parsed.message?.usage) execTokens(toTokens(parsed.message.usage));
                       } else if (parsed.type === 'user') {
                         const toolResults = (parsed.message?.content || []).filter(c => c.type === 'tool_result');
+                        const sseExtractedPaths = parsed.extractedPaths || {};
                         toolResults.forEach(t => {
                           let text = typeof t.content === 'string' ? t.content : JSON.stringify(t.content || '');
                           const taskMatch = typeof text === 'string' && text.match(/^Task #(\d+)/m);
                           if (taskMatch) bindTaskId(t.tool_use_id, parseInt(taskMatch[1]));
                           const tName = toolNameMap.current.get(t.tool_use_id) || '';
-                          // Write/Edit/Task 类：合并到工具调用消息，代码块底部内嵌显示
-                          if (/^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(tName)) {
+                          const extractedPaths = sseExtractedPaths[t.tool_use_id] || [];
+                          const isCompactTool = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(tName);
+                          const hasBashPaths = tName === 'Bash' && extractedPaths.length > 0;
+                          // Write/Edit/Task/Bash(有产物)：合并到工具调用消息，代码块底部内嵌显示
+                          if (isCompactTool || hasBashPaths) {
                             const msgs = [...chatMessagesRef.current];
                             const idx = msgs.findIndex(m => m.role === 'tool' && m.toolCall?.tool_use_id === t.tool_use_id);
                             if (idx >= 0) {
                               const filePath = msgs[idx].toolCall?.input?.file_path || null;
-                              msgs[idx] = { ...msgs[idx], streaming: false, toolCall: { ...msgs[idx].toolCall, result: { content: text, is_error: t.is_error, toolName: tName, filePath } } };
+                              msgs[idx] = { ...msgs[idx], streaming: false, toolCall: { ...msgs[idx].toolCall, result: { content: text, is_error: t.is_error, toolName: tName, filePath, extractedPaths } } };
                               setMessages(msgs);
                               return;
                             }
@@ -690,20 +694,22 @@ export default function ChatView() {
         if (usage) execTokens(toTokens(usage));
         bAppend({ role: 'tool', toolCall: { name: tool, input, tool_use_id }, streaming: true });
       },
-      onToolResult: ({ tool_use_id, content, is_error }) => {
+      onToolResult: ({ tool_use_id, content, is_error, extractedPaths }) => {
         // 从 TaskCreate 的 result 中解析 SDK 分配的真实 taskId（如 "Task #49"）
         if (typeof content === 'string') {
           const taskMatch = content.match(/^Task #(\d+)/m);
           if (taskMatch) bindTaskId(tool_use_id, parseInt(taskMatch[1]));
         }
         const toolName = toolNameMap.current.get(tool_use_id) || '';
-        // Write/Edit/Task 类工具：将结果合并到工具调用消息中，在代码块底部内嵌显示
-        if (/^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(toolName)) {
+        const isCompactTool = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(toolName);
+        const hasBashPaths = toolName === 'Bash' && extractedPaths && extractedPaths.length > 0;
+        // Write/Edit/Task/Bash(有产物) 类工具：将结果合并到工具调用消息中，在代码块底部内嵌显示
+        if (isCompactTool || hasBashPaths) {
           const msgs = [...chatMessagesRef.current];
           const idx = msgs.findIndex(m => m.role === 'tool' && m.toolCall?.tool_use_id === tool_use_id);
           if (idx >= 0) {
             const filePath = msgs[idx].toolCall?.input?.file_path || null;
-            msgs[idx] = { ...msgs[idx], streaming: false, toolCall: { ...msgs[idx].toolCall, result: { content: content || '', is_error, toolName, filePath } } };
+            msgs[idx] = { ...msgs[idx], streaming: false, toolCall: { ...msgs[idx].toolCall, result: { content: content || '', is_error, toolName, filePath, extractedPaths: extractedPaths || [] } } };
             setMessages(msgs);
             return;
           }

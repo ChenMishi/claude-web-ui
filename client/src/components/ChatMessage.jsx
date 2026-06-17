@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, memo, Fragment } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 import { PrismLight as Prism } from 'react-syntax-highlighter';
 import { downloadFile } from '../api';
@@ -461,7 +461,8 @@ function getStatusVerb(toolName) {
 function ToolResultBlock({ toolResult }) {
   const [expanded, setExpanded] = useState(true);
   const toolName = toolResult.toolName || '';
-  const isCompact = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(toolName);
+  const isCompact = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(toolName)
+    || (toolName === 'Bash' && toolResult.extractedPaths?.length > 0);
 
   const content = typeof toolResult.content === 'string'
     ? toolResult.content
@@ -558,20 +559,28 @@ function ToolResultBlock({ toolResult }) {
     return () => { active = false; cancelAnimationFrame(statusRafRef.current); };
   }, [showContent, isCompact, statusText]);
 
-  // ── Compact inline for Write/Edit/Task ──
+  // ── Compact inline for Write/Edit/Task/Bash(有产物) ──
   if (isCompact) {
     const fp = toolResult.filePath;
+    const epaths = toolResult.extractedPaths || [];
     return (
       <div className={`result-inline ${isError ? 'error' : 'ok'}`}>
         <span className="result-inline-icon">{isError ? '❌' : '✅'}</span>
         <span className="result-inline-text">{isError ? `${verb}失败` : `${verb}成功`}</span>
-        {fp && !isError && (
+        {!isError && fp && (
           <>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={fp}>{fp.split('/').pop() || fp}</span>
             <button className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>📥</button>
           </>
         )}
+        {!isError && epaths.map((p, i) => (
+          <Fragment key={i}>
+            <span className="result-inline-sep">·</span>
+            <span className="result-inline-path" title={p}>{p.split('/').pop() || p}</span>
+            <button className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>📥</button>
+          </Fragment>
+        ))}
       </div>
     );
   }

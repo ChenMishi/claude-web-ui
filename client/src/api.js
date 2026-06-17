@@ -382,6 +382,7 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, attachmen
                   } else if (parsed.type === 'user') {
                     const content = parsed.message?.content || [];
                     const toolResults = content.filter(c => c.type === 'tool_result');
+                    const extractedPaths = parsed.extractedPaths || {};
                     if (toolResults.length > 0) {
                       toolResults.forEach(t => {
                         let text;
@@ -392,7 +393,7 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, attachmen
                         } else {
                           text = JSON.stringify(t.content || '');
                         }
-                        onToolResult?.({ tool_use_id: t.tool_use_id, content: text, is_error: t.is_error });
+                        onToolResult?.({ tool_use_id: t.tool_use_id, content: text, is_error: t.is_error, extractedPaths: extractedPaths[t.tool_use_id] || [] });
                       });
                     }
                   }

@@ -88,6 +88,79 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
+// ── Extract file paths from Bash commands and their results ──
+function extractBashFilePaths(command, resultContent, cwd) {
+  const paths = [];
+  if (!command || !cwd) return paths;
+
+  // 1. Output redirection: > file, >> file, 2> file, &> file
+  for (const m of command.matchAll(/(?:^|\s)(?:[12]?>>?|&>)\s*(\S+)/g)) {
+    const p = m[1].replace(/^['"]|['"]$/g, '');
+    if (p && !p.startsWith('/dev/')) paths.push(p);
+  }
+
+  // 2. tee command (tee file, tee -a file)
+  for (const m of command.matchAll(/tee\s+(?:-[a-zA-Z]+\s+)*(\S+)/g)) {
+    if (!m[1].startsWith('-')) paths.push(m[1]);
+  }
+
+  // 3. touch command
+  const touchM = command.match(/touch\s+(.+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
+  if (touchM) {
+    touchM[1].split(/\s+/).forEach(p => {
+      if (p && !p.startsWith('-')) paths.push(p.replace(/^['"]|['"]$/g, ''));
+    });
+  }
+
+  // 4. mkdir -p
+  for (const m of command.matchAll(/mkdir\s+(?:-[a-zA-Z]+\s+)*(\S+)/g)) {
+    if (!m[1].startsWith('-')) paths.push(m[1]);
+  }
+
+  // 5. curl -o / wget -O
+  for (const m of command.matchAll(/(?:curl|wget)\s+.*?\s-(o|O)\s*(\S+)/g)) {
+    paths.push(m[2]);
+  }
+
+  // 6. dd of=
+  for (const m of command.matchAll(/dd\s+.*?\bof=(\S+)/g)) {
+    paths.push(m[1]);
+  }
+
+  // 7. cp/mv destination (last arg before && / ; / |)
+  const cpMvM = command.match(/(?:^|;\s*)(?:cp|mv)\s+(?:-[a-zA-Z]+\s+)*(?:\S+\s+)+?(\S+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
+  if (cpMvM && !cpMvM[1].match(/^-[a-zA-Z]/)) paths.push(cpMvM[1]);
+
+  // 8. From result: "The file /path has been updated successfully."
+  for (const m of (resultContent || '').matchAll(/(?:^|\n)The file (\S+) has been updated/gm)) {
+    paths.push(m[1]);
+  }
+
+  // 9. From result: "File created/written at: /path"
+  for (const m of (resultContent || '').matchAll(/File (?:created|written) (?:successfully )?at:\s*(\S+)/gi)) {
+    paths.push(m[1]);
+  }
+
+  // 10. From result: "create mode 100644 path/to/file" (git output)
+  for (const m of (resultContent || '').matchAll(/create mode \d+ (.+)/g)) {
+    paths.push(m[1]);
+  }
+
+  // Resolve relative paths and deduplicate
+  const os = require('os');
+  const resolved = [...new Set(paths.map(p => {
+    p = p.replace(/^['"]|['"]$/g, '');
+    if (p.startsWith('/')) return p;
+    if (p.startsWith('~/')) return path.join(os.homedir(), p.slice(2));
+    return path.join(cwd, p);
+  }))];
+
+  // Only return actual files that exist (not directories)
+  return resolved.filter(p => {
+    try { return fs.existsSync(p) && !fs.statSync(p).isDirectory(); } catch { return false; }
+  });
+}
+
 function handleSDKMessage(message, runtime, isStreaming) {
 
   if (message.type === 'system') {
@@ -99,6 +172,14 @@ function handleSDKMessage(message, runtime, isStreaming) {
 
   if (message.type === 'assistant') {
     if (isStreaming) {
+      // Store Bash commands for later path extraction
+      if (!runtime.bashCommands) runtime.bashCommands = new Map();
+      const content = message.message?.content || [];
+      for (const block of content) {
+        if (block.type === 'tool_use' && block.name === 'Bash' && block.id) {
+          runtime.bashCommands.set(block.id, block.input?.command || '');
+        }
+      }
       // Log usage for debugging
       if (message.message?.usage) {
         console.log('[SDK usage]', JSON.stringify(message.message.usage));
@@ -117,12 +198,28 @@ function handleSDKMessage(message, runtime, isStreaming) {
   if (message.type === 'user') {
     const hasToolResult = (message.message?.content || []).some(b => b.type === 'tool_result');
     if (hasToolResult && isStreaming) {
+      // Extract file paths from Bash tool results
+      const extractedPaths = {};
+      const content = message.message?.content || [];
+      for (const block of content) {
+        if (block.type === 'tool_result' && block.tool_use_id) {
+          const cmd = runtime.bashCommands?.get(block.tool_use_id);
+          if (cmd) {
+            const paths = extractBashFilePaths(cmd, typeof block.content === 'string' ? block.content : '', runtime.cwd);
+            if (paths.length > 0) {
+              extractedPaths[block.tool_use_id] = paths;
+            }
+            runtime.bashCommands.delete(block.tool_use_id);
+          }
+        }
+      }
       broadcast(runtime, 'message', {
         type: 'user',
         uuid: message.uuid || '',
         session_id: message.session_id || '',
         message: message.message,
         parent_tool_use_id: message.parent_tool_use_id || null,
+        extractedPaths,
       });
     }
     return;
