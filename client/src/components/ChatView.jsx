@@ -70,7 +70,7 @@ export default function ChatView() {
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, bindTaskId, updateTask, setMainTask, updateMainTask, execStatus,
-    currentModel, finishAllStreaming,
+    currentModel, finishAllStreaming, finalizeStreaming,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -464,7 +464,6 @@ export default function ChatView() {
                           if (!hasAssistantText.current) {
                             hasAssistantText.current = true;
                             textAccum.current = text;
-                            finishAllStreaming();  // 停止所有 thinking rAF 动画
                             bAppend({ role: 'assistant', content: text, streaming: true, timestamp: Date.now() });
                           } else {
                             textAccum.current += text;
@@ -519,9 +518,7 @@ export default function ChatView() {
                       setToolConfirm({ tool: parsed.tool, action: parsed.action, input: parsed.input });
                     } else if (currentEvent === 'done') {
                       if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
-                      finishAllStreaming();  // 停止所有 rAF 动画
-                      bUpdate(null);
-                      setStreaming(false);
+                      finalizeStreaming();
                       stopTimer();
                       execDone({ tokens: parsed.tokens, cost: parsed.cost, currency: parsed.currency });
                       setTimeout(() => execReset(), 5000);
@@ -583,18 +580,14 @@ export default function ChatView() {
     stopTimer();
     clearPendingQueue();  // 清空排队消息
     if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
-    finishAllStreaming();  // 停止所有 rAF 动画
-
-    // End streaming on last assistant message
-    bUpdate(null);
-    setStreaming(false);
+    finalizeStreaming();  // 原子操作: 关闭所有 streaming + 保存缓存
 
     // Append a summary system message
     const summary = buildAbortSummary(execStatus);
     bAppend({ role: 'system', content: summary, timestamp: Date.now() });
 
     execReset();
-  }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset, clearPendingQueue]);
+  }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset, clearPendingQueue, finalizeStreaming]);
 
   const handleSend = useCallback((text, attachments) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
@@ -736,9 +729,7 @@ export default function ChatView() {
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency }) => {
         isActiveStream.current = false;
         if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
-        finishAllStreaming();  // 停止所有 rAF 动画
-        bUpdate(null);        // 关最后一条 streaming + 写缓存
-        setStreaming(false);
+        finalizeStreaming();  // 原子操作: 关闭所有 streaming + 保存缓存 + 设置 isStreaming=false
         stopTimer();
         execDone({ tokens: doneTokens, cost, currency });
         setTimeout(() => execReset(), 5000);

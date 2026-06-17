@@ -160,6 +160,17 @@ function reducer(state, action) {
       next = { ...state, chatMessages: msgs };
       break;
     }
+    case 'FINALIZE_STREAMING': {
+      if (state.chatMessages.length === 0) return state;
+      // Atomic: mark all messages non-streaming + save cache in one dispatch
+      const msgs = state.chatMessages.map(m => m.streaming ? { ...m, streaming: false } : m);
+      const newCache = { ...state.messageCache };
+      const key = state.currentSessionId || '__pending__';
+      newCache[key] = msgs;
+      saveCache(newCache);
+      next = { ...state, isStreaming: false, chatMessages: msgs, messageCache: newCache };
+      break;
+    }
     case 'SET_STREAMING':
       next = { ...state, isStreaming: action.payload }; break;
     case 'SET_VIEW':
@@ -294,6 +305,7 @@ export function AppContextProvider({ children }) {
   const execDone = useCallback((payload) => dispatch({ type: 'EXEC_DONE', payload }), []);
   const execReset = useCallback(() => dispatch({ type: 'EXEC_RESET' }), []);
   const finishAllStreaming = useCallback(() => dispatch({ type: 'FINISH_ALL_STREAMING' }), []);
+  const finalizeStreaming = useCallback(() => dispatch({ type: 'FINALIZE_STREAMING' }), []);
   const addTask = useCallback((subject, description, toolUseId) => dispatch({ type: 'TASK_CREATE', payload: { subject, description, toolUseId } }), []);
   const bindTaskId = useCallback((toolUseId, sdkTaskId) => dispatch({ type: 'TASK_BIND_ID', payload: { toolUseId, sdkTaskId } }), []);
   const updateTask = useCallback((taskId, status) => dispatch({ type: 'TASK_UPDATE', payload: { taskId, status } }), []);
@@ -421,6 +433,7 @@ export function AppContextProvider({ children }) {
     loadAvailableModels, switchCurrentModel,
     triggerRestart, dismissRestart,
     finishAllStreaming,
+    finalizeStreaming,
     setNeedInit,
   };
 
