@@ -4,9 +4,110 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 const multer = require('multer');
+const AdmZip = require('adm-zip');
 const router = express.Router();
 
 const { requireAuth } = require('../middleware/auth');
+
+// ── Office document text extraction (docx/xlsx/pptx are zip+XML) ──
+
+function extractDocxText(filePath) {
+  try {
+    const zip = new AdmZip(filePath);
+    const docEntry = zip.getEntry('word/document.xml');
+    if (!docEntry) return null;
+    const xml = docEntry.getData().toString('utf8');
+    // Extract all text between <w:t> tags (skip XML namespace prefix)
+    const parts = [];
+    xml.replace(/<w:t[^>]*>([^<]*)<\/w:t>/g, (_, text) => { parts.push(text); });
+    return parts.join('');
+  } catch { return null; }
+}
+
+function extractXlsxText(filePath) {
+  try {
+    const zip = new AdmZip(filePath);
+    // Shared strings table
+    let sharedStrings = [];
+    const ssEntry = zip.getEntry('xl/sharedStrings.xml');
+    if (ssEntry) {
+      const ssXml = ssEntry.getData().toString('utf8');
+      ssXml.replace(/<t[^>]*>([^<]*)<\/t>/g, (_, text) => { sharedStrings.push(text); });
+    }
+    // Parse worksheets
+    const sheetEntries = zip.getEntries().filter(e =>
+      e.entryName.match(/^xl\/worksheets\/sheet\d*\.xml$/));
+    const allRows = [];
+    for (const sheet of sheetEntries) {
+      const sheetXml = sheet.getData().toString('utf8');
+      const rows = [];
+      let currentRow = [];
+      // Match each row element
+      const rowRegex = /<row[^>]*>([\s\S]*?)<\/row>/g;
+      let rowMatch;
+      while ((rowMatch = rowRegex.exec(sheetXml)) !== null) {
+        currentRow = [];
+        const cellRegex = /<c[^>]*>[\s\S]*?<\/c>/g;
+        let cellMatch;
+        while ((cellMatch = cellRegex.exec(rowMatch[1])) !== null) {
+          let value = '';
+          // t="s" means shared string index
+          if (cellMatch[0].includes('t="s"')) {
+            const idxMatch = cellMatch[0].match(/<v>(\d+)<\/v>/);
+            if (idxMatch && sharedStrings[parseInt(idxMatch[1])]) {
+              value = sharedStrings[parseInt(idxMatch[1])];
+            }
+          } else {
+            const vMatch = cellMatch[0].match(/<v>([^<]*)<\/v>/);
+            if (vMatch) value = vMatch[1];
+          }
+          currentRow.push(value);
+        }
+        if (currentRow.some(c => c !== '')) {
+          rows.push(currentRow.join('\t'));
+        }
+      }
+      if (rows.length > 0) {
+        const sheetName = sheet.entryName.match(/sheets\/(sheet\d*)\.xml/)?.[1] || sheet.entryName;
+        allRows.push(`[${sheetName}]\n${rows.join('\n')}`);
+      }
+    }
+    return allRows.length > 0 ? allRows.join('\n\n') : null;
+  } catch { return null; }
+}
+
+function extractPptxText(filePath) {
+  try {
+    const zip = new AdmZip(filePath);
+    const slideEntries = zip.getEntries().filter(e =>
+      e.entryName.match(/^ppt\/slides\/slide\d*\.xml$/));
+    slideEntries.sort((a, b) => {
+      const na = parseInt(a.entryName.match(/slide(\d+)\.xml/)?.[1] || '0');
+      const nb = parseInt(b.entryName.match(/slide(\d+)\.xml/)?.[1] || '0');
+      return na - nb;
+    });
+    const slides = [];
+    for (const entry of slideEntries) {
+      const xml = entry.getData().toString('utf8');
+      const parts = [];
+      xml.replace(/<a:t[^>]*>([^<]*)<\/a:t>/g, (_, text) => { parts.push(text); });
+      const text = parts.join('');
+      if (text.trim()) {
+        slides.push(`[Slide ${slides.length + 1}]\n${text.trim()}`);
+      }
+    }
+    return slides.length > 0 ? slides.join('\n\n') : null;
+  } catch { return null; }
+}
+
+function extractOfficeText(filePath, ext) {
+  switch (ext.toLowerCase()) {
+    case '.docx': return extractDocxText(filePath);
+    case '.xlsx': return extractXlsxText(filePath);
+    case '.pptx': return extractPptxText(filePath);
+    default: return null;
+  }
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -181,6 +282,13 @@ router.post('/fs/chat-upload', requireAuth, (req, res) => {
     };
     const mimeType = mimeTypes[ext.toLowerCase()] || 'application/octet-stream';
 
+    // Extract text from Office documents (docx/xlsx/pptx are zip+XML)
+    let extractedText = null;
+    const officeExts = ['.docx', '.xlsx', '.pptx'];
+    if (officeExts.includes(ext.toLowerCase())) {
+      extractedText = extractOfficeText(targetPath, ext.toLowerCase());
+    }
+
     res.json({
       ok: true,
       path: targetPath,
@@ -188,6 +296,7 @@ router.post('/fs/chat-upload', requireAuth, (req, res) => {
       originalName: fileName,
       size: Buffer.byteLength(Buffer.from(content, 'base64')),
       mimeType,
+      extractedText,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

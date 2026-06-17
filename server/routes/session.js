@@ -812,15 +812,34 @@ router.post('/session/:id/message', async (req, res) => {
   let fullPrompt = prompt || '';
   if (attachments.length > 0) {
     const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+    const officeExts = ['.docx', '.xlsx', '.pptx'];
     const fileLines = attachments.map(a => {
-      const ext = (a.fileName || '').toLowerCase();
+      const ext = (a.fileName || a.originalName || '').toLowerCase();
       const isImage = imageExts.some(ie => ext.endsWith(ie));
+      const isOffice = officeExts.some(oe => ext.endsWith(oe));
+      if (isOffice && a.extractedText) {
+        const label = ext === '.xlsx' ? '📊' : '📄';
+        return `- ${label} ${a.fileName || a.originalName}: 文本已提取（见下方内容）`;
+      }
       const label = isImage ? '🖼 图片' : '📄 文件';
       return `- ${label}: ${a.path} (${a.mimeType || 'unknown'}, ${formatSize(a.size || 0)})`;
     }).join('\n');
-    const imageHint = attachments.some(a => imageExts.some(ie => (a.fileName || '').toLowerCase().endsWith(ie)))
+    const imageHint = attachments.some(a => imageExts.some(ie => (a.fileName || a.originalName || '').toLowerCase().endsWith(ie)))
       ? '\n（图片文件请使用 Read 工具的 base64 编码模式读取，以便查看图片内容）' : '';
-    fullPrompt = `用户上传了以下文件：\n${fileLines}${imageHint}\n\n---\n\n${prompt}`;
+
+    // Include extracted text from Office documents directly in prompt
+    const extractedBlocks = attachments
+      .filter(a => a.extractedText)
+      .map(a => {
+        const name = a.fileName || a.originalName || 'unknown';
+        const maxLen = 8000; // prevent prompt from becoming too large
+        const text = a.extractedText.length > maxLen
+          ? a.extractedText.slice(0, maxLen) + '\n\n...（内容过长，已截断，完整文件请使用 Read 工具读取）'
+          : a.extractedText;
+        return `\n── 📄 ${name} ──\n${text}`;
+      });
+
+    fullPrompt = `用户上传了以下文件：\n${fileLines}${imageHint}${extractedBlocks.join('\n')}\n\n---\n\n${prompt}`;
   }
 
   const wantsStream = req.headers.accept?.includes('text/event-stream') || req.query.stream === '1';
