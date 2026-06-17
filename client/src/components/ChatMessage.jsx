@@ -134,6 +134,26 @@ export default memo(function ChatMessage({ message }) {
   const { role, content, error, toolCall, toolResult, timestamp, streaming } = message;
   const attachments = message.attachments;
 
+  // Artifact summary — files created during the session
+  if (role === 'artifacts') {
+    const files = message.files || [];
+    if (files.length === 0) return null;
+    return (
+      <div className="msg-artifacts">
+        <div className="msg-artifacts-head">📦 本次会话产物 ({files.length} 个文件)</div>
+        <div className="msg-artifacts-list">
+          {files.map((f, i) => (
+            <div className="msg-artifacts-item" key={i}>
+              <span className="msg-artifacts-icon">{getFileIcon(f.name)}</span>
+              <span className="msg-artifacts-name" title={f.path}>{f.name}</span>
+              <button className="msg-artifacts-dl" title="下载" onClick={(e) => { e.stopPropagation(); downloadFile(f.path); }}>📥 下载</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (role === 'system') {
     const isAbort = typeof content === 'string' && content.startsWith('⏹');
     return (

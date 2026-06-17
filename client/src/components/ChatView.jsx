@@ -92,6 +92,7 @@ export default function ChatView() {
   const askRef = useRef(null);
   const chatMessagesRef = useRef(chatMessages);
   chatMessagesRef.current = chatMessages;
+  const artifactFilesRef = useRef(new Map());  // path → fileName, deduped artifacts created this session
   const skipScrollRef = useRef(false);
   const scrollRestoreRef = useRef(null);
   const [atTop, setAtTop] = useState(false);
@@ -505,6 +506,14 @@ export default function ChatView() {
                           const extractedPaths = sseExtractedPaths[t.tool_use_id] || [];
                           const isCompactTool = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(tName);
                           const hasBashPaths = tName === 'Bash' && extractedPaths.length > 0;
+                          // Collect artifact files for end-of-session summary
+                          if (tName === 'Write' || tName === 'Edit') {
+                            const fp = (chatMessagesRef.current.find(m => m.role === 'tool' && m.toolCall?.tool_use_id === t.tool_use_id) || {}).toolCall?.input?.file_path;
+                            if (fp && !t.is_error) artifactFilesRef.current.set(fp, fp.split('/').pop() || fp);
+                          }
+                          if (hasBashPaths && !t.is_error) {
+                            extractedPaths.forEach(p => artifactFilesRef.current.set(p, p.split('/').pop() || p));
+                          }
                           // Write/Edit/Task/Bash(有产物)：合并到工具调用消息，代码块底部内嵌显示
                           if (isCompactTool || hasBashPaths) {
                             const msgs = [...chatMessagesRef.current];
@@ -526,6 +535,12 @@ export default function ChatView() {
                       finalizeStreaming();
                       stopTimer();
                       execDone({ tokens: parsed.tokens, cost: parsed.cost, currency: parsed.currency });
+                      // Append artifact summary if any files were created
+                      if (artifactFilesRef.current.size > 0) {
+                        const files = Array.from(artifactFilesRef.current.entries()).map(([path, name]) => ({ path, name }));
+                        artifactFilesRef.current.clear();
+                        bAppend({ role: 'artifacts', files, timestamp: Date.now() });
+                      }
                       setTimeout(() => execReset(), 5000);
                       return; // stop pumping
                     } else if (currentEvent === 'error') {
@@ -636,6 +651,7 @@ export default function ChatView() {
     const abort = new AbortController();
     abortRef.current = abort;
 
+    artifactFilesRef.current.clear();
     isActiveStream.current = true;
     runAgent({
       sessionId,
@@ -703,6 +719,14 @@ export default function ChatView() {
         const toolName = toolNameMap.current.get(tool_use_id) || '';
         const isCompactTool = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(toolName);
         const hasBashPaths = toolName === 'Bash' && extractedPaths && extractedPaths.length > 0;
+        // Collect artifact files for end-of-session summary
+        if ((toolName === 'Write' || toolName === 'Edit') && !is_error) {
+          const fp = (chatMessagesRef.current.find(m => m.role === 'tool' && m.toolCall?.tool_use_id === tool_use_id) || {}).toolCall?.input?.file_path;
+          if (fp) artifactFilesRef.current.set(fp, fp.split('/').pop() || fp);
+        }
+        if (hasBashPaths && !is_error) {
+          extractedPaths.forEach(p => artifactFilesRef.current.set(p, p.split('/').pop() || p));
+        }
         // Write/Edit/Task/Bash(有产物) 类工具：将结果合并到工具调用消息中，在代码块底部内嵌显示
         if (isCompactTool || hasBashPaths) {
           const msgs = [...chatMessagesRef.current];
@@ -728,6 +752,12 @@ export default function ChatView() {
         finalizeStreaming();  // 原子操作: 关闭所有 streaming + 保存缓存 + 设置 isStreaming=false
         stopTimer();
         execDone({ tokens: doneTokens, cost, currency });
+        // Append artifact summary if any files were created
+        if (artifactFilesRef.current.size > 0) {
+          const files = Array.from(artifactFilesRef.current.entries()).map(([path, name]) => ({ path, name }));
+          artifactFilesRef.current.clear();
+          bAppend({ role: 'artifacts', files, timestamp: Date.now() });
+        }
         setTimeout(() => execReset(), 5000);
 
         if (newId && !currentSessionId) {
