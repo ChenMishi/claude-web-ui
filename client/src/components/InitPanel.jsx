@@ -17,6 +17,9 @@ export default function InitPanel() {
   const [sdkInstallLog, setSdkInstallLog] = useState('');
   const [claudeInstallLog, setClaudeInstallLog] = useState('');
   const [claudeInstallPct, setClaudeInstallPct] = useState(0);
+  const [installingVision, setInstallingVision] = useState(false);
+  const [visionInstallLog, setVisionInstallLog] = useState('');
+  const [visionInstallPct, setVisionInstallPct] = useState(0);
   const [editProxyHost, setEditProxyHost] = useState('127.0.0.1');
   const [editProxyPort, setEditProxyPort] = useState('15721');
   const [testResult, setTestResult] = useState(null);
@@ -162,6 +165,34 @@ export default function InitPanel() {
     } catch {}
     setInstallingClaude(false);
     setTimeout(() => loadStatus(), 1000);
+  }, [loadStatus]);
+
+  const handleInstallVision = useCallback(async () => {
+    setInstallingVision(true); setVisionInstallLog(''); setVisionInstallPct(0);
+    try {
+      const res = await fetch(`${BASE}/init/install-vision`, {
+        method: 'POST', headers: authHeaders({ Accept: 'text/event-stream' }),
+      });
+      const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try { const d = JSON.parse(line.slice(6)); if (d.pct !== undefined) setVisionInstallPct(d.pct); if (d.text) setVisionInstallLog(prev => prev + d.text + '\n'); } catch {}
+            }
+          }
+        }
+      }
+    } catch {}
+    setInstallingVision(false);
+    // Refresh status to update visionInstalled flag
+    setTimeout(() => {
+      loadStatus();
+      // Also refresh the vision status directly
+      try { getInitStatus().then(d => { setStatus(d); }); } catch {}
+    }, 1500);
   }, [loadStatus]);
 
   const runEnvInstall = useCallback(async (component) => {
@@ -376,6 +407,50 @@ export default function InitPanel() {
               )}
               {upgradeClaudeLog && <div className="init-install-log"><div className="init-install-scroll"><pre>{upgradeClaudeLog}</pre></div></div>}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 图像识别模型 (Florence-2) ── */}
+      {status && (
+        <div className="init-section">
+          <div className="init-section-header">
+            <h3>🖼 图像识别模型</h3>
+            <span className={`init-status-badge ${status.visionInstalled ? 'ok' : 'warn'}`}>
+              {status.visionInstalled ? '已安装' : '未安装'}
+            </span>
+          </div>
+          <div className="init-info-grid">
+            <div className="init-info-item">
+              <span className="init-info-label">模型</span>
+              <span className="init-info-value">Florence-2-base (Microsoft)</span>
+            </div>
+            <div className="init-info-item">
+              <span className="init-info-label">功能</span>
+              <span className="init-info-value">画面描述 + OCR 文字识别</span>
+            </div>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0' }}>
+            📌 即使不安装此模型，系统已支持通过 Read 工具对图片进行基础 OCR 文字识别。
+            安装后新增<strong>画面描述</strong>能力，可理解照片中的人物、动物、景物、颜色等视觉信息。
+          </p>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 12px' }}>
+            💾 磁盘占用：~300MB（模型文件） | 内存占用：~1GB（推理时）
+          </p>
+          {!status.visionInstalled ? (
+            <div className="init-deploy-area">
+              <button className="init-btn init-btn-install" onClick={handleInstallVision} disabled={installingVision}>
+                {installingVision ? `安装中 ${visionInstallPct}%...` : '安装图像识别模型'}
+              </button>
+              {installingVision && (
+                <div className="init-progress-bar" style={{ marginTop: 8, height: 6, borderRadius: 3, background: 'var(--input-bg)', overflow: 'hidden' }}>
+                  <div style={{ width: `${visionInstallPct}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.3s' }} />
+                </div>
+              )}
+              {visionInstallLog && <div className="init-install-log"><div className="init-install-scroll"><pre>{visionInstallLog}</pre></div></div>}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 8 }}>✅ 已安装 — 上传图片时将自动进行画面描述和 OCR 文字识别</div>
           )}
         </div>
       )}

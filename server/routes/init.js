@@ -21,6 +21,41 @@ function findSDKBin() {
 }
 const SDK_BIN = findSDKBin();
 
+// ── Vision model detection ──
+function checkVisionInstalled() {
+  // Check venv exists
+  const venvPython = path.join(PROJECT_DIR, 'venv', 'bin', 'python3');
+  const venvPythonWin = path.join(PROJECT_DIR, 'venv', 'Scripts', 'python.exe');
+  const pythonBin = fs.existsSync(venvPython) ? venvPython : (fs.existsSync(venvPythonWin) ? venvPythonWin : null);
+  if (!pythonBin) return { installed: false, reason: 'venv-missing' };
+
+  // Check vision_analyze.py exists
+  if (!fs.existsSync(path.join(PROJECT_DIR, 'vision_analyze.py'))) {
+    return { installed: false, reason: 'script-missing' };
+  }
+
+  // Check model downloaded (~1MB+ in .vision_cache means model is downloaded)
+  const cacheDir = path.join(PROJECT_DIR, '.vision_cache');
+  if (!fs.existsSync(cacheDir)) return { installed: false, reason: 'model-missing' };
+
+  try {
+    let totalSize = 0;
+    const walkDir = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, entry.name);
+        if (entry.isDirectory()) walkDir(p);
+        else totalSize += fs.statSync(p).size;
+      }
+    };
+    walkDir(cacheDir);
+    if (totalSize < 50 * 1024 * 1024) return { installed: false, reason: 'model-incomplete', size: totalSize };
+  } catch { return { installed: false, reason: 'model-check-failed' }; }
+
+  return { installed: true };
+}
+
+const VISION_STATUS = checkVisionInstalled();
+
 function logInit(msg, err) {
   try {
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
@@ -92,6 +127,8 @@ router.get('/init/status', (_req, res) => {
     saved: !!fs.existsSync(CONFIG_FILE),
     providerConfigured: configured,
     providerModel: providerConfig.model || '',
+    visionInstalled: VISION_STATUS.installed,
+    visionStatus: VISION_STATUS,
     env: checkEnvironment(),
   });
 });
@@ -412,6 +449,123 @@ router.post('/init/install-sdk', (req, res) => {
     res.end();
   });
   proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
+});
+
+// ── Vision model installation ──
+router.post('/init/install-vision', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  const send = (event, data) => {
+    if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const venvDir = path.join(PROJECT_DIR, 'venv');
+  const venvPython = path.join(venvDir, 'bin', 'python3');
+  const visionScript = path.join(PROJECT_DIR, 'vision_analyze.py');
+
+  // Step 1: create venv if needed
+  if (!fs.existsSync(venvPython)) {
+    send('progress', { pct: 5, text: '创建 Python 虚拟环境...' });
+    try {
+      execSync(`python3 -m venv "${venvDir}"`, { encoding: 'utf8', timeout: 60000 });
+    } catch (e) {
+      send('done', { success: false, pct: 0, text: `创建虚拟环境失败: ${e.message}` });
+      return res.end();
+    }
+  }
+
+  const pipBin = path.join(venvDir, 'bin', 'pip');
+  const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python3';
+
+  // Step 2: install PyTorch CPU + transformers + pillow
+  send('progress', { pct: 10, text: '安装 PyTorch (CPU 版)...' });
+  try {
+    execSync(`"${pythonBin}" -m pip install torch --index-url https://download.pytorch.org/whl/cpu -q 2>&1`, {
+      encoding: 'utf8', timeout: 300000, env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' }
+    });
+  } catch (e) {
+    send('done', { success: false, pct: 15, text: `PyTorch 安装失败: ${e.message}` });
+    return res.end();
+  }
+
+  send('progress', { pct: 25, text: '安装 Transformers...' });
+  try {
+    execSync(`"${pythonBin}" -m pip install transformers pillow -q 2>&1`, {
+      encoding: 'utf8', timeout: 300000, env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' }
+    });
+  } catch (e) {
+    send('done', { success: false, pct: 30, text: `Transformers 安装失败: ${e.message}` });
+    return res.end();
+  }
+
+  // Step 3: download Florence-2 model (~300MB)
+  send('progress', { pct: 35, text: '下载 Florence-2 模型 (~300MB)...' });
+
+  const proc = spawn(pythonBin, ['-c', `
+import os, sys, json
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+# Set cache to project dir
+cache_dir = os.path.join(${JSON.stringify(PROJECT_DIR)}, ".vision_cache")
+os.makedirs(cache_dir, exist_ok=True)
+
+import torch
+from PIL import Image
+from transformers import AutoProcessor, AutoModelForCausalLM
+
+# Download model
+model = AutoModelForCausalLM.from_pretrained(
+    "microsoft/Florence-2-base", trust_remote_code=True, cache_dir=cache_dir
+).to("cpu").eval()
+processor = AutoProcessor.from_pretrained(
+    "microsoft/Florence-2-base", trust_remote_code=True, cache_dir=cache_dir
+)
+
+# Quick test with a 1x1 black image
+import io, base64
+# 1x1 black PNG
+png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+img = Image.open(io.BytesIO(png)).convert("RGB")
+inputs = processor(text="<DETAILED_CAPTION>", images=img, return_tensors="pt")
+generated_ids = model.generate(input_ids=inputs["input_ids"], pixel_values=inputs["pixel_values"], max_new_tokens=32, do_sample=False)
+caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+print("MODEL_OK:" + str(len(caption) > 0))
+`], { env: { ...process.env, PYTHONUNBUFFERED: '1', HF_ENDPOINT: 'https://hf-mirror.com' } });
+
+  let lastPct = 35;
+  proc.stdout.on('data', (d) => {
+    const text = d.toString();
+    if (text.includes('Downloading') || text.includes('Fetching')) {
+      lastPct = Math.min(lastPct + 3, 70);
+    } else if (text.includes('MODEL_OK')) {
+      lastPct = 90;
+    } else {
+      lastPct = Math.min(lastPct + 1, 80);
+    }
+    send('progress', { pct: lastPct, text: text.trim().slice(0, 120) });
+  });
+  proc.stderr.on('data', (d) => {
+    const text = d.toString();
+    lastPct = Math.min(lastPct + 2, 75);
+    send('progress', { pct: lastPct, text: text.trim().slice(0, 120) });
+  });
+
+  proc.on('close', (code) => {
+    // Re-check vision status
+    const newStatus = checkVisionInstalled();
+    const ok = newStatus.installed;
+    send('done', {
+      success: ok,
+      pct: ok ? 100 : 80,
+      text: ok ? 'Florence-2 图像识别模型安装完成' : `安装异常 (状态: ${newStatus.reason})，请查看日志`,
+    });
+    res.end();
+  });
+
+  proc.on('error', (e) => {
+    send('done', { success: false, pct: 50, text: `模型下载失败: ${e.message}` });
+    res.end();
+  });
 });
 
 // Check Claude Code update
