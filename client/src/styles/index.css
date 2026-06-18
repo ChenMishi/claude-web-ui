@@ -7,62 +7,62 @@
 
 /* ===== Dark theme (default) ===== */
 :root, [data-theme="dark"] {
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --bg-tertiary: #1e1e3f;
-  --border: #2a2a4a;
-  --text-primary: #e0e0e0;
-  --text-muted: #888;
-  --accent: #6c63ff;
-  --accent-hover: #5a52e0;
-  --accent-light: rgba(108, 99, 255, 0.12);
+  --bg-primary: #0f0e17;
+  --bg-secondary: #1a1830;
+  --bg-tertiary: #22203a;
+  --border: #2a2844;
+  --text-primary: #e0ddf0;
+  --text-muted: #8b87a0;
+  --accent: #7c6ff7;
+  --accent-hover: #695ce0;
+  --accent-light: rgba(124, 111, 247, 0.14);
   --danger: #ff6b6b;
   --danger-bg: rgba(255, 107, 107, 0.1);
   --success: #4caf50;
-  --code-bg: #0d0d1f;
-  --code-block-bg: #111133;
-  --code-block-text: #e0e0ff;
-  --heading-color: #c0b8ff;
-  --link-color: #82b1ff;
-  --gradient-start: #6c63ff;
+  --code-bg: #131122;
+  --code-block-bg: #131122;
+  --code-block-text: #e0ddf0;
+  --heading-color: #b8b0f0;
+  --link-color: #8b90ff;
+  --gradient-start: #7c6ff7;
   --gradient-end: #e040fb;
   --user-label: #e040fb;
   --abort-color: #ffd54f;
   --abort-bg: rgba(255, 213, 79, 0.08);
   --abort-border: rgba(255, 213, 79, 0.3);
   /* Glass card */
-  --glass-bg: rgba(22, 33, 62, 0.60);
-  --glass-bg-hover: rgba(22, 33, 62, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-hover: rgba(255, 255, 255, 0.14);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --glass-bg: rgba(26, 24, 48, 0.78);
+  --glass-bg-hover: rgba(26, 24, 48, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-border-hover: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
   --glass-radius: 16px;
   --glass-blur: 14px;
-  --glass-dropdown-bg: #16213e;
+  --glass-dropdown-bg: #1a1830;
   /* Input field inside glass */
-  --input-bg: rgba(255, 255, 255, 0.10);
-  --input-bg-focus: rgba(255, 255, 255, 0.15);
+  --input-bg: rgba(255, 255, 255, 0.08);
+  --input-bg-focus: rgba(255, 255, 255, 0.13);
   /* Decorative orb colors */
-  --orb-1: rgba(108, 99, 255, 0.28);
-  --orb-2: rgba(224, 64, 251, 0.20);
-  --orb-3: rgba(108, 99, 255, 0.14);
+  --orb-1: rgba(124, 111, 247, 0.30);
+  --orb-2: rgba(224, 64, 251, 0.22);
+  --orb-3: rgba(124, 111, 247, 0.16);
 }
 
 /* ===== Light theme ===== */
 [data-theme="light"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f4f4f5;
-  --bg-tertiary: #eaeaec;
-  --border: #d4d4d8;
-  --text-primary: #18181b;
-  --text-muted: #71717a;
+  --bg-primary: #edf0f4;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f4f5f7;
+  --border: #d4d6db;
+  --text-primary: #1a1d23;
+  --text-muted: #6b6f7a;
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
-  --accent-light: rgba(37, 99, 235, 0.1);
+  --accent-light: rgba(37, 99, 235, 0.10);
   --danger: #e53935;
   --danger-bg: rgba(229, 57, 53, 0.07);
   --success: #2e7d32;
-  --code-bg: #f4f4f5;
+  --code-bg: #f1f2f5;
   --code-block-bg: #fafafa;
   --code-block-text: #27272a;
   --heading-color: #1e40af;
@@ -74,11 +74,11 @@
   --abort-bg: rgba(180, 83, 9, 0.07);
   --abort-border: rgba(180, 83, 9, 0.25);
   /* Glass card */
-  --glass-bg: rgba(255, 255, 255, 0.70);
-  --glass-bg-hover: rgba(255, 255, 255, 0.80);
-  --glass-border: rgba(0, 0, 0, 0.07);
-  --glass-border-hover: rgba(0, 0, 0, 0.13);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.10);
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-bg-hover: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-border-hover: rgba(0, 0, 0, 0.12);
+  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.10);
   --glass-radius: 16px;
   --glass-blur: 14px;
   --glass-dropdown-bg: #ffffff;
@@ -86,27 +86,27 @@
   --input-bg: rgba(0, 0, 0, 0.04);
   --input-bg-focus: rgba(0, 0, 0, 0.07);
   /* Decorative orb colors */
-  --orb-1: rgba(37, 99, 235, 0.18);
-  --orb-2: rgba(8, 145, 178, 0.13);
-  --orb-3: rgba(37, 99, 235, 0.08);
+  --orb-1: rgba(37, 99, 235, 0.15);
+  --orb-2: rgba(8, 145, 178, 0.10);
+  --orb-3: rgba(37, 99, 235, 0.06);
 }
 
 /* ===== Teal theme (浅色青绿) ===== */
 [data-theme="warm"] {
-  --bg-primary: #f2fbf8;
-  --bg-secondary: #e6f5f1;
-  --bg-tertiary: #d8f0e8;
-  --border: #c0d8cf;
+  --bg-primary: #e8f5f0;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #dff0e8;
+  --border: #c4dbd2;
   --text-primary: #1a3b32;
   --text-muted: #5f8b7c;
   --accent: #0d9488;
   --accent-hover: #0f766e;
-  --accent-light: rgba(13, 148, 136, 0.1);
+  --accent-light: rgba(13, 148, 136, 0.10);
   --danger: #e53935;
   --danger-bg: rgba(229, 57, 53, 0.07);
   --success: #2e7d32;
-  --code-bg: #e6f5f1;
-  --code-block-bg: #eef9f5;
+  --code-bg: #eaf5f0;
+  --code-block-bg: #f0f8f4;
   --code-block-text: #1a3b32;
   --heading-color: #0f766e;
   --link-color: #0d9488;
@@ -117,21 +117,21 @@
   --abort-bg: rgba(180, 83, 9, 0.07);
   --abort-border: rgba(180, 83, 9, 0.25);
   /* Glass card */
-  --glass-bg: rgba(238, 250, 244, 0.68);
-  --glass-bg-hover: rgba(238, 250, 244, 0.78);
-  --glass-border: rgba(0, 0, 0, 0.07);
-  --glass-border-hover: rgba(0, 0, 0, 0.13);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.09);
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-bg-hover: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-border-hover: rgba(0, 0, 0, 0.12);
+  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.09);
   --glass-radius: 16px;
   --glass-blur: 14px;
-  --glass-dropdown-bg: #f2fbf8;
+  --glass-dropdown-bg: #ffffff;
   /* Input field inside glass */
   --input-bg: rgba(0, 0, 0, 0.04);
   --input-bg-focus: rgba(0, 0, 0, 0.07);
   /* Decorative orb colors */
-  --orb-1: rgba(13, 148, 136, 0.18);
-  --orb-2: rgba(20, 184, 166, 0.13);
-  --orb-3: rgba(13, 148, 136, 0.08);
+  --orb-1: rgba(13, 148, 136, 0.15);
+  --orb-2: rgba(20, 184, 166, 0.10);
+  --orb-3: rgba(13, 148, 136, 0.06);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
