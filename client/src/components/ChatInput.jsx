@@ -50,8 +50,12 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
   const cmdListRef = useRef(null);
   const skillsRef = useRef(null);
   const skillsContainerRef = useRef(null);
+  const modelDropdownRef = useRef(null);
+  const permDropdownRef = useRef(null);
   const [showCommands, setShowCommands] = useState(false);
   const [showSkills, setShowSkills] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showPermDropdown, setShowPermDropdown] = useState(false);
   const [filteredCmds, setFilteredCmds] = useState([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [skills, setSkills] = useState([]);
@@ -297,18 +301,24 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     }
   };
 
-  // Close commands on outside click
+  // Close popups on outside click
   useEffect(() => {
-    if (!showCommands && !showSkills) return;
+    if (!showCommands && !showSkills && !showModelDropdown && !showPermDropdown) return;
     const handler = (e) => {
       if (showSkills && skillsContainerRef.current && !skillsContainerRef.current.contains(e.target)) {
         setShowSkills(false);
+      }
+      if (showModelDropdown && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target)) {
+        setShowModelDropdown(false);
+      }
+      if (showPermDropdown && permDropdownRef.current && !permDropdownRef.current.contains(e.target)) {
+        setShowPermDropdown(false);
       }
       if (showCommands) setShowCommands(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [showCommands, showSkills]);
+  }, [showCommands, showSkills, showModelDropdown, showPermDropdown]);
 
   return (
     <div className="input-area" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
@@ -396,27 +406,53 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           onPaste={handlePaste}
           disabled={false}
         />
-        <div className="input-select-group">
+        <div className="input-select-group" ref={modelDropdownRef}>
           <span className="input-select-icon" title="模型">⚡</span>
-          <select className="input-select input-select-model" value={currentModel || model} onChange={e => switchCurrentModel(e.target.value)}>
-            {availableModels.length > 0 ? (
-              availableModels.map(m => <option key={m} value={m}>{m}</option>)
-            ) : (
-              <>
-                <option value="claude-opus-4-7">Claude Opus 4.7</option>
-                <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-              </>
-            )}
-          </select>
+          <button
+            className="input-select input-select-model"
+            onClick={() => setShowModelDropdown(!showModelDropdown)}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >{currentModel || model}</button>
+          {showModelDropdown && (
+            <div className="input-dropdown-panel">
+              {(availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
+                <div
+                  key={m}
+                  className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
+                  onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
+                >
+                  {m}
+                  {(currentModel || model) === m && <span className="check">✓</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="input-select-group">
+        <div className={`input-select-group perm-${permissionLevel}`} ref={permDropdownRef}>
           <span className="input-select-icon" title="工具权限">🔒</span>
-          <select className={`input-select input-select-perm perm-${permissionLevel}`} value={permissionLevel} onChange={e => setSetting('permissionLevel', e.target.value)}>
-            <option value="auto">自动执行</option>
-            <option value="confirm-dangerous">写入确认</option>
-            <option value="confirm-all">全部确认</option>
-          </select>
+          <button
+            className="input-select input-select-perm"
+            onClick={() => setShowPermDropdown(!showPermDropdown)}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap' }}
+          >{{ auto: '自动执行', 'confirm-dangerous': '写入确认', 'confirm-all': '全部确认' }[permissionLevel]}</button>
+          {showPermDropdown && (
+            <div className="input-dropdown-panel">
+              {[
+                { value: 'auto', label: '自动执行' },
+                { value: 'confirm-dangerous', label: '写入确认' },
+                { value: 'confirm-all', label: '全部确认' },
+              ].map(p => (
+                <div
+                  key={p.value}
+                  className={`input-dropdown-item ${permissionLevel === p.value ? 'active' : ''}`}
+                  onClick={() => { setSetting('permissionLevel', p.value); setShowPermDropdown(false); }}
+                >
+                  {p.label}
+                  {permissionLevel === p.value && <span className="check">✓</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="input-select-group" style={{ position: 'relative' }} ref={skillsContainerRef}>
           <span className="input-select-icon" title="技能">🧩</span>

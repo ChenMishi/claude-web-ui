@@ -127,8 +127,8 @@ router.get('/init/status', (_req, res) => {
     saved: !!fs.existsSync(CONFIG_FILE),
     providerConfigured: configured,
     providerModel: providerConfig.model || '',
-    visionInstalled: VISION_STATUS.installed,
-    visionStatus: VISION_STATUS,
+    visionInstalled: checkVisionInstalled().installed,
+    visionStatus: checkVisionInstalled(),
     env: checkEnvironment(),
   });
 });

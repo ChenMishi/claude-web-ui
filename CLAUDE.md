@@ -6,7 +6,7 @@
 
 ## 工作流程
 - 代码修改完成后先提交（commit），**不要自动推送（push）**
-- 仅当用户明确要求"推送"时，将所有未推送的提交 squash 为一条合并推送：
+- **推送 = 一条提交**：当用户说"推送"时，必须先将所有未推送的 commit squash 为**一条**汇总提交，再推送。不要在推送中包含多条零散的 commit。
   ```bash
   # 1. 找到第一个未推送 commit 的前一个 commit
   git reset --soft origin/master
