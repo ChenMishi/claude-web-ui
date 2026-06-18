@@ -247,7 +247,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
 }
@@ -504,7 +504,7 @@ html, body, #root {
   margin: 6px 10px 12px;
   padding: 8px;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
   display: flex;
@@ -716,7 +716,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
   overflow: hidden;
@@ -981,7 +981,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
   flex-shrink: 0;
@@ -1525,7 +1525,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
   padding: 20px;
@@ -2021,7 +2021,7 @@ html, body, #root {
   min-width: 200px;
   max-width: 100%;
   margin: 4px 0;
-  border: 1px solid var(--glass-border);
+  border: none;
   border-left: 3px solid rgba(156, 163, 175, 0.4);
   border-radius: 10px;
   overflow: hidden;
@@ -2283,7 +2283,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
   overflow: hidden;
@@ -2694,7 +2694,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--glass-border);
+  border: none;
   border-left: 3px solid var(--accent);
   border-radius: 12px;
   padding: 14px 16px;
@@ -2916,7 +2916,7 @@ html, body, #root {
   min-width: 200px;
   max-width: 100%;
   margin: 4px 0;
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: 10px;
   overflow: hidden;
   flex-shrink: 0;
@@ -3076,7 +3076,7 @@ html, body, #root {
   min-width: 280px;
   margin: 8px 0 12px 28px;
   background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   padding: 14px 16px;
   backdrop-filter: blur(var(--glass-blur));
@@ -3246,7 +3246,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
 }
@@ -3319,7 +3319,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
 }
@@ -3675,7 +3675,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: 20px;
   padding: 44px 40px 32px;
   width: 420px; max-width: 90vw;
@@ -3783,7 +3783,7 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   cursor: pointer;
   transition: all 0.15s;
@@ -4132,7 +4132,7 @@ html, body, #root {
 }
 .stats-card {
   display: flex; gap: 12px; align-items: center; padding: 16px;
-  background: var(--bg-card); border: 1px solid var(--glass-border);
+  background: var(--bg-card); border: none;
   border-radius: 12px;
   height: 80px; box-sizing: border-box; overflow: hidden;
 }
@@ -4144,7 +4144,7 @@ html, body, #root {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .stats-chart-card {
-  background: var(--bg-primary); border: 1px solid var(--glass-border);
+  background: var(--bg-primary); border: none;
   border-radius: 12px; padding: 16px; margin-bottom: 12px;
 }
 .stats-chart-header { font-size: 14px; font-weight: 500; margin-bottom: 12px; color: var(--text-primary); }
