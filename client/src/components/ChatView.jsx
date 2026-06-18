@@ -551,14 +551,6 @@ export default function ChatView() {
                       return;
                     } else if (currentEvent === 'system_notice') {
                       bAppend({ role: 'system', content: parsed.text || '', timestamp: Date.now() });
-                    } else if (currentEvent === 'file_artifact') {
-                      // Show download card immediately when a file is created
-                      const fa = parsed;
-                      if (fa.path && fa.name) {
-                        // Remove from end-of-session summary to avoid duplication
-                        artifactFilesRef.current.delete(fa.path);
-                        bAppend({ role: 'artifacts', files: [{ path: fa.path, name: fa.name, size: fa.size, sizeText: fa.sizeText }], timestamp: Date.now() });
-                      }
                     }
                   } catch {}
                   currentEvent = '';

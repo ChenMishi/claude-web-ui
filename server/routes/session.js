@@ -264,20 +264,6 @@ function handleSDKMessage(message, runtime, isStreaming) {
           }
         }
       }
-      // Broadcast file_artifact events immediately for each discovered file
-      for (const [toolUseId, paths] of Object.entries(extractedPaths)) {
-        for (const p of paths) {
-          const absPath = path.resolve(runtime.cwd || '/', p);
-          let size = 0;
-          try { size = fs.statSync(absPath).size; } catch {}
-          broadcast(runtime, 'file_artifact', {
-            path: absPath,
-            name: path.basename(absPath),
-            size,
-            sizeText: formatSize(size),
-          });
-        }
-      }
       broadcast(runtime, 'message', {
         type: 'user',
         uuid: message.uuid || '',
