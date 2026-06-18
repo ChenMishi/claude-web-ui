@@ -93,6 +93,15 @@ function extractBashFilePaths(command, resultContent, cwd) {
   const paths = [];
   if (!command || !cwd) return paths;
 
+  // Detect cd prefix(es) for accurate relative path resolution
+  // e.g. "cd /x && tar czf file.tar.gz" → file is in /x, not cwd
+  const cdMatches = [...command.matchAll(/(?:^|&&\s*|;\s*)cd\s+(\S+)/g)];
+  let effectiveCwd = cwd;
+  if (cdMatches.length > 0) {
+    const lastCd = cdMatches[cdMatches.length - 1][1].replace(/^['"]|['"]$/g, '');
+    effectiveCwd = lastCd.startsWith('/') ? lastCd : path.join(cwd, lastCd);
+  }
+
   // 1. Output redirection: > file (creating new, NOT >> which is appending)
   for (const m of command.matchAll(/(?:^|\s)(?:[12]?>|&>)\s*(\S+)/g)) {
     const p = m[1].replace(/^['"]|['"]$/g, '');
@@ -199,7 +208,7 @@ function extractBashFilePaths(command, resultContent, cwd) {
     p = p.replace(/^['"]|['"]$/g, '');
     if (p.startsWith('/')) return p;
     if (p.startsWith('~/')) return path.join(os.homedir(), p.slice(2));
-    return path.join(cwd, p);
+    return path.join(effectiveCwd, p);
   }))];
 
   // Only return actual files that exist (not directories)
