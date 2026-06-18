@@ -251,7 +251,8 @@ function handleSDKMessage(message, runtime, isStreaming) {
           if (cmd) {
             const paths = extractBashFilePaths(cmd, typeof block.content === 'string' ? block.content : '', runtime.cwd);
             if (paths.length > 0) {
-              extractedPaths[block.tool_use_id] = paths;
+              // Resolve relative paths to absolute using session cwd
+              extractedPaths[block.tool_use_id] = paths.map(p => path.resolve(runtime.cwd || '/', p));
             }
             runtime.bashCommands.delete(block.tool_use_id);
           }

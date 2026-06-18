@@ -604,6 +604,13 @@ export default function ChatView() {
     if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
     finalizeStreaming();  // 原子操作: 关闭所有 streaming + 保存缓存
 
+    // Append artifact summary if any files were created before stopping
+    if (artifactFilesRef.current.size > 0) {
+      const files = Array.from(artifactFilesRef.current.entries()).map(([path, name]) => ({ path, name }));
+      artifactFilesRef.current.clear();
+      bAppend({ role: 'artifacts', files, timestamp: Date.now() });
+    }
+
     // Append a summary system message
     const summary = buildAbortSummary(execStatus);
     bAppend({ role: 'system', content: summary, timestamp: Date.now() });
