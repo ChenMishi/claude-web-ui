@@ -127,10 +127,17 @@ function extractBashFilePaths(command, resultContent, cwd) {
     paths.push(m[1]);
   }
 
-  // 6b. tar -czf / -cf / -xf etc (output follows -f)
-  for (const m of command.matchAll(/tar\s+(?:-[a-zA-Z]*f\s*)(\S+)/g)) {
-    if (!m[1].startsWith('-')) paths.push(m[1]);
+  // 6b. tar -czf / tar czf / tar -c -z -f (output follows f flag)
+  const tarPaths = new Set();
+  // Combined flags: tar -czf file, tar czf file
+  for (const m of command.matchAll(/tar\s+-?[a-zA-Z]*f\s+(\S+)/g)) {
+    if (!m[1].startsWith('-')) tarPaths.add(m[1]);
   }
+  // Separate -f flag: tar -c -z -f file
+  for (const m of command.matchAll(/tar\s+.*?\s-f\s+(\S+)/g)) {
+    if (!m[1].startsWith('-')) tarPaths.add(m[1]);
+  }
+  for (const p of tarPaths) paths.push(p);
 
   // 6c. zip output.zip files... (first positional arg after flags is output)
   const zipM = command.match(/(?:^|\s)zip\s+(?:-[a-zA-Z0-9]+\s+)*(\S+)/);
