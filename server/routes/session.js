@@ -944,17 +944,78 @@ router.post('/session/:id/message', async (req, res) => {
     return res.status(400).json({ error: 'prompt is required' });
   }
 
-  // ── Attachments: prepend file info to prompt; embed images as content blocks ──
+  // ── Attachments: prepend file info to prompt ──
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
-  let fullPrompt = prompt || '';
-  let promptArg = fullPrompt; // string (no images) or AsyncIterable<SDKUserMessage> (with images)
+  const SUPPORTED_IMAGE_MIME = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+  const officeExts = ['.docx', '.xlsx', '.pptx'];
+  const archiveExts = ['.zip', '.tar', '.gz', '.tgz', '.7z', '.rar'];
 
-  if (attachments.length > 0) {
-    const SUPPORTED_IMAGE_MIME = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-    const officeExts = ['.docx', '.xlsx', '.pptx'];
-    const archiveExts = ['.zip', '.tar', '.gz', '.tgz', '.7z', '.rar'];
+  // ── Helper: check if Florence-2 is installed ──
+  function checkFlorenceInstalled() {
+    const venvPython = path.join(path.resolve(__dirname, '..', '..'), 'venv', 'bin', 'python3');
+    if (!fs.existsSync(venvPython)) return false;
+    const visionScript = path.join(path.resolve(__dirname, '..', '..'), 'vision_analyze.py');
+    if (!fs.existsSync(visionScript)) return false;
+    const cacheDir = path.join(path.resolve(__dirname, '..', '..'), '.vision_cache');
+    if (!fs.existsSync(cacheDir)) return false;
+    try {
+      let totalSize = 0;
+      const walkDir = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const p = path.join(dir, entry.name);
+          if (entry.isDirectory()) walkDir(p);
+          else totalSize += fs.statSync(p).size;
+        }
+      };
+      walkDir(cacheDir);
+      return totalSize > 50 * 1024 * 1024;
+    } catch { return false; }
+  }
 
-    // Separate image attachments (supported MIME types) from others
+  // ── Helper: build image analysis text via Florence-2 ──
+  function runFlorenceAnalysis(imageAttachments) {
+    const visionScript = path.join(path.resolve(__dirname, '..', '..'), 'vision_analyze.py');
+    const venvPython = path.join(path.resolve(__dirname, '..', '..'), 'venv', 'bin', 'python3');
+    const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python3';
+    const blocks = [];
+    for (const img of imageAttachments) {
+      try {
+        const imgData = fs.readFileSync(img.path);
+        const MAX_IMG_SIZE = 20 * 1024 * 1024;
+        if (imgData.length > MAX_IMG_SIZE) {
+          blocks.push(`[图片 ${img.fileName || img.originalName} 过大 (${formatSize(imgData.length)})，跳过分析]`);
+          continue;
+        }
+        const { execFileSync } = require('child_process');
+        const result = execFileSync(pythonBin, [visionScript, img.path], {
+          encoding: 'utf-8', timeout: 300000,
+          env: { ...process.env, PYTHONUNBUFFERED: '1' }
+        });
+        const analysis = JSON.parse(result);
+        if (analysis.ok) {
+          const parts = [];
+          if (analysis.caption) parts.push(`📷 画面描述：${analysis.caption}`);
+          if (analysis.ocr && analysis.ocr !== 'No text found' && analysis.ocr.trim()) {
+            parts.push(`📝 图中文字：${analysis.ocr}`);
+          }
+          blocks.push(parts.join('\n'));
+        } else {
+          blocks.push(`[图片分析失败: ${analysis.error}]`);
+        }
+      } catch (e) {
+        blocks.push(`[图片分析异常: ${e.message}]`);
+      }
+    }
+    return blocks.join('\n\n');
+  }
+
+  // ── Build promptArg for a given strategy ──
+  function buildPromptArgForStrategy(attachments, prompt, strategy) {
+    // If no attachments at all, pass prompt directly
+    if (!attachments || attachments.length === 0) {
+      return prompt || '';
+    }
+
     const imageAttachments = attachments.filter(a => SUPPORTED_IMAGE_MIME.includes(a.mimeType));
     const nonImageAttachments = attachments.filter(a => !SUPPORTED_IMAGE_MIME.includes(a.mimeType));
 
@@ -974,14 +1035,14 @@ router.post('/session/:id/message', async (req, res) => {
       return `- 📄 文件: ${a.path} (${a.mimeType || 'unknown'}, ${formatSize(a.size || 0)})`;
     }).join('\n');
 
-    // Also list image attachments in text (for transparency, even though they're embedded)
+    // Also list image attachments in text (for transparency)
     const imageLines = imageAttachments.map(a =>
       `- 🖼 图片: ${a.fileName || a.originalName} (${a.mimeType || 'unknown'}, ${formatSize(a.size || 0)})`
     ).join('\n');
 
     const allFileLines = [fileLines, imageLines].filter(Boolean).join('\n');
 
-    // Include extracted text from Office documents / archive file trees directly in prompt
+    // Include extracted text from Office documents / archive file trees
     const extractedBlocks = attachments
       .filter(a => a.extractedText)
       .map(a => {
@@ -989,7 +1050,7 @@ router.post('/session/:id/message', async (req, res) => {
         const isArchive = archiveExts.some(ae => (a.fileName || a.originalName || '').toLowerCase().endsWith(ae))
           || (a.fileName || a.originalName || '').toLowerCase().endsWith('.tar.gz');
         const label = isArchive ? '📦' : '📄';
-        const maxLen = 8000; // prevent prompt from becoming too large
+        const maxLen = 8000;
         const text = a.extractedText.length > maxLen
           ? a.extractedText.slice(0, maxLen) + '\n\n...（内容过长，已截断）'
           : a.extractedText;
@@ -1008,53 +1069,65 @@ router.post('/session/:id/message', async (req, res) => {
       extractedBlocks.join('\n')
     ].filter(Boolean).join('\n');
 
-    if (imageAttachments.length > 0) {
-      // ── Images present: analyze with Florence-2 for text description + OCR ──
-      const visionScript = path.join(path.resolve(__dirname, '..', '..'), 'vision_analyze.py');
-      const venvPython = path.join(path.resolve(__dirname, '..', '..'), 'venv', 'bin', 'python3');
-      const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python3';
+    // No images: plain text
+    if (imageAttachments.length === 0) {
+      const fullPrompt = [textPrefix, prompt].filter(Boolean).join('\n\n---\n\n');
+      return fullPrompt; // string
+    }
 
-      const imageAnalysisBlocks = [];
+    // ── Strategy: native (base64 image blocks for vision models) ──
+    if (strategy === 'native') {
+      const contentBlocks = [];
+      contentBlocks.push({ type: 'text', text: [textPrefix, prompt].filter(Boolean).join('\n\n---\n\n') });
+      const MAX_IMG_SIZE = 20 * 1024 * 1024;
       for (const img of imageAttachments) {
         try {
           const imgData = fs.readFileSync(img.path);
-          const MAX_IMG_SIZE = 20 * 1024 * 1024;
           if (imgData.length > MAX_IMG_SIZE) {
-            imageAnalysisBlocks.push(`[图片 ${img.fileName || img.originalName} 过大 (${formatSize(imgData.length)})，跳过分析]`);
+            contentBlocks.push({ type: 'text', text: `\n⚠️ 图片 ${img.fileName || img.originalName} 过大 (${formatSize(imgData.length)})，已跳过内嵌。` });
             continue;
           }
-          // Run vision analysis (Florence-2 ~300MB, loads once then caches)
-          const { execFileSync } = require('child_process');
-          const result = execFileSync(pythonBin, [visionScript, img.path], {
-            encoding: 'utf-8',
-            timeout: 300000,
-            env: { ...process.env, PYTHONUNBUFFERED: '1' }
-          });
-          const analysis = JSON.parse(result);
-          if (analysis.ok) {
-            const parts = [];
-            if (analysis.caption) parts.push(`📷 画面描述：${analysis.caption}`);
-            if (analysis.ocr && analysis.ocr !== 'No text found' && analysis.ocr.trim()) {
-              parts.push(`📝 图中文字：${analysis.ocr}`);
-            }
-            imageAnalysisBlocks.push(parts.join('\n'));
-          } else {
-            imageAnalysisBlocks.push(`[图片分析失败: ${analysis.error}]`);
-          }
+          const base64 = imgData.toString('base64');
+          contentBlocks.push({ type: 'image', source: { type: 'base64', media_type: img.mimeType, data: base64 } });
         } catch (e) {
-          imageAnalysisBlocks.push(`[图片分析异常: ${e.message}]`);
+          contentBlocks.push({ type: 'text', text: `\n⚠️ 无法读取图片 ${img.fileName || img.originalName}: ${e.message}` });
         }
       }
-
-      const analysisText = imageAnalysisBlocks.join('\n\n');
-      fullPrompt = [textPrefix, analysisText, '---', prompt].filter(Boolean).join('\n\n');
-      promptArg = fullPrompt;
-    } else {
-      // ── No images: keep existing text-only prompt ──
-      fullPrompt = [textPrefix, prompt].filter(Boolean).join('\n\n---\n\n');
-      promptArg = fullPrompt;
+      const sdkMessage = { type: 'user', message: { role: 'user', content: contentBlocks }, parent_tool_use_id: null };
+      // Return AsyncIterable<SDKUserMessage>
+      return {
+        [Symbol.asyncIterator]() {
+          let done = false;
+          return {
+            async next() {
+              if (done) return { done: true };
+              done = true;
+              return { value: sdkMessage, done: false };
+            }
+          };
+        }
+      };
     }
+
+    // ── Strategy: florence (local Florence-2 analysis) ──
+    if (strategy === 'florence') {
+      const analysisText = runFlorenceAnalysis(imageAttachments);
+      const fullPrompt = [textPrefix, analysisText, '---', prompt].filter(Boolean).join('\n\n');
+      return fullPrompt; // string
+    }
+
+    // ── Strategy: text (basic OCR hint) ──
+    const ocrHint = '\n💡 当前使用基础文字识别能力读取图片。如需增强图像识别（画面描述 + 精确 OCR），请在「设置 → 初始化」中安装 Florence-2 图像识别模型。';
+    const fullPrompt = [textPrefix, ocrHint, '---', prompt].filter(Boolean).join('\n\n');
+    return fullPrompt; // string
   }
+
+  // Determine available strategies (top-priority first)
+  const hasImages = attachments.some(a => SUPPORTED_IMAGE_MIME.includes(a.mimeType));
+  const florenceInstalled = checkFlorenceInstalled();
+  const promptStrategies = hasImages
+    ? ['native', ...(florenceInstalled ? ['florence'] : []), 'text']
+    : ['text'];
 
   const wantsStream = req.headers.accept?.includes('text/event-stream') || req.query.stream === '1';
 
@@ -1110,21 +1183,49 @@ router.post('/session/:id/message', async (req, res) => {
     let result;
     const allMessages = [];
 
-    for await (const message of query({ prompt: promptArg, options })) {
-      const info = handleSDKMessage(message, runtime, wantsStream);
-      if (message.type === 'assistant' || message.type === 'user') {
-        allMessages.push(message);
-      }
-      if (message.type === 'result') {
-        if (message.subtype !== 'success') {
-          const errText = (message.errors || []).join('; ') || `SDK result: ${message.subtype}`;
-          logError('SDK result error', errText);
-          result = { error: errText };
-        } else {
-          result = info;
+    // ── Try strategies in priority order, retry on image_error ──
+    for (const strategy of promptStrategies) {
+      const arg = buildPromptArgForStrategy(attachments, prompt || '', strategy);
+
+      // Notify frontend on strategy fallback
+      if (strategy !== promptStrategies[0]) {
+        allMessages.length = 0; // reset for retry
+        runtime.buffer = [];
+        if (wantsStream) {
+          broadcast(runtime, 'system_notice', {
+            text: strategy === 'florence'
+              ? '🔄 模型不支持图像输入，已切换本地 Florence-2 进行画面描述和 OCR 识别'
+              : '🔄 图像识别模型未安装。当前使用基础文字识别，如需增强请到「设置→初始化」安装 Florence-2 模型。'
+          });
         }
       }
+
+      let imageError = false;
+
+      for await (const message of query({ prompt: arg, options })) {
+        const info = handleSDKMessage(message, runtime, wantsStream);
+        if (message.type === 'assistant' || message.type === 'user') {
+          allMessages.push(message);
+        }
+        if (message.type === 'result') {
+          if (message.subtype !== 'success') {
+            const errText = (message.errors || []).join('; ') || `SDK result: ${message.subtype}`;
+            // Check if this is an image-related error and we have more strategies to try
+            if (strategy === 'native' && /image|unsupported|not.*support/i.test(errText) && promptStrategies.length > 1) {
+              imageError = true;
+              break; // break inner for-await, continue outer loop to next strategy
+            }
+            logError('SDK result error', errText);
+            result = { error: errText };
+          } else {
+            result = info;
+          }
+        }
+      }
+
+      if (!imageError) break; // success or non-image error → exit strategy loop
     }
+    // If all strategies exhausted without success, result holds the last error
 
     if (wantsStream) {
       // If we have a pending title from before and now know the sessionId, store it

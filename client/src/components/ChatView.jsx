@@ -549,6 +549,8 @@ export default function ChatView() {
                       execReset();
                       bAppend({ role: 'system', content: `重连失败: ${parsed.message}`, timestamp: Date.now() });
                       return;
+                    } else if (currentEvent === 'system_notice') {
+                      bAppend({ role: 'system', content: parsed.text || '', timestamp: Date.now() });
                     }
                   } catch {}
                   currentEvent = '';
