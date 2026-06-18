@@ -580,7 +580,8 @@ print('FLORENCE_PROGRESS:15')
 from transformers import AutoProcessor, AutoModelForCausalLM
 print('FLORENCE_PROGRESS:20 正在下载模型文件（约 300MB，首次下载需 2-5 分钟）...')
 model = AutoModelForCausalLM.from_pretrained(
-    'microsoft/Florence-2-base', trust_remote_code=True, cache_dir=cache_dir
+    'microsoft/Florence-2-base', trust_remote_code=True, cache_dir=cache_dir,
+    attn_implementation='eager'
 ).to('cpu').eval()
 print('FLORENCE_PROGRESS:75')
 processor = AutoProcessor.from_pretrained(

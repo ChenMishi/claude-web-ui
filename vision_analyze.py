@@ -26,7 +26,8 @@ def load_model():
     """延迟加载，首次调用时下载模型 (~300MB)"""
     from transformers import AutoProcessor, AutoModelForCausalLM
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID, trust_remote_code=True, cache_dir=CACHE_DIR
+        MODEL_ID, trust_remote_code=True, cache_dir=CACHE_DIR,
+        attn_implementation='eager'
     ).to("cpu").eval()
     processor = AutoProcessor.from_pretrained(
         MODEL_ID, trust_remote_code=True, cache_dir=CACHE_DIR
