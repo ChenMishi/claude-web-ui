@@ -3006,6 +3006,12 @@ html, body, #root {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.msg-artifacts-size {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-right: 8px;
+}
 .msg-artifacts-dl {
   flex-shrink: 0;
   padding: 3px 10px;

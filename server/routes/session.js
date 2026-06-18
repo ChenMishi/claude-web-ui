@@ -212,12 +212,16 @@ function handleSDKMessage(message, runtime, isStreaming) {
 
   if (message.type === 'assistant') {
     if (isStreaming) {
-      // Store Bash commands for later path extraction
+      // Store Bash commands for later path extraction and Write tool file paths
       if (!runtime.bashCommands) runtime.bashCommands = new Map();
+      if (!runtime.writeFilePaths) runtime.writeFilePaths = new Map();
       const content = message.message?.content || [];
       for (const block of content) {
         if (block.type === 'tool_use' && block.name === 'Bash' && block.id) {
           runtime.bashCommands.set(block.id, block.input?.command || '');
+        }
+        if (block.type === 'tool_use' && block.name === 'Write' && block.id && block.input?.file_path) {
+          runtime.writeFilePaths.set(block.id, block.input.file_path);
         }
       }
       // Log usage for debugging
@@ -251,6 +255,27 @@ function handleSDKMessage(message, runtime, isStreaming) {
             }
             runtime.bashCommands.delete(block.tool_use_id);
           }
+          // Check Write tool file paths
+          const writePath = runtime.writeFilePaths?.get(block.tool_use_id);
+          if (writePath && !block.is_error) {
+            if (!extractedPaths[block.tool_use_id]) extractedPaths[block.tool_use_id] = [];
+            extractedPaths[block.tool_use_id].push(writePath);
+            runtime.writeFilePaths.delete(block.tool_use_id);
+          }
+        }
+      }
+      // Broadcast file_artifact events immediately for each discovered file
+      for (const [toolUseId, paths] of Object.entries(extractedPaths)) {
+        for (const p of paths) {
+          const absPath = path.resolve(runtime.cwd || '/', p);
+          let size = 0;
+          try { size = fs.statSync(absPath).size; } catch {}
+          broadcast(runtime, 'file_artifact', {
+            path: absPath,
+            name: path.basename(absPath),
+            size,
+            sizeText: formatSize(size),
+          });
         }
       }
       broadcast(runtime, 'message', {

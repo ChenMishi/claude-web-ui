@@ -138,14 +138,18 @@ export default memo(function ChatMessage({ message }) {
   if (role === 'artifacts') {
     const files = message.files || [];
     if (files.length === 0) return null;
+    const isSingle = files.length === 1;
     return (
       <div className="msg-artifacts">
-        <div className="msg-artifacts-head">📦 本次会话产物 ({files.length} 个文件)</div>
+        <div className="msg-artifacts-head">
+          {isSingle ? '📦 产物已生成' : `📦 本次会话产物 (${files.length} 个文件)`}
+        </div>
         <div className="msg-artifacts-list">
           {files.map((f, i) => (
             <div className="msg-artifacts-item" key={i}>
               <span className="msg-artifacts-icon">{getFileIcon(f.name)}</span>
               <span className="msg-artifacts-name" title={f.path}>{f.name}</span>
+              {f.sizeText && <span className="msg-artifacts-size">{f.sizeText}</span>}
               <button type="button" className="msg-artifacts-dl" title="下载" onClick={(e) => { e.stopPropagation(); downloadFile(f.path); }}>📥 下载</button>
             </div>
           ))}
