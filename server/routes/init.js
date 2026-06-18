@@ -486,50 +486,107 @@ router.post('/init/install-vision', (req, res) => {
 
   const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python3';
 
-  // Step 2: install PyTorch CPU (pin to 2.5.x for compatibility)
-  send('progress', { pct: 10, text: '安装 PyTorch (CPU 版, v2.5)...' });
-  try {
-    execSync(`"${pythonBin}" -m pip install 'torch>=2.4,<2.6' --index-url https://download.pytorch.org/whl/cpu --no-cache-dir`, {
-      encoding: 'utf8', timeout: 300000,
-      env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' }
-    });
-  } catch (e) {
-    send('done', { success: false, pct: 15, text: `PyTorch 安装失败: ${e.message.slice(0, 200)}` });
-    return res.end();
-  }
+  // Helper: run a command via spawn, streaming stdout/stderr as progress updates
+  const runStep = ({ stepPct, stepText, cmd, args, env: stepEnv, timeout, onDone }) => {
+    send('progress', { pct: stepPct, text: stepText });
 
-  // Step 3: install transformers (pin to <5.0 for Florence-2 compat)
-  send('progress', { pct: 25, text: '安装 Transformers (v4.x 兼容版)...' });
-  try {
-    execSync(`"${pythonBin}" -m pip install 'transformers>=4.38,<5.0' pillow sentencepiece --no-cache-dir`, {
-      encoding: 'utf8', timeout: 300000,
-      env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' }
+    const proc = spawn(cmd, args, {
+      env: stepEnv || process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
-  } catch (e) {
-    send('done', { success: false, pct: 30, text: `Transformers 安装失败: ${e.message.slice(0, 200)}` });
-    return res.end();
-  }
 
-  // Step 4: download Florence-2 model (~300MB)
-  send('progress', { pct: 35, text: '下载 Florence-2 模型 (~300MB)...' });
-  execSync(`"${pythonBin}" -c "
+    let lastPct = stepPct;
+    const maxPct = stepPct + 18; // each step spans ~18% of the progress bar
+
+    const onData = (d) => {
+      const text = d.toString().trim();
+      if (!text) return;
+      // Try to parse pip download progress percentage
+      const pctMatch = text.match(/(\d{1,3})%/);
+      if (pctMatch) {
+        const p = parseInt(pctMatch[1]);
+        lastPct = Math.round(stepPct + (p / 100) * (maxPct - stepPct));
+      } else if (text.includes('Downloading') || text.includes('Collecting')) {
+        lastPct = Math.min(lastPct + 2, maxPct - 5);
+      } else if (text.includes('Installing') || text.includes('Building')) {
+        lastPct = Math.min(lastPct + 1, maxPct - 3);
+      } else if (text.includes('Successfully') || text.includes('Requirement already')) {
+        lastPct = maxPct;
+      }
+      const short = text.length > 100 ? text.slice(0, 100) + '...' : text;
+      send('progress', { pct: lastPct, text: short });
+    };
+
+    proc.stdout.on('data', onData);
+    proc.stderr.on('data', onData);
+
+    const timer = timeout ? setTimeout(() => { try { proc.kill(); } catch {} }, timeout) : null;
+
+    proc.on('close', (code) => {
+      if (timer) clearTimeout(timer);
+      if (code === 0) {
+        send('progress', { pct: maxPct, text: `${stepText.split(' ')[0]} 完成` });
+        onDone(null);
+      } else {
+        onDone(new Error(`exit code ${code}`));
+      }
+    });
+
+    proc.on('error', (e) => {
+      if (timer) clearTimeout(timer);
+      onDone(e);
+    });
+  };
+
+  // Step 2: install PyTorch CPU
+  runStep({
+    stepPct: 10,
+    stepText: '安装 PyTorch (CPU 版, ~200MB)...',
+    cmd: pythonBin,
+    args: ['-m', 'pip', 'install', 'torch>=2.4,<2.6', '--index-url', 'https://download.pytorch.org/whl/cpu', '--no-cache-dir'],
+    env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
+    timeout: 600000,
+    onDone: (err) => {
+      if (err) {
+        send('done', { success: false, pct: 15, text: `PyTorch 安装失败: ${err.message.slice(0, 200)}` });
+        return res.end();
+      }
+      // Step 3: install transformers + pillow + sentencepiece
+      runStep({
+        stepPct: 28,
+        stepText: '安装 Transformers + Pillow (~100MB)...',
+        cmd: pythonBin,
+        args: ['-m', 'pip', 'install', 'transformers>=4.38,<5.0', 'pillow', 'sentencepiece', '--no-cache-dir'],
+        env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
+        timeout: 600000,
+        onDone: (err2) => {
+          if (err2) {
+            send('done', { success: false, pct: 30, text: `Transformers 安装失败: ${err2.message.slice(0, 200)}` });
+            return res.end();
+          }
+          // Step 4: download Florence-2 model (~300MB)
+          send('progress', { pct: 46, text: '下载 Florence-2 模型 (~300MB)...' });
+
+          const modelProc = spawn(pythonBin, ['-c', `
 import os
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 cache_dir = '${path.join(PROJECT_DIR, '.vision_cache').replace(/'/g, "'\\''")}'
 os.makedirs(cache_dir, exist_ok=True)
-
+print('FLORENCE_PROGRESS:0')
 import torch
+print('FLORENCE_PROGRESS:10')
 from PIL import Image
+print('FLORENCE_PROGRESS:15')
 from transformers import AutoProcessor, AutoModelForCausalLM
-
+print('FLORENCE_PROGRESS:20 正在下载模型文件（约 300MB，首次下载需 2-5 分钟）...')
 model = AutoModelForCausalLM.from_pretrained(
     'microsoft/Florence-2-base', trust_remote_code=True, cache_dir=cache_dir
 ).to('cpu').eval()
+print('FLORENCE_PROGRESS:75')
 processor = AutoProcessor.from_pretrained(
     'microsoft/Florence-2-base', trust_remote_code=True, cache_dir=cache_dir
 )
-
-# Quick test
+print('FLORENCE_PROGRESS:85 正在验证...')
 import io, base64
 png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
 img = Image.open(io.BytesIO(png)).convert('RGB')
@@ -537,23 +594,59 @@ inputs = processor(text='<DETAILED_CAPTION>', images=img, return_tensors='pt')
 generated_ids = model.generate(input_ids=inputs['input_ids'], pixel_values=inputs['pixel_values'], max_new_tokens=32, do_sample=False)
 caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 print('MODEL_OK:' + str(len(caption) > 0))
-"`, {
-    encoding: 'utf8', timeout: 600000,
-    env: { ...process.env, PYTHONUNBUFFERED: '1', HF_ENDPOINT: 'https://hf-mirror.com' },
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
+`], {
+            env: { ...process.env, PYTHONUNBUFFERED: '1', HF_ENDPOINT: 'https://hf-mirror.com' },
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
 
-  send('progress', { pct: 90, text: '验证模型...' });
+          let modelPct = 46;
 
-  // Re-check vision status
-  const newStatus = checkVisionInstalled();
-  const ok = newStatus.installed;
-  send('done', {
-    success: ok,
-    pct: ok ? 100 : 80,
-    text: ok ? 'Florence-2 图像识别模型安装完成' : `安装异常 (状态: ${newStatus.reason})，请查看日志`,
+          const onModelData = (d) => {
+            const text = d.toString().trim();
+            if (!text) return;
+            // Parse FLORENCE_PROGRESS:XX markers
+            const progMatch = text.match(/FLORENCE_PROGRESS:(\d+)/);
+            if (progMatch) {
+              const p = parseInt(progMatch[1]);
+              modelPct = Math.round(46 + (p / 100) * 44); // map 0-100 → 46-90
+            }
+            // Send the raw text as progress
+            const cleanText = text.replace(/FLORENCE_PROGRESS:\d+\s*/, '').trim();
+            const short = (cleanText || text).slice(0, 120);
+            send('progress', { pct: modelPct, text: short || '下载中...' });
+          };
+
+          modelProc.stdout.on('data', onModelData);
+          modelProc.stderr.on('data', onModelData);
+
+          const modelTimer = setTimeout(() => { try { modelProc.kill(); } catch {} }, 600000);
+
+          modelProc.on('close', (code) => {
+            clearTimeout(modelTimer);
+            if (code === 0) {
+              send('progress', { pct: 90, text: '验证模型...' });
+              const newStatus = checkVisionInstalled();
+              const ok = newStatus.installed;
+              send('done', {
+                success: ok,
+                pct: ok ? 100 : 80,
+                text: ok ? 'Florence-2 图像识别模型安装完成' : `安装异常 (状态: ${newStatus.reason})，请查看日志`,
+              });
+            } else {
+              send('done', { success: false, pct: modelPct, text: `模型下载/验证失败 (exit ${code})，请查看日志` });
+            }
+            res.end();
+          });
+
+          modelProc.on('error', (e) => {
+            clearTimeout(modelTimer);
+            send('done', { success: false, pct: modelPct, text: `模型步骤异常: ${e.message.slice(0, 200)}` });
+            res.end();
+          });
+        }
+      });
+    }
   });
-  res.end();
 });
 
 // Check Claude Code update
