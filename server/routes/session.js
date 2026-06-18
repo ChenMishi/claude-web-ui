@@ -226,6 +226,7 @@ function handleSDKMessage(message, runtime, isStreaming) {
       for (const block of content) {
         if (block.type === 'tool_use' && block.name === 'Bash' && block.id) {
           runtime.bashCommands.set(block.id, block.input?.command || '');
+          console.log('[artifact] stored Bash cmd:', block.id, '→', (block.input?.command || '').slice(0, 120));
         }
         if (block.type === 'tool_use' && block.name === 'Write' && block.id && block.input?.file_path) {
           runtime.writeFilePaths.set(block.id, block.input.file_path);
@@ -255,8 +256,11 @@ function handleSDKMessage(message, runtime, isStreaming) {
       for (const block of content) {
         if (block.type === 'tool_result' && block.tool_use_id) {
           const cmd = runtime.bashCommands?.get(block.tool_use_id);
+          console.log('[artifact] tool_result:', block.tool_use_id, 'hasCmd:', !!cmd, 'is_error:', block.is_error, 'cwd:', runtime.cwd);
           if (cmd) {
+            console.log('[artifact] extracting from cmd:', cmd.slice(0, 150));
             const paths = extractBashFilePaths(cmd, typeof block.content === 'string' ? block.content : '', runtime.cwd);
+            console.log('[artifact] extracted paths:', JSON.stringify(paths));
             if (paths.length > 0) {
               // Resolve relative paths to absolute using session cwd
               extractedPaths[block.tool_use_id] = paths.map(p => path.resolve(runtime.cwd || '/', p));
