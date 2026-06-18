@@ -4,6 +4,7 @@
 # 用法: ./upgrade.sh
 # ============================================================
 set -e
+set -o pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -144,7 +145,7 @@ log "拉取最新代码..."
 # 暂存本地改动然后拉取，避免冲突
 if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
     warn "检测到本地改动，暂存后拉取..."
-    git stash push -m "upgrade-auto-stash-$(date +%s)" 2>/dev/null || true
+    git stash push -u -m "upgrade-auto-stash-$(date +%s)" 2>/dev/null || true
 fi
 git pull 2>&1 | tail -3 || {
     err "git pull 失败，请手动更新"

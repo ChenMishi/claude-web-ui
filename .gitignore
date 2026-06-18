@@ -44,3 +44,8 @@ uploads/
 # Python 虚拟环境及本地模型缓存
 venv/
 .vision_cache/
+__pycache__/
+
+# 测试/调试临时产物
+health_check*
+打油诗*

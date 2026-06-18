@@ -560,9 +560,9 @@ router.post('/init/install-vision', (req, res) => {
   // Step 2: install PyTorch CPU
   runStep({
     stepPct: 10,
-    stepText: '安装 PyTorch (CPU 版, ~200MB)...',
+    stepText: '安装 PyTorch + TorchVision (CPU 版, ~300MB)...',
     cmd: pythonBin,
-    args: ['-m', 'pip', 'install', 'torch>=2.4,<2.6', '--index-url', 'https://download.pytorch.org/whl/cpu', '--no-cache-dir'],
+    args: ['-m', 'pip', 'install', 'torch>=2.4,<2.6', 'torchvision', '--index-url', 'https://download.pytorch.org/whl/cpu', '--no-cache-dir'],
     env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
     timeout: 600000,
     onDone: (err) => {

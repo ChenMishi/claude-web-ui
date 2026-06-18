@@ -1102,6 +1102,120 @@ html, body, #root {
   flex-shrink: 0;
 }
 
+/* ── 图片缩略图 ── */
+.msg-attachments-images {
+  gap: 8px;
+}
+
+.msg-thumb-item {
+  height: 150px;
+  max-width: 260px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  flex-shrink: 0;
+}
+
+.msg-thumb-img {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.msg-thumb-img:hover {
+  opacity: 0.85;
+}
+
+.msg-thumb-loading {
+  animation: thumb-pulse 1.2s ease-in-out infinite;
+}
+@keyframes thumb-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
+.msg-thumb-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  width: auto;
+  height: auto;
+  min-width: 100px;
+}
+.msg-thumb-error svg {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+/* ── 图片灯箱 ── */
+.msg-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  animation: lb-fade-in 0.2s;
+}
+@keyframes lb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.msg-lightbox-inner {
+  position: relative;
+  max-width: 92vw;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.msg-lightbox-img {
+  max-width: 92vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+
+.msg-lightbox-close {
+  position: absolute;
+  top: -36px;
+  right: 0;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+.msg-lightbox-close:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.msg-lightbox-caption {
+  color: rgba(255,255,255,0.7);
+  font-size: 13px;
+  margin-top: 8px;
+  text-align: center;
+}
+
 .attach-drop-overlay {
   position: absolute;
   inset: 0;

@@ -17,6 +17,7 @@
   ```
 - **不要自动重启 web UI 服务**，由用户自行手动重启
 - 前端修改后需执行 `cd client && npm run build` 构建到 `public/` 目录
+- **版本号变更必须使用 `./bump.sh` 脚本**，不要手动修改版本号。脚本会自动同步所有文件（VERSION、package.json、前端组件、health.js）并构建前端
 
 ## 提交规范
 - 使用中文 commit message

@@ -1,7 +1,71 @@
 import { useState, useEffect, useRef, useMemo, memo, Fragment } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 import { PrismLight as Prism } from 'react-syntax-highlighter';
-import { downloadFile } from '../api';
+import { downloadFile, authHeaders } from '../api';
+
+// ── 图片缩略图组件 ──
+function ImageThumbnail({ attachment, onOpen }) {
+  const [url, setUrl] = useState(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let revoked = false;
+    const load = async () => {
+      try {
+        const resp = await fetch(`/api/fs/download?path=${encodeURIComponent(attachment.path)}`, {
+          headers: authHeaders(),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        if (!revoked) setUrl(URL.createObjectURL(blob));
+      } catch {
+        if (!revoked) setError(true);
+      }
+    };
+    load();
+    return () => { revoked = true; if (url) URL.revokeObjectURL(url); };
+  }, [attachment.path]);
+
+  if (error) {
+    return (
+      <div className="msg-thumb-item msg-thumb-error">
+        {getFileIcon((attachment.fileName || attachment.originalName || '').toLowerCase())}
+        <span className="msg-attach-name">{attachment.fileName || attachment.originalName}</span>
+      </div>
+    );
+  }
+  if (!url) {
+    return <div className="msg-thumb-item msg-thumb-loading" />;
+  }
+  return (
+    <div className="msg-thumb-item" onClick={() => onOpen(url, attachment.originalName || attachment.fileName)}>
+      <img src={url} className="msg-thumb-img" alt={attachment.originalName || attachment.fileName} loading="lazy" />
+    </div>
+  );
+}
+
+// ── 图片灯箱 ──
+function ImageLightbox({ src, alt, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+
+  return (
+    <div className="msg-lightbox-overlay" onClick={onClose}>
+      <div className="msg-lightbox-inner" onClick={e => e.stopPropagation()}>
+        <button className="msg-lightbox-close" onClick={onClose}>✕</button>
+        <img src={src} alt={alt} className="msg-lightbox-img" />
+        {alt && <div className="msg-lightbox-caption">{alt}</div>}
+      </div>
+    </div>
+  );
+}
 
 // ── Language detection from file extension ──
 function detectLang(filePath) {
@@ -133,6 +197,15 @@ import { getFileIcon } from '../utils/fileIcons';
 export default memo(function ChatMessage({ message }) {
   const { role, content, error, toolCall, toolResult, timestamp, streaming } = message;
   const attachments = message.attachments;
+  const [lightbox, setLightbox] = useState(null);
+
+  // ⚠️ All hooks MUST be called before any conditional return (React hook rules)
+  const safeContent = typeof content === 'string' ? content : '';
+  const messageBody = useMemo(() => (
+    <div className="message-content">
+      <MarkdownRenderer content={safeContent} streaming={streaming} />
+    </div>
+  ), [safeContent, streaming]);
 
   // Artifact summary — files created during the session
   if (role === 'artifacts') {
@@ -183,14 +256,6 @@ export default memo(function ChatMessage({ message }) {
   }
 
   const labels = { user: '你', assistant: 'Claude' };
-  const safeContent = typeof content === 'string' ? content : '';
-
-  // 用 useMemo 缓存 MarkdownRenderer 输出 — 已完成的消息不应在父组件重渲染时重复解析
-  const messageBody = useMemo(() => (
-    <div className="message-content">
-      <MarkdownRenderer content={safeContent} streaming={streaming} />
-    </div>
-  ), [safeContent, streaming]);
 
   return (
     <div className={`message ${role}`}>
@@ -198,21 +263,34 @@ export default memo(function ChatMessage({ message }) {
         <span className="role-label">{labels[role] || role}</span>
         {timestamp && <span className="message-time">{formatTime(timestamp)}</span>}
       </div>
-      {attachments && attachments.length > 0 && role === 'user' && (
-        <div className="msg-attachments">
-          {attachments.map((a, i) => {
-            const name = (a.fileName || a.originalName || '').toLowerCase();
-            return (
-              <div key={i} className="msg-attach-item">
-                {getFileIcon(name)}
-                <span className="msg-attach-name">{a.fileName || a.originalName}</span>
-                {a.size && <span className="msg-attach-size">{a.size < 1024 ? `${a.size}B` : a.size < 1048576 ? `${(a.size / 1024).toFixed(1)}KB` : `${(a.size / 1048576).toFixed(1)}MB`}</span>}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {attachments && attachments.length > 0 && role === 'user' && (() => {
+        const allImages = attachments.every(a => a.mimeType?.startsWith('image/'));
+        if (allImages) {
+          return (
+            <div className="msg-attachments msg-attachments-images">
+              {attachments.map((a, i) => (
+                <ImageThumbnail key={i} attachment={a} onOpen={(url, name) => setLightbox({ src: url, alt: name })} />
+              ))}
+            </div>
+          );
+        }
+        return (
+          <div className="msg-attachments">
+            {attachments.map((a, i) => {
+              const name = (a.fileName || a.originalName || '').toLowerCase();
+              return (
+                <div key={i} className="msg-attach-item">
+                  {getFileIcon(name)}
+                  <span className="msg-attach-name">{a.fileName || a.originalName}</span>
+                  {a.size && <span className="msg-attach-size">{a.size < 1024 ? `${a.size}B` : a.size < 1048576 ? `${(a.size / 1024).toFixed(1)}KB` : `${(a.size / 1048576).toFixed(1)}MB`}</span>}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
       {messageBody}
+      {lightbox && <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />}
     </div>
   );
 });

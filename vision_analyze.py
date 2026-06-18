@@ -76,8 +76,8 @@ def analyze(image_path):
         raw_ocr = processor.batch_decode(
             generated_ids, skip_special_tokens=True
         )[0].strip()
-        # 过滤无意义结果：单字符噪声、"-" 占位符等
-        if len(raw_ocr) <= 2 and raw_ocr.replace('-', '').strip() == '':
+        # 过滤无意义结果：≤3 字符的噪声（"C"、"美"、"美色"、"O" 等）
+        if len(raw_ocr) <= 3:
             raw_ocr = ''
         results["ocr"] = raw_ocr
     except Exception as e:
