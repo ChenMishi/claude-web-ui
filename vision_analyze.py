@@ -73,9 +73,13 @@ def analyze(image_path):
             use_cache=False,
             num_beams=1,
         )
-        results["ocr"] = processor.batch_decode(
+        raw_ocr = processor.batch_decode(
             generated_ids, skip_special_tokens=True
         )[0].strip()
+        # 过滤无意义结果：单字符噪声、"-" 占位符等
+        if len(raw_ocr) <= 2 and raw_ocr.replace('-', '').strip() == '':
+            raw_ocr = ''
+        results["ocr"] = raw_ocr
     except Exception as e:
         results["ocr"] = f"(OCR 失败: {e})"
 
