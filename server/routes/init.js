@@ -607,9 +607,7 @@ processor = AutoProcessor.from_pretrained(
     'microsoft/Florence-2-base', trust_remote_code=True, cache_dir=cache_dir
 )
 print('FLORENCE_PROGRESS:85 正在验证...')
-import io, base64
-png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
-img = Image.open(io.BytesIO(png)).convert('RGB')
+img = Image.new('RGB', (64, 64), color=(128, 128, 128))
 inputs = processor(text='<DETAILED_CAPTION>', images=img, return_tensors='pt')
 generated_ids = model.generate(input_ids=inputs['input_ids'], pixel_values=inputs['pixel_values'], max_new_tokens=32, do_sample=False)
 caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
