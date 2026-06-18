@@ -73,7 +73,7 @@ export default function InitPanel() {
     // Cache detection result so it persists across page refreshes
     try { localStorage.setItem('claude-ui:envStatus', JSON.stringify({ status: res, time: Date.now() })); } catch {}
 
-    const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
+    const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'tesseract', 'os'];
     for (let i = 0; i < items.length; i++) {
       await new Promise(r => setTimeout(r, 700));
       setEnvProgress(prev => ({ ...prev, [items[i]]: { checked: true } }));
@@ -89,7 +89,7 @@ export default function InitPanel() {
         setStatus(parsed.status);
         setEnvChecked(true);
         // Restore env progress as all-checked
-        const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'os'];
+        const items = ['node', 'npm', 'git', 'buildtools', 'curl', 'tesseract', 'os'];
         const progress = {};
         items.forEach(k => { progress[k] = { checked: true }; });
         setEnvProgress(progress);
