@@ -609,7 +609,7 @@ processor = AutoProcessor.from_pretrained(
 print('FLORENCE_PROGRESS:85 正在验证...')
 img = Image.new('RGB', (64, 64), color=(128, 128, 128))
 inputs = processor(text='<DETAILED_CAPTION>', images=img, return_tensors='pt')
-generated_ids = model.generate(input_ids=inputs['input_ids'], pixel_values=inputs['pixel_values'], max_new_tokens=32, do_sample=False)
+generated_ids = model.generate(input_ids=inputs['input_ids'], pixel_values=inputs['pixel_values'], max_new_tokens=32, do_sample=False, use_cache=False, num_beams=1)
 caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 print('MODEL_OK:' + str(len(caption) > 0))
 `], {
