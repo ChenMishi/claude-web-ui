@@ -465,110 +465,95 @@ router.post('/init/install-vision', (req, res) => {
 
   const venvDir = path.join(PROJECT_DIR, 'venv');
   const venvPython = path.join(venvDir, 'bin', 'python3');
-  const visionScript = path.join(PROJECT_DIR, 'vision_analyze.py');
 
-  // Step 1: create venv if needed
-  if (!fs.existsSync(venvPython)) {
-    send('progress', { pct: 5, text: '创建 Python 虚拟环境...' });
-    try {
-      execSync(`python3 -m venv "${venvDir}"`, { encoding: 'utf8', timeout: 60000 });
-    } catch (e) {
-      send('done', { success: false, pct: 0, text: `创建虚拟环境失败: ${e.message}` });
-      return res.end();
-    }
+  // Step 1: clean old venv and caches, then create fresh venv
+  send('progress', { pct: 2, text: '清理旧环境...' });
+  try {
+    if (fs.existsSync(venvDir)) fs.rmSync(venvDir, { recursive: true, force: true });
+    const hfCache = path.join(os.homedir(), '.cache', 'huggingface');
+    if (fs.existsSync(hfCache)) fs.rmSync(hfCache, { recursive: true, force: true });
+    const visionCache = path.join(PROJECT_DIR, '.vision_cache');
+    if (fs.existsSync(visionCache)) fs.rmSync(visionCache, { recursive: true, force: true });
+  } catch {}
+
+  send('progress', { pct: 5, text: '创建 Python 虚拟环境...' });
+  try {
+    execSync(`python3 -m venv "${venvDir}"`, { encoding: 'utf8', timeout: 60000 });
+  } catch (e) {
+    send('done', { success: false, pct: 0, text: `创建虚拟环境失败: ${e.message}` });
+    return res.end();
   }
 
-  const pipBin = path.join(venvDir, 'bin', 'pip');
   const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python3';
 
-  // Step 2: install PyTorch CPU + transformers + pillow
-  send('progress', { pct: 10, text: '安装 PyTorch (CPU 版)...' });
+  // Step 2: install PyTorch CPU (pin to 2.5.x for compatibility)
+  send('progress', { pct: 10, text: '安装 PyTorch (CPU 版, v2.5)...' });
   try {
-    execSync(`"${pythonBin}" -m pip install torch --index-url https://download.pytorch.org/whl/cpu -q 2>&1`, {
-      encoding: 'utf8', timeout: 300000, env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' }
+    execSync(`"${pythonBin}" -m pip install 'torch>=2.4,<2.6' --index-url https://download.pytorch.org/whl/cpu --no-cache-dir`, {
+      encoding: 'utf8', timeout: 300000,
+      env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' }
     });
   } catch (e) {
-    send('done', { success: false, pct: 15, text: `PyTorch 安装失败: ${e.message}` });
+    send('done', { success: false, pct: 15, text: `PyTorch 安装失败: ${e.message.slice(0, 200)}` });
     return res.end();
   }
 
-  send('progress', { pct: 25, text: '安装 Transformers...' });
+  // Step 3: install transformers (pin to <5.0 for Florence-2 compat)
+  send('progress', { pct: 25, text: '安装 Transformers (v4.x 兼容版)...' });
   try {
-    execSync(`"${pythonBin}" -m pip install transformers pillow -q 2>&1`, {
-      encoding: 'utf8', timeout: 300000, env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' }
+    execSync(`"${pythonBin}" -m pip install 'transformers>=4.38,<5.0' pillow sentencepiece --no-cache-dir`, {
+      encoding: 'utf8', timeout: 300000,
+      env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' }
     });
   } catch (e) {
-    send('done', { success: false, pct: 30, text: `Transformers 安装失败: ${e.message}` });
+    send('done', { success: false, pct: 30, text: `Transformers 安装失败: ${e.message.slice(0, 200)}` });
     return res.end();
   }
 
-  // Step 3: download Florence-2 model (~300MB)
+  // Step 4: download Florence-2 model (~300MB)
   send('progress', { pct: 35, text: '下载 Florence-2 模型 (~300MB)...' });
-
-  const proc = spawn(pythonBin, ['-c', `
-import os, sys, json
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-# Set cache to project dir
-cache_dir = os.path.join(${JSON.stringify(PROJECT_DIR)}, ".vision_cache")
+  execSync(`"${pythonBin}" -c "
+import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+cache_dir = '${path.join(PROJECT_DIR, '.vision_cache').replace(/'/g, "'\\''")}'
 os.makedirs(cache_dir, exist_ok=True)
 
 import torch
 from PIL import Image
 from transformers import AutoProcessor, AutoModelForCausalLM
 
-# Download model
 model = AutoModelForCausalLM.from_pretrained(
-    "microsoft/Florence-2-base", trust_remote_code=True, cache_dir=cache_dir
-).to("cpu").eval()
+    'microsoft/Florence-2-base', trust_remote_code=True, cache_dir=cache_dir
+).to('cpu').eval()
 processor = AutoProcessor.from_pretrained(
-    "microsoft/Florence-2-base", trust_remote_code=True, cache_dir=cache_dir
+    'microsoft/Florence-2-base', trust_remote_code=True, cache_dir=cache_dir
 )
 
-# Quick test with a 1x1 black image
+# Quick test
 import io, base64
-# 1x1 black PNG
-png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
-img = Image.open(io.BytesIO(png)).convert("RGB")
-inputs = processor(text="<DETAILED_CAPTION>", images=img, return_tensors="pt")
-generated_ids = model.generate(input_ids=inputs["input_ids"], pixel_values=inputs["pixel_values"], max_new_tokens=32, do_sample=False)
+png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
+img = Image.open(io.BytesIO(png)).convert('RGB')
+inputs = processor(text='<DETAILED_CAPTION>', images=img, return_tensors='pt')
+generated_ids = model.generate(input_ids=inputs['input_ids'], pixel_values=inputs['pixel_values'], max_new_tokens=32, do_sample=False)
 caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-print("MODEL_OK:" + str(len(caption) > 0))
-`], { env: { ...process.env, PYTHONUNBUFFERED: '1', HF_ENDPOINT: 'https://hf-mirror.com' } });
-
-  let lastPct = 35;
-  proc.stdout.on('data', (d) => {
-    const text = d.toString();
-    if (text.includes('Downloading') || text.includes('Fetching')) {
-      lastPct = Math.min(lastPct + 3, 70);
-    } else if (text.includes('MODEL_OK')) {
-      lastPct = 90;
-    } else {
-      lastPct = Math.min(lastPct + 1, 80);
-    }
-    send('progress', { pct: lastPct, text: text.trim().slice(0, 120) });
-  });
-  proc.stderr.on('data', (d) => {
-    const text = d.toString();
-    lastPct = Math.min(lastPct + 2, 75);
-    send('progress', { pct: lastPct, text: text.trim().slice(0, 120) });
+print('MODEL_OK:' + str(len(caption) > 0))
+"`, {
+    encoding: 'utf8', timeout: 600000,
+    env: { ...process.env, PYTHONUNBUFFERED: '1', HF_ENDPOINT: 'https://hf-mirror.com' },
+    stdio: ['ignore', 'pipe', 'pipe']
   });
 
-  proc.on('close', (code) => {
-    // Re-check vision status
-    const newStatus = checkVisionInstalled();
-    const ok = newStatus.installed;
-    send('done', {
-      success: ok,
-      pct: ok ? 100 : 80,
-      text: ok ? 'Florence-2 图像识别模型安装完成' : `安装异常 (状态: ${newStatus.reason})，请查看日志`,
-    });
-    res.end();
-  });
+  send('progress', { pct: 90, text: '验证模型...' });
 
-  proc.on('error', (e) => {
-    send('done', { success: false, pct: 50, text: `模型下载失败: ${e.message}` });
-    res.end();
+  // Re-check vision status
+  const newStatus = checkVisionInstalled();
+  const ok = newStatus.installed;
+  send('done', {
+    success: ok,
+    pct: ok ? 100 : 80,
+    text: ok ? 'Florence-2 图像识别模型安装完成' : `安装异常 (状态: ${newStatus.reason})，请查看日志`,
   });
+  res.end();
 });
 
 // Check Claude Code update
