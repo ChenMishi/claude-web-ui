@@ -1131,8 +1131,15 @@ router.post('/session/:id/message', async (req, res) => {
   // Determine available strategies (top-priority first)
   const hasImages = attachments.some(a => SUPPORTED_IMAGE_MIME.includes(a.mimeType));
   const florenceInstalled = checkFlorenceInstalled();
+
+  // Check if model supports vision (avoid unnecessary native attempts)
+  const modelName = (body.options?.model || '').toLowerCase();
+  const modelIsVision = /claude.*(sonnet|opus)/i.test(modelName)
+    || /gpt-4o|gemini/i.test(modelName)
+    || /claude-3[.-]?5/i.test(modelName);
+
   const promptStrategies = hasImages
-    ? ['native', ...(florenceInstalled ? ['florence'] : []), 'text']
+    ? [...(modelIsVision ? ['native'] : []), ...(florenceInstalled ? ['florence'] : []), 'text']
     : ['text'];
 
   const wantsStream = req.headers.accept?.includes('text/event-stream') || req.query.stream === '1';
