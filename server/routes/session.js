@@ -1116,15 +1116,44 @@ router.post('/session/:id/message', async (req, res) => {
       return fullPrompt; // string
     }
 
-    // ── Strategy: text (no analysis available, hint to install Florence-2) ──
-    const imagePaths = imageAttachments.map(a => `  ${a.path}`).join('\n');
-    const ocrHint = [
-      '💡 当前模型不支持图像视觉输入，且 Florence-2 图像识别模型未安装。',
-      '图片文件路径：',
-      imagePaths,
-      '请使用 Read 工具读取图片尝试基础 OCR，或前往「设置 → 初始化」安装 Florence-2 模型获得画面描述 + OCR。'
-    ].join('\n');
-    const fullPrompt = [textPrefix, ocrHint, '---', prompt].filter(Boolean).join('\n\n');
+    // ── Strategy: tesseract (command-line OCR, always available if installed) ──
+    const { execSync } = require('child_process');
+    const tesseractInstalled = (() => {
+      try { execSync('which tesseract', { encoding: 'utf8', timeout: 3000 }); return true; } catch { return false; }
+    })();
+
+    const ocrBlocks = [];
+    for (const img of imageAttachments) {
+      try {
+        const imgData = fs.readFileSync(img.path);
+        if (imgData.length > 50 * 1024 * 1024) {
+          ocrBlocks.push(`[图片 ${img.fileName || img.originalName} 过大，跳过 OCR]`);
+          continue;
+        }
+        if (tesseractInstalled) {
+          // Run tesseract with Chinese + English language support
+          const text = execSync(`tesseract "${img.path}" stdout -l chi_sim+eng 2>/dev/null`, {
+            encoding: 'utf8', timeout: 60000, maxBuffer: 1024 * 1024
+          }).trim();
+          if (text) {
+            ocrBlocks.push(`📝 Tesseract OCR 识别结果（${img.fileName || img.originalName}）：\n${text}`);
+          } else {
+            ocrBlocks.push(`[图片 ${img.fileName || img.originalName} 中未检测到文字]`);
+          }
+        } else {
+          ocrBlocks.push(`[Tesseract OCR 未安装，无法识别图片 ${img.fileName || img.originalName}]`);
+        }
+      } catch (e) {
+        ocrBlocks.push(`[OCR 识别失败 ${img.fileName || img.originalName}: ${e.message}]`);
+      }
+    }
+    const ocrText = ocrBlocks.join('\n\n');
+
+    // Also hint about Florence-2 for enhanced recognition
+    const florenceHint = florenceInstalled ? '' :
+      '\n\n💡 当前为 Tesseract OCR 文字识别。如需增强图像识别（画面描述 + 更精准 OCR），请在「设置 → 初始化」中安装 Florence-2 图像识别模型。';
+
+    const fullPrompt = [textPrefix, ocrText + florenceHint, '---', prompt].filter(Boolean).join('\n\n');
     return fullPrompt; // string
   }
 
