@@ -556,7 +556,7 @@ router.post('/init/install-vision', (req, res) => {
         stepPct: 28,
         stepText: '安装 Transformers + Pillow (~100MB)...',
         cmd: pythonBin,
-        args: ['-m', 'pip', 'install', 'transformers>=4.38,<5.0', 'pillow', 'sentencepiece', '--no-cache-dir'],
+        args: ['-m', 'pip', 'install', 'transformers>=4.38,<5.0', 'pillow', 'sentencepiece', 'einops', 'timm', '--no-cache-dir'],
         env: { ...process.env, PIP_INDEX_URL: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
         timeout: 600000,
         onDone: (err2) => {
