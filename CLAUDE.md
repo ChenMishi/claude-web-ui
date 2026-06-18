@@ -5,7 +5,16 @@
 - 未经允许不得去其他机器检查
 
 ## 工作流程
-- 代码修改完成后先提交推送，再考虑重启服务
+- 代码修改完成后先提交（commit），**不要自动推送（push）**
+- 仅当用户明确要求"推送"时，将所有未推送的提交 squash 为一条合并推送：
+  ```bash
+  # 1. 找到第一个未推送 commit 的前一个 commit
+  git reset --soft origin/master
+  # 2. 合并所有改动为一条提交
+  git commit -m "用户指定的汇总信息"
+  # 3. 推送
+  git push
+  ```
 - **不要自动重启 web UI 服务**，由用户自行手动重启
 - 前端修改后需执行 `cd client && npm run build` 构建到 `public/` 目录
 
