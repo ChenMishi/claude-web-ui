@@ -1027,7 +1027,7 @@ router.post('/session/:id/message', async (req, res) => {
         if (analysis.ok) {
           const parts = [];
           if (analysis.caption) parts.push(`📷 画面描述：${analysis.caption}`);
-          if (analysis.ocr && analysis.ocr !== 'No text found' && analysis.ocr.trim()) {
+          if (analysis.ocr && analysis.ocr !== 'No text found' && analysis.ocr !== '-' && analysis.ocr.trim()) {
             parts.push(`📝 图中文字：${analysis.ocr}`);
           }
           blocks.push(parts.join('\n'));

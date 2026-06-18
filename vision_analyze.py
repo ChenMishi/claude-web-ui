@@ -51,6 +51,8 @@ def analyze(image_path):
             pixel_values=inputs["pixel_values"],
             max_new_tokens=512,
             do_sample=False,
+            use_cache=False,
+            num_beams=1,
         )
         results["caption"] = processor.batch_decode(
             generated_ids, skip_special_tokens=True
@@ -68,6 +70,8 @@ def analyze(image_path):
             pixel_values=inputs["pixel_values"],
             max_new_tokens=512,
             do_sample=False,
+            use_cache=False,
+            num_beams=1,
         )
         results["ocr"] = processor.batch_decode(
             generated_ids, skip_special_tokens=True
