@@ -1116,8 +1116,14 @@ router.post('/session/:id/message', async (req, res) => {
       return fullPrompt; // string
     }
 
-    // ── Strategy: text (basic OCR hint) ──
-    const ocrHint = '\n💡 当前使用基础文字识别能力读取图片。如需增强图像识别（画面描述 + 精确 OCR），请在「设置 → 初始化」中安装 Florence-2 图像识别模型。';
+    // ── Strategy: text (no analysis available, hint to install Florence-2) ──
+    const imagePaths = imageAttachments.map(a => `  ${a.path}`).join('\n');
+    const ocrHint = [
+      '💡 当前模型不支持图像视觉输入，且 Florence-2 图像识别模型未安装。',
+      '图片文件路径：',
+      imagePaths,
+      '请使用 Read 工具读取图片尝试基础 OCR，或前往「设置 → 初始化」安装 Florence-2 模型获得画面描述 + OCR。'
+    ].join('\n');
     const fullPrompt = [textPrefix, ocrHint, '---', prompt].filter(Boolean).join('\n\n');
     return fullPrompt; // string
   }
@@ -1203,13 +1209,10 @@ router.post('/session/:id/message', async (req, res) => {
       let imageError = false;
 
       for await (const message of query({ prompt: arg, options })) {
-        // ── Detect [Unsupported Image] placeholder in user/assistant messages ──
+        // ── Detect [Unsupported Image] placeholder anywhere in the message ──
         if (strategy === 'native' && promptStrategies.length > 1) {
-          const content = message.message?.content;
-          const hasUnsupportedImage = Array.isArray(content) && content.some(
-            b => b.type === 'text' && typeof b.text === 'string' && b.text.includes('[Unsupported Image]')
-          );
-          if (hasUnsupportedImage) {
+          // Check full serialized message — SDK may place the placeholder in any field
+          if (JSON.stringify(message).includes('[Unsupported Image]')) {
             // SDK silently replaced image with placeholder — retry with next strategy
             imageError = true;
             // Remove the placeholder message from the broadcast buffer
