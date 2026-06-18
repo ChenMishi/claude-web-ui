@@ -1203,6 +1203,23 @@ router.post('/session/:id/message', async (req, res) => {
       let imageError = false;
 
       for await (const message of query({ prompt: arg, options })) {
+        // ── Detect [Unsupported Image] placeholder in user/assistant messages ──
+        if (strategy === 'native' && promptStrategies.length > 1) {
+          const content = message.message?.content;
+          const hasUnsupportedImage = Array.isArray(content) && content.some(
+            b => b.type === 'text' && typeof b.text === 'string' && b.text.includes('[Unsupported Image]')
+          );
+          if (hasUnsupportedImage) {
+            // SDK silently replaced image with placeholder — retry with next strategy
+            imageError = true;
+            // Remove the placeholder message from the broadcast buffer
+            runtime.buffer = (runtime.buffer || []).filter(
+              m => !(m.type === 'user' && JSON.stringify(m.message?.content || '').includes('[Unsupported Image]'))
+            );
+            break;
+          }
+        }
+
         const info = handleSDKMessage(message, runtime, wantsStream);
         if (message.type === 'assistant' || message.type === 'user') {
           allMessages.push(message);
