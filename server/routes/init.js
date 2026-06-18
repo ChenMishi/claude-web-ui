@@ -480,8 +480,27 @@ router.post('/init/install-vision', (req, res) => {
   try {
     execSync(`python3 -m venv "${venvDir}"`, { encoding: 'utf8', timeout: 60000 });
   } catch (e) {
-    send('done', { success: false, pct: 0, text: `创建虚拟环境失败: ${e.message}` });
-    return res.end();
+    // 常见原因：系统未安装 python3-venv
+    if (e.message.includes('ensurepip') || e.message.includes('venv') || e.status !== 0) {
+      send('progress', { pct: 5, text: '检测到 python3-venv 未安装，正在安装...' });
+      try {
+        // 尝试 apt (Debian/Ubuntu)
+        execSync('apt-get update -qq && apt-get install -y -qq python3-venv', { encoding: 'utf8', timeout: 120000 });
+        execSync(`python3 -m venv "${venvDir}"`, { encoding: 'utf8', timeout: 60000 });
+      } catch (e2) {
+        try {
+          // 尝试 yum/dnf (RHEL/CentOS/Fedora)
+          execSync('yum install -y python3-venv || dnf install -y python3-venv', { encoding: 'utf8', timeout: 120000 });
+          execSync(`python3 -m venv "${venvDir}"`, { encoding: 'utf8', timeout: 60000 });
+        } catch (e3) {
+          send('done', { success: false, pct: 0, text: `创建虚拟环境失败。请手动安装 python3-venv: apt install python3-venv 或 yum install python3-venv` });
+          return res.end();
+        }
+      }
+    } else {
+      send('done', { success: false, pct: 0, text: `创建虚拟环境失败: ${e.message}` });
+      return res.end();
+    }
   }
 
   const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python3';
