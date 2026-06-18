@@ -203,7 +203,7 @@ html, body, #root {
   margin: 10px 10px 6px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--glass-border);
+  border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
 }
