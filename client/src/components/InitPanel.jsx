@@ -433,7 +433,7 @@ export default function InitPanel() {
             </div>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0' }}>
-            📌 即使不安装此模型，系统已支持通过 Read 工具对图片进行基础 OCR 文字识别。
+            📌 即使不安装此模型，系统已支持通过 Tesseract OCR 对图片进行基础文字识别。
             安装后新增<strong>画面描述</strong>能力，可理解照片中的人物、动物、景物、颜色等视觉信息。
           </p>
           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 12px' }}>
