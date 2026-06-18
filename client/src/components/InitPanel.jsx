@@ -228,6 +228,7 @@ export default function InitPanel() {
         : component === 'npm' ? res.env?.npm
         : component === 'git' ? res.env?.git
         : component === 'curl' ? res.env?.curl
+        : component === 'tesseract' ? res.env?.tesseract
         : true;
       setEnvProgress(prev => ({ ...prev, [component]: { checked: true, ok: envOk, pct: 100 } }));
       setInstallingEnv(null);
@@ -322,6 +323,7 @@ export default function InitPanel() {
     { key: 'git', label: 'Git', ok: env.git, value: env.gitVersion || '未安装' },
     { key: 'buildtools', label: '编译工具', ok: env.buildTools, value: env.buildTools ? '已安装' : '未安装 (node-pty需要)' },
     { key: 'curl', label: 'curl', ok: env.curl, value: env.curl ? '已安装' : '未安装' },
+    { key: 'tesseract', label: 'Tesseract OCR', ok: env.tesseract, value: env.tesseractVersion || '未安装 (图片文字识别需要)' },
   ];
   if (env.os) envItems.push({ key: 'os', label: '操作系统', ok: true, value: `${env.os} (${env.arch})` });
 

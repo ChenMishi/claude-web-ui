@@ -155,6 +155,8 @@ function checkEnvironment() {
     gitVersion: checkVersion('git', '--version'),
     curl: checkCommand('curl'),
     buildTools: checkCommand('make') || checkCommand('gcc'),
+    tesseract: checkCommand('tesseract'),
+    tesseractVersion: checkVersion('tesseract', '--version')?.replace(/\n.*/s, ''),
     systemd: checkCommand('systemctl'),
     home: os.homedir(),
   };
@@ -192,6 +194,7 @@ router.post('/init/install-env/:component', (req, res) => {
     git: `apt install -y git 2>&1`,
     buildtools: `apt install -y build-essential python3 2>&1`,
     curl: `apt install -y curl 2>&1`,
+    tesseract: `apt install -y tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-chi-tra 2>&1`,
   };
 
   const script = installScripts[component];
