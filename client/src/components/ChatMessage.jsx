@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useMemo, memo, Fragment } from 'react';
+import { createPortal } from 'react-dom';
 import MarkdownRenderer from './MarkdownRenderer';
 import { PrismLight as Prism } from 'react-syntax-highlighter';
 import { downloadFile, authHeaders } from '../api';
+import { getFileIcon } from '../utils/fileIcons';
+// (icons reverted to emoji for chat display area)
 
 // ── 图片缩略图组件 ──
 function ImageThumbnail({ attachment, onOpen }) {
@@ -46,24 +49,28 @@ function ImageThumbnail({ attachment, onOpen }) {
 
 // ── 图片灯箱 ──
 function ImageLightbox({ src, alt, onClose }) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') onCloseRef.current(); };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
+  return createPortal(
     <div className="msg-lightbox-overlay" onClick={onClose}>
       <div className="msg-lightbox-inner" onClick={e => e.stopPropagation()}>
         <button className="msg-lightbox-close" onClick={onClose}>✕</button>
         <img src={src} alt={alt} className="msg-lightbox-img" />
         {alt && <div className="msg-lightbox-caption">{alt}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -191,9 +198,6 @@ function formatTime(ts) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-// ── File icon by extension ──
-import { getFileIcon } from '../utils/fileIcons';
-
 export default memo(function ChatMessage({ message }) {
   const { role, content, error, toolCall, toolResult, timestamp, streaming } = message;
   const attachments = message.attachments;
@@ -215,7 +219,7 @@ export default memo(function ChatMessage({ message }) {
     return (
       <div className="msg-artifacts">
         <div className="msg-artifacts-head">
-          {isSingle ? '📦 产物已生成' : `📦 本次会话产物 (${files.length} 个文件)`}
+          {isSingle ? <>📦 产物已生成</> : <>📦 本次会话产物 ({files.length} 个文件)</>}
         </div>
         <div className="msg-artifacts-list">
           {files.map((f, i) => (
@@ -223,7 +227,7 @@ export default memo(function ChatMessage({ message }) {
               <span className="msg-artifacts-icon">{getFileIcon(f.name)}</span>
               <span className="msg-artifacts-name" title={f.path}>{f.name}</span>
               {f.sizeText && <span className="msg-artifacts-size">{f.sizeText}</span>}
-              <button type="button" className="msg-artifacts-dl" title="下载" onClick={(e) => { e.stopPropagation(); downloadFile(f.path); }}>📥 下载</button>
+              <button type="button" className="msg-artifacts-dl" title="下载" onClick={(e) => { e.stopPropagation(); downloadFile(f.path); }}>⬇️ 下载</button>
             </div>
           ))}
         </div>
@@ -379,11 +383,11 @@ function ToolCallBlock({ toolCall, streaming }) {
 
   const getToolLabel = (name) => {
     const map = {
-      Bash: '💻', Read: '📖', Write: '✏️', Edit: '🔧',
+      Bash: '▶️', Read: '📖', Write: '✏️', Edit: '⚙️',
       Glob: '🔍', Grep: '🔎', AskUserQuestion: '❓',
       Task: '📋', TodoRead: '📝', TodoWrite: '📝',
     };
-    return map[name] || '🔨';
+    return map[name] || '#';
   };
 
   // Preview text: file_path for code tools, or first 120 chars of input
@@ -463,14 +467,14 @@ function ToolCallBlock({ toolCall, streaming }) {
           <>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={fp}>{fp.split('/').pop() || fp}</span>
-            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>📥</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>⬇️</button>
           </>
         )}
         {!result.is_error && epaths.map((p, i) => (
           <Fragment key={i}>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={p}>{p.split('/').pop() || p}</span>
-            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>📥</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>⬇️</button>
           </Fragment>
         ))}
       </div>
@@ -689,14 +693,14 @@ function ToolResultBlock({ toolResult }) {
           <>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={fp}>{fp.split('/').pop() || fp}</span>
-            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>📥</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>⬇️</button>
           </>
         )}
         {!isError && epaths.map((p, i) => (
           <Fragment key={i}>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={p}>{p.split('/').pop() || p}</span>
-            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>📥</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>⬇️</button>
           </Fragment>
         ))}
       </div>

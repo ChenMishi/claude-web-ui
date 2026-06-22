@@ -4,6 +4,7 @@ import { getProjects, getProjectSessions, getSessionMessages, getSessionInfo, ge
 import ProjectSelector from './ProjectSelector';
 import SessionList from './SessionList';
 import ProfileModal from './ProfileModal';
+import { IconChat, IconFolder, IconTerminal, IconGrid, IconSettings, IconLogout, IconRestart, IconClock, IconChevronRight, IconChevronLeft, IconChevronUp, IconChevronDown } from './icons';
 
 const THEMES = [
   { key: 'dark', icon: '🌙', label: '深色' },
@@ -26,6 +27,8 @@ export default function Sidebar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(null); // { x, y } or null
+  const [sidebarMinimal, setSidebarMinimal] = useState(false);
+  const [sidebarUpCollapsed, setSidebarUpCollapsed] = useState(false);
   const userMenuRef = useRef(null);
 
   // Track streaming state in ref to avoid stale closure in effect
@@ -181,12 +184,13 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${activeView === 'chat' ? '' : 'compact'}`}>
+    <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${sidebarMinimal ? 'minimal' : ''} ${sidebarUpCollapsed ? 'up-collapsed' : ''} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
-        <h2>AI IntelliWork Hub</h2>
-        <div className="sidebar-version">v2.1.8</div>
+        <h2>{sidebarMinimal ? 'AI' : 'AI IntelliWork Hub'}</h2>
+        {!sidebarMinimal && <div className="sidebar-version">v2.1.8</div>}
       </div>
 
+      {!sidebarMinimal && (
       <div className="sidebar-body">
         <div className="sidebar-body-inner">
           <ProjectSelector
@@ -201,24 +205,26 @@ export default function Sidebar() {
           <SessionList />
         </div>
       </div>
+      )}
 
       <nav className="sidebar-nav">
-        <button className={activeView === 'chat' ? 'active' : ''} onClick={() => setView('chat')}>
-          💬 聊天
+        <button className={activeView === 'chat' ? 'active' : ''} onClick={() => setView('chat')} title="聊天">
+          <IconChat/> {!sidebarMinimal && '聊天'}
         </button>
-        <button className={activeView === 'files' ? 'active' : ''} onClick={() => setView('files')}>
-          📁 文件
+        <div className={`sidebar-nav-collapsible${sidebarUpCollapsed ? ' collapsed' : ''}`}>
+        <button className={activeView === 'files' ? 'active' : ''} onClick={() => setView('files')} title="文件">
+          <IconFolder/> {!sidebarMinimal && '文件'}
         </button>
-        <button className={activeView === 'terminal' ? 'active' : ''} onClick={() => setView('terminal')}>
-          💻 终端
+        <button className={activeView === 'terminal' ? 'active' : ''} onClick={() => setView('terminal')} title="终端">
+          <IconTerminal/> {!sidebarMinimal && '终端'}
         </button>
-        <button className={activeView === 'skills' ? 'active' : ''} onClick={() => setView('skills')}>
-          🧩 技能
+        <button className={activeView === 'skills' ? 'active' : ''} onClick={() => setView('skills')} title="技能">
+          <IconGrid/> {!sidebarMinimal && '技能'}
         </button>
         {isAdmin && (
-          <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
-            🔧 设置
-            {(needInit || updateAvailable) && (
+          <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')} title="设置">
+            <IconSettings/> {!sidebarMinimal && '设置'}
+            {!sidebarMinimal && (needInit || updateAvailable) && (
               <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
                 {needInit && (
                   <>
@@ -237,6 +243,7 @@ export default function Sidebar() {
           </button>
         )}
 
+        {!sidebarMinimal && (
         <div className="sidebar-theme-row">
           <div className="theme-slider" style={{ '--idx': THEMES.findIndex(t => t.key === theme) }}>
           {THEMES.map(t => (
@@ -250,13 +257,23 @@ export default function Sidebar() {
           ))}
         </div>
         </div>
+        )}
+        </div>
 
-        <button onClick={toggleSidebar} style={{ marginTop: 4, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '6px 0', width: '100%', textAlign: 'center' }}>
-          ◀ 收起
-        </button>
+        <div className="sidebar-toggle-row">
+          <button onClick={() => setSidebarMinimal(!sidebarMinimal)} className="sidebar-minimal-toggle" title={sidebarMinimal ? '展开导航栏' : '折叠为图标'}>
+            {sidebarMinimal ? <IconChevronRight/> : <><IconChevronLeft/> 向左折叠导航栏</>}
+          </button>
+          {!sidebarMinimal && (
+          <button onClick={() => setSidebarUpCollapsed(!sidebarUpCollapsed)} className="sidebar-up-toggle-btn" title={sidebarUpCollapsed ? '展开导航' : '向下折叠'}>
+            {sidebarUpCollapsed ? <><IconChevronUp/> 向上展开导航栏</> : <><IconChevronDown/> 向下折叠导航栏</>}
+          </button>
+          )}
+        </div>
       </nav>
 
       {user && (
+        <div className={`sidebar-user-collapsible${sidebarUpCollapsed ? ' collapsed' : ''}`}>
         <div className="sidebar-user-wrap" ref={userMenuRef}>
           <div className="sidebar-user-bar" onClick={() => setMenuOpen(!menuOpen)}>
             {user.avatar ? (
@@ -266,17 +283,19 @@ export default function Sidebar() {
                 {user.username.slice(0, 2).toUpperCase()}
               </div>
             )}
+            {!sidebarMinimal && (
             <div className="sidebar-user-text">
               <span className="sidebar-user-name">{user.username}</span>
               <span className="sidebar-user-role">{user.role === 'admin' ? '管理员' : '用户'}</span>
             </div>
-            <span className="sidebar-user-arrow">{menuOpen ? '▼' : '▲'}</span>
+            )}
+            {!sidebarMinimal && <span className="sidebar-user-arrow">{menuOpen ? <IconChevronDown/> : <IconChevronUp/>}</span>}
           </div>
 
           {menuOpen && (
             <div className="sidebar-user-menu">
               <button onClick={() => { setProfileOpen(true); setMenuOpen(false); }}>
-                ⚙ 个人设置
+                <IconSettings size={14}/> 个人设置
               </button>
               {isAdmin && (
                 <button
@@ -286,14 +305,15 @@ export default function Sidebar() {
                   }}
                   disabled={restartStatus === 'restarting'}
                 >
-                  {restartStatus === 'restarting' ? '⏳ 重启中...' : '🔄 重启服务'}
+                  {restartStatus === 'restarting' ? <><IconClock/> 重启中...</> : <><IconRestart/> 重启服务</>}
                 </button>
               )}
               <button onClick={logout}>
-                🚪 退出登录
+                <IconLogout/> 退出登录
               </button>
             </div>
           )}
+        </div>
         </div>
       )}
 

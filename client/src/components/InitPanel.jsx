@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { authHeaders, getInitStatus, saveInitConfig, testProxy, checkClaudeUpdate,
          getProviderConfig, saveProviderConfig, fetchModels } from '../api';
 import { useApp } from '../context/AppContext';
+import { IconSettings, IconClipboard, IconPackage, IconBot, IconImage, IconRefresh, IconGlobe, IconSave, IconChevronRight, IconPin } from './icons';
 
 const BASE = '/api';
 
@@ -331,13 +332,13 @@ export default function InitPanel() {
 
   return (
     <div className="init-panel">
-      <h2>🔧 初始化配置</h2>
+      <h2><IconSettings/> 初始化配置</h2>
       <p className="init-desc">新部署完成后，在此页面安装和配置所需组件</p>
 
       {/* ── 系统环境 ── */}
       <div className="init-section">
         <div className="init-section-header">
-          <h3>📋 系统环境检测</h3>
+          <h3><IconClipboard/> 系统环境检测</h3>
           <button className="init-btn init-btn-check" onClick={handleStartCheck}>
             {envChecked ? '重新检测' : '开始检测'}
           </button>
@@ -353,7 +354,7 @@ export default function InitPanel() {
       {status && (
         <div className="init-section">
           <div className="init-section-header">
-            <h3>📦 Agent SDK (工具调用引擎)</h3>
+            <h3><IconPackage/> Agent SDK (工具调用引擎)</h3>
             <span className={`init-status-badge ${status.sdkInstalled ? 'ok' : 'warn'}`}>{status.sdkInstalled ? '已安装' : '未安装'}</span>
           </div>
           <div className="init-info-grid">
@@ -375,7 +376,7 @@ export default function InitPanel() {
       {status && (
         <div className="init-section">
           <div className="init-section-header">
-            <h3>🤖 Claude Code</h3>
+            <h3><IconBot/> Claude Code</h3>
             <span className={`init-status-badge ${status.claudeInstalled ? 'ok' : 'warn'}`}>{status.claudeInstalled ? '已安装' : '未安装'}</span>
           </div>
           <div className="init-info-grid">
@@ -417,7 +418,7 @@ export default function InitPanel() {
       {status && (
         <div className="init-section">
           <div className="init-section-header">
-            <h3>🖼 图像识别模型</h3>
+            <h3><IconImage/> 图像识别模型</h3>
             <span className={`init-status-badge ${status.visionInstalled ? 'ok' : 'warn'}`}>
               {status.visionInstalled ? '已安装' : '未安装'}
             </span>
@@ -433,11 +434,11 @@ export default function InitPanel() {
             </div>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0' }}>
-            📌 即使不安装此模型，系统已支持通过 Tesseract OCR 对图片进行基础文字识别。
+            <IconPin/> 即使不安装此模型，系统已支持通过 Tesseract OCR 对图片进行基础文字识别。
             安装后新增<strong>画面描述</strong>能力，可理解照片中的人物、动物、景物、颜色等视觉信息。
           </p>
           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 12px' }}>
-            💾 磁盘占用：~300MB（模型文件） | 内存占用：~1GB（推理时）
+            <IconSave/> 磁盘占用：~300MB（模型文件） | 内存占用：~1GB（推理时）
           </p>
           {!status.visionInstalled ? (
             <div className="init-deploy-area">
@@ -461,14 +462,14 @@ export default function InitPanel() {
       {status && (
         <div className="init-section">
           <div className="init-section-header">
-            <h3>🔄 API 代理配置</h3>
+            <h3><IconRefresh/> API 代理配置</h3>
             <span className={`init-status-badge ${proxyRunning ? 'ok' : 'warn'}`}>
               {proxyRunning ? '● 代理运行中' : '○ 代理未运行'}
             </span>
           </div>
 
           {/* ── Provider 配置 ── */}
-          <div className="init-sub-header">🔧 Provider 配置</div>
+          <div className="init-sub-header"><IconSettings/> Provider 配置</div>
           <div className="init-config-row">
             <label>API Key</label>
             <input type="text" value={editApiKey} onChange={e => setEditApiKey(e.target.value)}
@@ -483,7 +484,7 @@ export default function InitPanel() {
           </div>
           <details className="init-advanced" style={{ marginBottom: 10 }}>
             <summary style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>
-              ▶ 高级选项 {editChatUrl ? '(已配置)' : ''}
+              <IconChevronRight/> 高级选项 {editChatUrl ? '(已配置)' : ''}
             </summary>
             <div className="init-config-row" style={{ marginTop: 8 }}>
               <label>Anthropic 聊天地址</label>
@@ -519,7 +520,7 @@ export default function InitPanel() {
           </div>
 
           {/* ── 代理地址 ── */}
-          <div className="init-sub-header" style={{ marginTop: 16 }}>🌐 代理地址</div>
+          <div className="init-sub-header" style={{ marginTop: 16 }}><IconGlobe/> 代理地址</div>
           <div style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -563,7 +564,7 @@ export default function InitPanel() {
       {/* ── 环境信息 ── */}
       {status && (
         <div className="init-section">
-          <h3>📋 当前环境信息</h3>
+          <h3><IconClipboard/> 当前环境信息</h3>
           <div className="init-info-grid">
             <div className="init-info-item"><span className="init-info-label">SDK 版本</span><span className="init-info-value">v{status.sdkVersion}</span></div>
             <div className="init-info-item"><span className="init-info-label">代理地址</span><span className="init-info-value mono">{status.claudeProxyUrl}</span></div>

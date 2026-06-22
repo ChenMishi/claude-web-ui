@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { listSkills, deleteSkillApi, listMarketplaceSkills, installMarketplaceSkill } from '../api';
 import SkillEditor from './SkillEditor';
 import SkillDetailModal from './SkillDetailModal';
+import { IconPuzzle, IconPackage, IconSettings, IconSearch } from './icons';
 
 const CATEGORIES = ['全部', '开发', '运维', '文档', '安全', '其他'];
 
@@ -94,7 +95,7 @@ export default function SkillsPanel() {
   return (
     <div className="skills-panel">
       <div className="skills-panel-header">
-        <h2>🧩 技能管理</h2>
+        <h2><IconPuzzle/> 技能管理</h2>
         <div className="skills-panel-tabs">
           <button className={tab === 'my' ? 'active' : ''} onClick={() => setTab('my')}>我的技能</button>
           <button className={tab === 'marketplace' ? 'active' : ''} onClick={() => setTab('marketplace')}>技能市场</button>
@@ -116,7 +117,7 @@ export default function SkillsPanel() {
             </div>
           ) : skills.length === 0 ? (
             <div className="skills-empty">
-              <div className="skills-empty-icon">📦</div>
+              <div className="skills-empty-icon"><IconPackage/></div>
               <p>暂无技能</p>
               <p className="skills-empty-hint">点击「新建技能」创建自定义技能，或前往「技能市场」安装</p>
             </div>
@@ -177,7 +178,7 @@ export default function SkillsPanel() {
             </div>
           ) : filteredMarket.length === 0 ? (
             <div className="skills-empty">
-              <div className="skills-empty-icon">🔍</div>
+              <div className="skills-empty-icon"><IconSearch/></div>
               <p>{marketSearch ? '没有匹配的技能' : '技能市场暂无内容'}</p>
             </div>
           ) : (

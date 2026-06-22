@@ -5,6 +5,7 @@ import {
   AreaChart, Area, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
+import { getIcon, IconBarChart, IconMail } from './icons';
 
 const COLORS = ['#6366f1', '#22d3ee', '#f59e0b', '#ef4444', '#84cc16', '#a78bfa'];
 
@@ -123,15 +124,15 @@ export default function StatsPanel() {
   };
 
   const summaryCards = summary ? [
-    { label: '总 Tokens', value: fmtTok(summary.totalTokens), icon: '📊' },
-    { label: '总花费', value: `${summary.currency || '¥'}${fmtCost(summary.totalCost)}`, icon: '💰' },
-    { label: '会话数', value: summary.sessionCount, icon: '💬' },
-    { label: '主力模型', value: summary.topModel || '—', icon: '🤖' },
+    { label: '总 Tokens', value: fmtTok(summary.totalTokens), icon: getIcon('barChart') },
+    { label: '总花费', value: `${summary.currency || '¥'}${fmtCost(summary.totalCost)}`, icon: getIcon('dollar') },
+    { label: '会话数', value: summary.sessionCount, icon: getIcon('chat') },
+    { label: '主力模型', value: summary.topModel || '—', icon: getIcon('bot') },
   ] : [];
 
   return (
     <div className="stats-panel">
-      <h2>📊 统计</h2>
+      <h2><IconBarChart/> 统计</h2>
 
       {/* Time range & user filter */}
       <div className="stats-controls">
@@ -177,7 +178,7 @@ export default function StatsPanel() {
       {/* Empty state */}
       {!loading && !error && summary && summary.sessionCount === 0 && (
         <div className="stats-empty">
-          <div className="stats-empty-icon">📭</div>
+          <div className="stats-empty-icon"><IconMail/></div>
           <div>暂无统计数据</div>
           <div className="stats-empty-hint">开始对话后，统计数据将在此展示</div>
         </div>

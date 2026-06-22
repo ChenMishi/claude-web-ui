@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getDirs, readFile, writeFile, deleteFileOrDir, mkdir } from '../api';
 import FileTransfer from './FileTransfer';
+import { IconFolder, IconNewFolder, IconNewFile, IconRefresh, IconEdit, IconFile, IconClipboard, IconAlert } from './icons';
 
 export default function FileBrowser() {
   const { user } = useApp();
@@ -225,13 +226,13 @@ export default function FileBrowser() {
     <div className="file-browser">
       <div className="file-tree-panel">
         <div className="file-tree-header">
-          <span className="file-tree-title">📁 文件浏览</span>
+          <span className="file-tree-title"><IconFolder/> 文件浏览</span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 8, fontWeight: 400 }}>右键点击可复制路径</span>
         </div>
         <div className="file-tree-toggle" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setShowNewDir(true)} title="新建目录">📂 新建目录</button>
-            <button onClick={() => setShowNewFile(true)} title="新建文件">📄 新建文件</button>
+            <button onClick={() => setShowNewDir(true)} title="新建目录"><IconNewFolder/> 新建目录</button>
+            <button onClick={() => setShowNewFile(true)} title="新建文件"><IconNewFile/> 新建文件</button>
           </div>
           <button onClick={() => setShowTransfer(true)} title="文件传输">⇅ 文件传输</button>
         </div>
@@ -249,7 +250,7 @@ export default function FileBrowser() {
             </span>
           ))}
           </div>
-          <button onClick={() => loadFiles()} title="刷新文件列表" style={{ padding: '2px 6px', fontSize: 11, background: 'transparent', border: '1px solid var(--glass-border)', borderRadius: 4, color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}>🔄 刷新</button>
+          <button onClick={() => loadFiles()} title="刷新文件列表" style={{ padding: '2px 6px', fontSize: 11, background: 'transparent', border: '1px solid var(--glass-border)', borderRadius: 4, color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}><IconRefresh/> 刷新</button>
         </div>
 
         {/* New dir input */}
@@ -282,7 +283,7 @@ export default function FileBrowser() {
         <div style={{ flex: 1, overflow: 'auto' }}>
           {currentPath !== '/' && (
             <div className="file-tree-item dir" onClick={goUp} onContextMenu={(e) => handleContextMenu(e, { path: currentPath.split('/').slice(0, -1).join('/') || '/', name: '..' })} style={{ paddingLeft: 8 }}>
-              📁 <span style={{ color: 'var(--text-muted)' }}>..</span>
+              <IconFolder/> <span style={{ color: 'var(--text-muted)' }}>..</span>
             </div>
           )}
           {dirs.map(d => (
@@ -290,7 +291,7 @@ export default function FileBrowser() {
               <div className="file-tree-item dir" onClick={() => handleFileClick({ type: 'dir', path: d.path, name: d.name })}
                 onContextMenu={(e) => handleContextMenu(e, { path: d.path, name: d.name })}
                 style={{ flex: 1, paddingLeft: 8 }}>
-                📁 {d.name}
+                <IconFolder/> {d.name}
               </div>
               <button onClick={(e) => { e.stopPropagation(); handleDelete({ type: 'dir', path: d.path, name: d.name }); }}
                 style={{ padding: '2px 6px', fontSize: 10, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>✕</button>
@@ -302,7 +303,7 @@ export default function FileBrowser() {
                 onClick={() => handleFileClick({ type: 'file', path: f.path, name: f.name })}
                 onContextMenu={(e) => handleContextMenu(e, { path: f.path, name: f.name })}
                 style={{ flex: 1, paddingLeft: 8 }}>
-                {selectedFile?.path === f.path ? '📝' : '📄'} {f.name}
+                {selectedFile?.path === f.path ? <IconEdit/> : <IconFile/>} {f.name}
               </div>
               <button onClick={(e) => { e.stopPropagation(); handleDelete({ type: 'file', path: f.path, name: f.name }); }}
                 style={{ padding: '2px 6px', fontSize: 10, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>✕</button>
@@ -361,7 +362,7 @@ export default function FileBrowser() {
         <div className="context-menu" style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999 }}
           onClick={e => e.stopPropagation()}>
           <div className="context-menu-item" onClick={handleCopyPath}>
-            📋 复制绝对路径
+            <IconClipboard/> 复制绝对路径
           </div>
           <div className="context-menu-path" style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 12px 6px', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {contextMenu.path}
@@ -373,7 +374,7 @@ export default function FileBrowser() {
       {confirmDelete && (
         <div className="confirm-backdrop" onClick={() => setConfirmDelete(null)}>
           <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
-            <div className="confirm-dialog-icon">⚠️</div>
+            <div className="confirm-dialog-icon"><IconAlert/></div>
             <div className="confirm-dialog-title">确认删除</div>
             <div className="confirm-dialog-name">{confirmDelete.name}</div>
             <div className="confirm-dialog-warn">此操作不可撤销，确定要删除吗？</div>

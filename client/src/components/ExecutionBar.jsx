@@ -1,7 +1,8 @@
 import { useApp } from '../context/AppContext';
+// (icons reverted to emoji for execution bar)
 
 const TOOL_SYMBOLS = {
-  Bash: '▶', Read: '📄', Write: '✏', Edit: '🔧',
+  Bash: '▶️', Read: '📖', Write: '✏️', Edit: '⚙️',
   Glob: '🔍', Grep: '🔎', AskUserQuestion: '❓',
 };
 
@@ -31,51 +32,51 @@ export default function ExecutionBar() {
 
   const done = phase === 'done';
 
-  let symbol, action;
+  let SymbolIcon, action;
   if (phase === 'thinking') {
-    symbol = '⏳';
+    SymbolIcon = '⏱️';
     action = detail ? detail.slice(0, 50) + (detail.length > 50 ? '…' : '') : '思考中';
   } else if (phase === 'running') {
     const idx = detail.indexOf(':');
     const toolName = idx > 0 ? detail.slice(0, idx) : detail;
     const desc = idx > 0 ? detail.slice(idx + 1) : '';
-    symbol = TOOL_SYMBOLS[toolName] || '🔨';
+    SymbolIcon = TOOL_SYMBOLS[toolName] || '#';
     const verb = TOOL_VERBS[toolName] || toolName;
     action = desc ? `${verb} ${desc}` : `${verb} ${toolName}`;
     if (action.length > 40) action = action.slice(0, 40) + '…';
   } else if (phase === 'responding') {
-    symbol = '✶';
+    SymbolIcon = '⚡';
     action = '生成回复';
   } else {
-    symbol = '✅';
+    SymbolIcon = '✅';
     action = '完成';
   }
 
   const tok = tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
-  // During execution: ↑↓ input + 📥 cache. After done: show all separately.
-  const tokParts = [];
-  const cachePart = tok.cacheRead > 0 ? `📥 ${fmtTok(tok.cacheRead)}` : '';
+  // During execution: ↑↓ input + cache icon. After done: show all separately.
+  const cacheEl = tok.cacheRead > 0 ? <span key="cache">📥 {fmtTok(tok.cacheRead)}</span> : null;
+  const tokEls = [];
   if (!done) {
     // Running: double-arrow pulse style
-    tokParts.push(`↑↓ ${fmtTok(tok.input)}`);
-    if (cachePart) tokParts.push(cachePart);
+    tokEls.push(<span key="io">↑↓ {fmtTok(tok.input)}</span>);
+    if (cacheEl) tokEls.push(cacheEl);
   } else {
-    if (tok.input > 0) tokParts.push(`↑ ${fmtTok(tok.input)}`);
-    tokParts.push(`↓ ${fmtTok(tok.output)}`);
-    if (cachePart) tokParts.push(cachePart);
+    if (tok.input > 0) tokEls.push(<span key="in">↑ {fmtTok(tok.input)}</span>);
+    tokEls.push(<span key="out">↓ {fmtTok(tok.output)}</span>);
+    if (cacheEl) tokEls.push(cacheEl);
   }
-  const tokStr = tokParts.join(' ');
+  const hasTok = tokEls.length > 0;
 
   return (
     <div className={`exec-bar ${done ? 'done' : ''}`}>
-      <span className="exec-bar-symbol">{symbol}</span>
+      <span className="exec-bar-symbol">{SymbolIcon}</span>
       <span className="exec-bar-action">{action}…</span>
       <span className="exec-bar-meta">
-        ({fmtTime(elapsed)}{!done ? ` · ${tokStr} · ${PHASE_LABELS[phase] || phase}` : ''})
+        ({fmtTime(elapsed)}{!done ? <span> · {tokEls} · {PHASE_LABELS[phase] || phase}</span> : ''})
       </span>
-      {done && tokStr && (
-        <span className="exec-bar-summary">{tokStr}</span>
+      {done && hasTok && (
+        <span className="exec-bar-summary">{tokEls}</span>
       )}
       {cost != null && (
         <span className="exec-bar-cost">{currency || '$'}{cost.toFixed(4)}</span>

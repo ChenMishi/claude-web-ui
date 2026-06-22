@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authHeaders, getInitStatus, checkClaudeUpdate } from '../api';
+import { IconBot } from './icons';
 
 const BASE = '/api';
 
@@ -75,7 +76,7 @@ export default function ClaudeCodeCard() {
 
   return (
     <div className="settings-card">
-      <div className="settings-card-header">🤖 Claude Code</div>
+      <div className="settings-card-header"><IconBot/> Claude Code</div>
       <div className="settings-card-body">
         <div className="settings-info-row">
           <span className="settings-info-label">状态</span>

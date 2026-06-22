@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeStatus } from '../api';
+import { IconTag, IconRocket } from './icons';
 
 export default function VersionCard() {
   const { setUpdateAvailable } = useApp();
@@ -61,7 +62,7 @@ export default function VersionCard() {
 
   return (
     <div className="settings-card">
-      <div className="settings-card-header">🏷 版本升级</div>
+      <div className="settings-card-header"><IconTag/> 版本升级</div>
       <div className="settings-card-body">
         {info && (
           <div className="settings-info-row">
@@ -89,7 +90,7 @@ export default function VersionCard() {
           <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: checkResult.hasUpdate ? 'rgba(255,183,77,0.1)' : 'rgba(76,175,80,0.1)', border: `1px solid ${checkResult.hasUpdate ? 'rgba(255,183,77,0.3)' : 'rgba(76,175,80,0.2)'}` }}>
             {checkResult.hasUpdate ? (
               <>
-                <div style={{ marginBottom: checkResult.commits?.length ? 8 : 0 }}>🚀 新版本 v{checkResult.newVersion}（当前 v{checkResult.currentVersion}）</div>
+                <div style={{ marginBottom: checkResult.commits?.length ? 8 : 0 }}><IconRocket/> 新版本 v{checkResult.newVersion}（当前 v{checkResult.currentVersion}）</div>
                 {checkResult.commits?.length > 0 && (
                   <div className="version-update-commits">
                     {checkResult.commits.map((c, i) => (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { authHeaders } from '../api';
+import { IconClipboard } from './icons';
 
 const BASE = '/api';
 
@@ -31,7 +32,7 @@ export default function LogPanel() {
 
   return (
     <div className="log-panel">
-      <h2>📋 系统日志</h2>
+      <h2><IconClipboard/> 系统日志</h2>
       <div className="log-tabs">
         {tabs.map(t => (
           <button key={t.key} className={`log-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>

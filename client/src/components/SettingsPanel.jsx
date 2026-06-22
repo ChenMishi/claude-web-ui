@@ -7,6 +7,7 @@ import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
 import StatsPanel from './StatsPanel';
 import BackupCard from './BackupCard';
+import { IconSettings, IconUsers, IconZap, IconClipboard, IconBarChart, IconRefresh, IconChat, IconDollar, IconLock } from './icons';
 
 export default function SettingsPanel() {
   const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId, user,
@@ -74,24 +75,25 @@ export default function SettingsPanel() {
 
   return (
     <div className="settings-panel">
-      <h2>⚙ 设置</h2>
+      <h2><IconSettings/> 设置</h2>
 
-      <div className="settings-tabs">
-        <button className={settingsTab === 'general' ? 'active' : ''} onClick={() => setSettingsTab('general')}>⚙ 常规设置</button>
-        {isAdmin && (
-          <button className={settingsTab === 'users' ? 'active' : ''} onClick={() => setSettingsTab('users')}>👥 用户管理</button>
-        )}
-        <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}>⚡ 初始化</button>
-        <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}>📋 日志</button>
-        <button className={settingsTab === 'stats' ? 'active' : ''} onClick={() => setSettingsTab('stats')}>📊 统计</button>
-        <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => setSettingsTab('upgrade')}>🔄 升级</button>
-      </div>
+      <div className="settings-tab-card">
+        <div className="settings-tabs">
+          <button className={settingsTab === 'general' ? 'active' : ''} onClick={() => setSettingsTab('general')}><IconSettings/> 常规设置</button>
+          {isAdmin && (
+            <button className={settingsTab === 'users' ? 'active' : ''} onClick={() => setSettingsTab('users')}><IconUsers/> 用户管理</button>
+          )}
+          <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}><IconZap/> 初始化</button>
+          <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}><IconClipboard/> 日志</button>
+          <button className={settingsTab === 'stats' ? 'active' : ''} onClick={() => setSettingsTab('stats')}><IconBarChart/> 统计</button>
+          <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => setSettingsTab('upgrade')}><IconRefresh/> 升级</button>
+        </div>
 
-      {settingsTab === 'general' ? (
+        <div className="settings-tab-body">      {settingsTab === 'general' ? (
         <>
           {/* Card: 对话设置 */}
           <div className="settings-card">
-            <div className="settings-card-header">💬 对话设置</div>
+            <div className="settings-card-header"><IconChat/> 对话设置</div>
             <div className="settings-card-body">
               <div className="settings-row">
                 <label>模型</label>
@@ -125,7 +127,7 @@ export default function SettingsPanel() {
 
           {/* Card: Token 定价 */}
           <div className="settings-card">
-            <div className="settings-card-header">💰 Token 定价</div>
+            <div className="settings-card-header"><IconDollar/> Token 定价</div>
             <div className="settings-card-body">
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>单位：元 / 百万 tokens</div>
               {availableModels.length > 0 ? (
@@ -188,7 +190,7 @@ export default function SettingsPanel() {
 
           {/* Card: 系统信息 */}
           <div className="settings-card">
-            <div className="settings-card-header">📊 系统信息</div>
+            <div className="settings-card-header"><IconBarChart/> 系统信息</div>
             <div className="settings-card-body">
               <div className="settings-info-row">
                 <span className="settings-info-label">当前项目</span>
@@ -211,7 +213,7 @@ export default function SettingsPanel() {
         </>
       ) : settingsTab === 'users' ? (
         <div className="settings-card">
-          <div className="settings-card-header">👥 用户管理</div>
+          <div className="settings-card-header"><IconUsers/> 用户管理</div>
           <div className="settings-card-body">
             {users.length > 0 && (
               <table className="settings-table">
@@ -254,6 +256,8 @@ export default function SettingsPanel() {
       ) : (
         <LogPanel />
       )}
+      </div>
+    </div>
     </div>
   );
 }

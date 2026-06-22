@@ -7,6 +7,7 @@ import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
 import ExecutionPanel from './ExecutionPanel';
 import TaskPanel from './TaskPanel';
+// (icons reverted to emoji for chat view)
 
 const PHASE_LABELS = {
   thinking: '思考',
@@ -645,7 +646,7 @@ export default function ChatView() {
     setMainTask(promptText.length > 30 ? promptText.slice(0, 30) + '…' : promptText);
     startTimer();
     // Build user message content — attachment metadata rendered separately in ChatMessage
-    let userContent = promptText || '📎 发送了附件';
+    let userContent = promptText || <>📎 发送了附件</>;
     bAppend({ role: 'user', content: userContent, attachments: attachments || null, timestamp: Date.now() });
     hasAssistantText.current = false;
     hasThinking.current = false;
@@ -854,7 +855,7 @@ export default function ChatView() {
           {/* AskUserQuestion dialog — embedded in chat flow */}
           {askUser && (
             <div className="ask-user-dialog" ref={askRef}>
-              <h4>🤔 Claude 想确认几个问题</h4>
+              <h4>💭 Claude 想确认几个问题</h4>
               {askQs.map((q, qi) => (
                 <div key={qi} className="ask-user-question">
                   <p>{q.question || q.header || `问题 ${qi + 1}`}</p>
@@ -902,7 +903,7 @@ export default function ChatView() {
           {/* Tool permission confirmation — same style as AskUserQuestion, separate logic */}
           {toolConfirm && (
             <div className="ask-user-dialog" ref={askRef}>
-              <h4>🔐 {toolConfirm.action}</h4>
+              <h4>🔒 {toolConfirm.action}</h4>
               <div className="confirm-buttons">
                 <button className="confirm-btn-allow" onClick={() => handleToolConfirm(true)}>
                   允许

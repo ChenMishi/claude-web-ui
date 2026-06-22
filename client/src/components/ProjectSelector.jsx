@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getDirs, linkProject, unlinkProject, mkdir } from '../api';
+import { IconFolder } from './icons';
 
 export default function ProjectSelector({ projects, currentProjectId, onSelect, onLink }) {
   const { user, setView } = useApp();
@@ -169,13 +170,13 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
               <div className="dialog-dir-scroll">
               {currentPath !== '/' && (
                 <div className="dialog-dir-item" onClick={goUp}>
-                  <span>📁</span>
+                  <IconFolder/>
                   <span className="name" style={{ color: 'var(--text-muted)' }}>..</span>
                 </div>
               )}
               {dirs.map(d => (
                 <div key={d.path} className="dialog-dir-item">
-                  <span>📁</span>
+                  <IconFolder/>
                   <span className="name" onClick={() => setCurrentPath(d.path)}>{d.name}</span>
                   <span className="enter" onClick={() => setCurrentPath(d.path)}>进入 →</span>
                 </div>

@@ -1,6 +1,7 @@
 import { useApp } from '../context/AppContext';
 import { useEffect, useState } from 'react';
 import { checkVersion } from '../api';
+import { IconMenu } from './icons';
 import Sidebar from './Sidebar';
 import ChatView from './ChatView';
 import FileBrowser from './FileBrowser';
@@ -54,7 +55,7 @@ export default function Layout() {
     <div className="app-layout">
       {!sidebarOpen && (
         <button className="toggle-sidebar" onClick={toggleSidebar} title="展开侧边栏">
-          ☰
+          <IconMenu />
         </button>
       )}
       <Sidebar />

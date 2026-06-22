@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+// (icons reverted to emoji for execution panel)
 
-const TOOL_ICONS = { Bash: '▶', Read: '📄', Write: '✏', Edit: '🔧', Glob: '🔍', Grep: '🔎', AskUserQuestion: '❓' };
+const TOOL_ICONS = { Bash: '▶️', Read: '📖', Write: '✏️', Edit: '⚙️', Glob: '🔍', Grep: '🔎', AskUserQuestion: '❓' };
 const TOOL_VERBS = { Bash: '执行', Read: '读取', Write: '写入', Edit: '编辑', Glob: '搜索', Grep: '查找', AskUserQuestion: '询问' };
 
 export default function ExecutionPanel() {
@@ -77,7 +78,7 @@ export default function ExecutionPanel() {
     <div className="exec-panel">
       <div className="exec-panel-header">
         <span className="exec-panel-title">
-          {runningCount > 0 ? '⏳' : '✅'} 执行步骤{total > 0 ? ` (${doneCount}/${total})` : ''}
+          {runningCount > 0 ? '⏱️' : '✅'} 执行步骤{total > 0 ? ` (${doneCount}/${total})` : ''}
         </span>
       </div>
       <div className="exec-panel-steps" ref={stepsRef}>
@@ -113,11 +114,11 @@ function StepItem({ step }) {
   }
 
   if (step.type === 'assistant') {
-    const statusIcon = step.status === 'running' ? '⏳' : '💬';
+    const StatusIcon = step.status === 'running' ? '⏱️' : '💬';
     return (
       <div className={`exec-step exec-step-asst ${step.status}`} onClick={() => step.detail && setOpen(!open)}>
         <div className="exec-step-header">
-          <span className="exec-step-status">{statusIcon}</span>
+          <span className="exec-step-status">{StatusIcon}</span>
           <span className="exec-step-action asst">{step.summary}</span>
           {step.detail && <span className="exec-step-toggle">{open ? '▲' : '▼'}</span>}
         </div>
@@ -129,14 +130,14 @@ function StepItem({ step }) {
   }
 
   // toolCall
-  const icon = TOOL_ICONS[step.tool] || '🔨';
-  const statusIcon = step.status === 'running' ? '⏳' : step.status === 'error' ? '❌' : '✅';
+  const IconComponent = TOOL_ICONS[step.tool] || '#';
+  const StatusIcon = step.status === 'running' ? '⏱️' : step.status === 'error' ? '❌' : '✅';
 
   return (
     <div className={`exec-step ${step.status}`}>
       <div className="exec-step-header" onClick={() => step.result && setOpen(!open)}>
-        <span className="exec-step-status">{statusIcon}</span>
-        <span className="exec-step-icon">{icon}</span>
+        <span className="exec-step-status">{StatusIcon}</span>
+        <span className="exec-step-icon">{IconComponent}</span>
         <span className="exec-step-tool">{step.tool}</span>
         <span className="exec-step-action">{step.action.slice(0, 60)}{step.action.length > 60 ? '…' : ''}</span>
         {step.result && (

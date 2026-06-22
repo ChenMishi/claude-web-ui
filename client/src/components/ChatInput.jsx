@@ -2,6 +2,7 @@ import { useRef, useCallback, useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { abortSession, listSkills, uploadChatAttachment } from '../api';
 import { getFileIcon } from '../utils/fileIcons';
+import { IconZap, IconLock } from './icons';
 import ExecutionBar from './ExecutionBar';
 
 const COMMANDS = [
@@ -333,7 +334,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
         <div className="queued-messages">
           {queuedMessages.map((item, idx) => (
             <div key={idx} className="queued-item">
-              <span className="queued-icon">⏳</span>
+              <span className="queued-icon">⏱️</span>
               <span className="queued-text">{item.text}</span>
               <button
                 className="queued-remove"
@@ -407,7 +408,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           disabled={false}
         />
         <div className="input-select-group" ref={modelDropdownRef}>
-          <span className="input-select-icon" title="模型">⚡</span>
+          <span className="input-select-icon" title="模型"><IconZap /></span>
           <button
             className="input-select input-select-model"
             onClick={() => setShowModelDropdown(!showModelDropdown)}
@@ -429,7 +430,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           )}
         </div>
         <div className={`input-select-group perm-${permissionLevel}`} ref={permDropdownRef}>
-          <span className="input-select-icon" title="工具权限">🔒</span>
+          <span className="input-select-icon" title="工具权限"><IconLock /></span>
           <button
             className="input-select input-select-perm"
             onClick={() => setShowPermDropdown(!showPermDropdown)}
@@ -460,7 +461,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
             className="input-select input-select-skill"
             onClick={() => setShowSkills(!showSkills)}
             style={{ background: 'transparent', border: 'none', color: showSkills || activeSkill ? 'var(--accent)' : 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', whiteSpace: 'nowrap' }}
-          >{activeSkill ? activeSkill.icon + ' ' + activeSkill.displayName : '技能'}</button>
+          >{activeSkill ? <>{typeof activeSkill.icon === 'string' ? <span>{activeSkill.icon} </span> : activeSkill.icon}{activeSkill.displayName}</> : '技能'}</button>
           {activeSkill && (
             <button
               onClick={() => {

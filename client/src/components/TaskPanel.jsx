@@ -1,8 +1,13 @@
 import { useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+// (icons reverted to emoji for task panel)
 
-const STATUS_ICON = { pending: '◻', in_progress: '⏳', completed: '✅' };
+const STATUS_ICON = { pending: '#', in_progress: '⏱️', completed: '✅' };
 const STATUS_LABEL = { pending: '待处理', in_progress: '进行中', completed: '已完成' };
+
+const StatusIcon = ({ status }) => {
+  return <>{STATUS_ICON[status] || '#'}</>;
+};
 
 export default function TaskPanel() {
   const { tasks, mainTask } = useApp();
@@ -44,7 +49,7 @@ export default function TaskPanel() {
           <>
             {mainTask && (
               <div className={`task-item main-task ${mainTask.status}`}>
-                <span className="task-item-status">{mainTask.status === 'completed' ? '✅' : '⏳'}</span>
+                <span className="task-item-status"><StatusIcon status={mainTask.status}/></span>
                 <div className="task-item-body">
                   <span className="task-item-subject">{mainTask.subject.slice(0, 80)}{mainTask.subject.length > 80 ? '…' : ''}</span>
                 </div>
@@ -52,7 +57,7 @@ export default function TaskPanel() {
             )}
             {tasks.map(t => (
               <div key={t.id} className={`task-item subtask ${t.status}`}>
-                <span className="task-item-status">{STATUS_ICON[t.status]}</span>
+                <span className="task-item-status"><StatusIcon status={t.status}/></span>
                 <div className="task-item-body">
                   <span className="task-item-subject">{t.subject}</span>
                   {t.description && (

@@ -24,7 +24,7 @@ export default function TerminalView() {
       term = new Terminal({
         cursorBlink: true,
         fontSize: 14,
-        fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace",
+        fontFamily: "'DejaVu Sans Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace",
         theme: {
           background: '#1a1a2e',
           foreground: '#e0e0e0',

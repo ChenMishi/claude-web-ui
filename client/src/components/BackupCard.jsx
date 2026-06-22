@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getBackupList, createBackup, deleteBackup, getBackupConfig, saveBackupConfig, restoreBackup, getBackupDownloadUrl } from '../api';
 import { listDir, mkdir } from '../api';
+import { IconFolder, IconNewFolder, IconSave, IconPlus, IconDownload, IconZap, IconAlert } from './icons';
 
 function formatSize(bytes) {
   if (!bytes) return '—';
@@ -54,7 +55,7 @@ function DirPicker({ value, onSelect, onClose }) {
     <div className="dir-picker-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="dir-picker-modal">
         <div className="dir-picker-header">
-          <span>📁 选择备份目录</span>
+          <span><IconFolder/> 选择备份目录</span>
           <button className="profile-close-btn" onClick={onClose}>✕</button>
         </div>
         <div className="dir-picker-path">
@@ -75,7 +76,7 @@ function DirPicker({ value, onSelect, onClose }) {
                 className={`dir-picker-item ${d.isParent ? 'dir-picker-parent' : ''}`}
                 onClick={() => setCwd(d.path)}
               >
-                <span className="dir-picker-icon">{d.isParent ? '📂 ..' : '📁'}</span>
+                <span className="dir-picker-icon">{d.isParent ? <><IconNewFolder/> ..</> : <IconFolder/>}</span>
                 <span className="dir-picker-name">{d.name}</span>
               </div>
             ))
@@ -96,7 +97,7 @@ function DirPicker({ value, onSelect, onClose }) {
           </div>
         )}
         <div className="dir-picker-actions">
-          <button className="init-btn" onClick={() => setCreating(v => !v)}>📁 新建目录</button>
+          <button className="init-btn" onClick={() => setCreating(v => !v)}><IconNewFolder/> 新建目录</button>
           <div className="dir-picker-actions-right">
             <button className="init-btn" onClick={onClose}>取消</button>
             <button className="init-btn init-btn-save" onClick={() => { onSelect(cwd); onClose(); }}>选择此目录</button>
@@ -226,7 +227,7 @@ export default function BackupCard() {
 
   return (
     <div className="settings-card">
-      <div className="settings-card-header">💾 备份 & 还原</div>
+      <div className="settings-card-header"><IconSave/> 备份 & 还原</div>
       <div className="settings-card-body">
         {/* Config row */}
         <div className="settings-row">
@@ -234,7 +235,7 @@ export default function BackupCard() {
           <div className="backup-path-row">
             <input type="text" value={config.path || ''} onChange={e => setConfig({ ...config, path: e.target.value })}
               placeholder={backupPath || '默认: ~/.claude-web-ui/backups'} className="backup-path-input" />
-            <button className="init-btn" onClick={() => setShowPicker(true)}>📂 选择</button>
+            <button className="init-btn" onClick={() => setShowPicker(true)}><IconNewFolder/> 选择</button>
           </div>
         </div>
         {showPicker && (
@@ -271,11 +272,11 @@ export default function BackupCard() {
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button className="init-btn init-btn-save" onClick={handleCreate} disabled={loading}>
-            {loading ? '创建中...' : '➕ 创建备份'}
+            {loading ? '创建中...' : <><IconPlus/> 创建备份</>}
           </button>
           <button className="init-btn" onClick={() => fileInputRef.current?.click()} disabled={restoring}
             style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
-            {restoring ? '还原中...' : '📥 还原备份'}
+            {restoring ? '还原中...' : <><IconDownload/> 还原备份</>}
           </button>
           <input ref={fileInputRef} type="file" accept=".tar.gz" style={{ display: 'none' }} onChange={handleRestore} />
           {msg && (
@@ -319,7 +320,7 @@ export default function BackupCard() {
         )}
 
         <div className="backup-hint">
-          💡 备份包含：Provider 配置、初始化配置、定价配置、用户数据、统计、Skills、会话数据。还原后需重启服务生效。
+          <IconZap/> 备份包含：Provider 配置、初始化配置、定价配置、用户数据、统计、Skills、会话数据。还原后需重启服务生效。
         </div>
       </div>
 
@@ -327,7 +328,7 @@ export default function BackupCard() {
       {confirmFile && (
         <div className="restore-confirm-backdrop" onClick={cancelRestore}>
           <div className="restore-confirm-modal" onClick={e => e.stopPropagation()}>
-            <div className="restore-confirm-icon">⚠️</div>
+            <div className="restore-confirm-icon"><IconAlert/></div>
             <h3 className="restore-confirm-title">确认还原备份</h3>
             <p className="restore-confirm-name">{confirmFile.name} ({formatSize(confirmFile.size)})</p>
             <p className="restore-confirm-warn">

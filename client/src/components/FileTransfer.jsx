@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
+import { IconFolder, IconFile, IconPlay, IconClipboard } from './icons';
 
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B';
@@ -298,7 +299,7 @@ export default function FileTransfer({ onClose }) {
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <h3 style={{ margin: 0, fontSize: 16 }}>📁 文件传输</h3>
+          <h3 style={{ margin: 0, fontSize: 16 }}><IconFolder/> 文件传输</h3>
           <button onClick={onClose} disabled={isTransferring}
             style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer', lineHeight: 1, opacity: isTransferring ? 0.3 : 1 }}
             title="关闭">✕</button>
@@ -333,7 +334,7 @@ export default function FileTransfer({ onClose }) {
                 {serverPath !== '/' && (
                   <div onClick={goUpServer}
                     style={{ padding: '6px 12px', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
-                    📁 ..
+                    <IconFolder/> ..
                   </div>
                 )}
                 {serverDirs.map(d => {
@@ -359,7 +360,7 @@ export default function FileTransfer({ onClose }) {
                           }
                         }}
                         title="单击选中，双击进入"
-                      >📁 {d.name}</span>
+                      ><IconFolder/> {d.name}</span>
                     </div>
                   );
                 })}
@@ -371,7 +372,7 @@ export default function FileTransfer({ onClose }) {
                       onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'var(--hover)'; }}
                       onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}>
                       <input type="checkbox" checked={isSel} readOnly style={{ margin: 0, pointerEvents: 'none' }} />
-                      <span>📄 {f.name}</span>
+                      <span><IconFile/> {f.name}</span>
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{formatBytes(f.size)}</span>
                     </div>
                   );
@@ -399,19 +400,19 @@ export default function FileTransfer({ onClose }) {
             <input ref={folderInputRef} type="file" webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleFileSelect} />
           )}
           <button className={`init-btn ${hasPending ? 'init-btn-ready' : 'init-btn-save'}`} onClick={startUpload} disabled={!hasPending}>
-            ▶ 开始上传 ({pendingQueue.length})
+            <IconPlay/> 开始上传 ({pendingQueue.length})
           </button>
           <button className="init-btn init-btn-save" onClick={runDownload} disabled={selCount === 0 || isTransferring || hasPending}>
             ⬇ 下载选中 ({selCount})
           </button>
           <button className="init-btn" onClick={() => fileInputRef.current?.click()}>
-            📄 选择本地电脑文件上传
+            <IconFile/> 选择本地电脑文件上传
           </button>
           <button className="init-btn" onClick={() => {
             if (supportsFSA) selectFolderViaFSA();
             else folderInputRef.current?.click();
           }}>
-            📁 选择本地电脑文件夹上传
+            <IconFolder/> 选择本地电脑文件夹上传
           </button>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{serverPath}</span>
           {msg && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{msg}</span>}
@@ -422,7 +423,7 @@ export default function FileTransfer({ onClose }) {
           <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0, maxHeight: 180, overflowY: 'auto', padding: '8px 20px' }}>
             {pendingQueue.length > 0 && (
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>📋 待上传 ({pendingQueue.length} 项)</span>
+                <span><IconClipboard/> 待上传 ({pendingQueue.length} 项)</span>
                 <button onClick={() => setPendingQueue([])}
                   style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, textDecoration: 'underline' }}>清空</button>
               </div>

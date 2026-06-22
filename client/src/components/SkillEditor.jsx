@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { getSkill, createSkill, updateSkill, listModels, parseSkillMd, importSkillFile } from '../api';
+import { IconDownload } from './icons';
 
 const TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'NotebookEdit'];
 const CATEGORIES = ['开发', '运维', '文档', '安全', '其他'];
@@ -169,7 +170,7 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
             <button className="skills-editor-import-btn"
               onClick={() => fileInputRef.current?.click()}
               title="从 .md / .zip / .tar.gz 文件导入技能配置">
-              📥 从文件导入（支持 .md / .zip / .tar.gz）
+              <IconDownload/> 从文件导入（支持 .md / .zip / .tar.gz）
             </button>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useApp } from '../context/AppContext';
 import { installMarketplaceSkill } from '../api';
+import { IconPackage } from './icons';
 
 export default function SkillDetailModal({ skill, onClose }) {
   const { user } = useApp();
@@ -19,7 +20,7 @@ export default function SkillDetailModal({ skill, onClose }) {
       <div className="skill-detail-modal" onClick={e => e.stopPropagation()}>
         <div className="skill-detail-scroll">
         <div className="skill-detail-header">
-          <div className="skill-detail-icon">{skill.icon || '📦'}</div>
+          <div className="skill-detail-icon">{skill.icon || <IconPackage/>}</div>
           <div>
             <h3>{skill.displayNameCN || skill.displayName || skill.name}</h3>
             <span className="skill-detail-name-en">{skill.displayName || skill.name}</span>
