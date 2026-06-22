@@ -4,7 +4,7 @@ import MarkdownRenderer from './MarkdownRenderer';
 import { PrismLight as Prism } from 'react-syntax-highlighter';
 import { downloadFile, authHeaders } from '../api';
 import { getFileIcon } from '../utils/fileIcons';
-// (icons reverted to emoji for chat display area)
+import { IconDownload } from './icons';
 
 // ── 图片缩略图组件 ──
 function ImageThumbnail({ attachment, onOpen }) {
@@ -227,7 +227,7 @@ export default memo(function ChatMessage({ message }) {
               <span className="msg-artifacts-icon">{getFileIcon(f.name)}</span>
               <span className="msg-artifacts-name" title={f.path}>{f.name}</span>
               {f.sizeText && <span className="msg-artifacts-size">{f.sizeText}</span>}
-              <button type="button" className="msg-artifacts-dl" title="下载" onClick={(e) => { e.stopPropagation(); downloadFile(f.path); }}>⬇️ 下载</button>
+              <button type="button" className="msg-artifacts-dl" title="下载" onClick={(e) => { e.stopPropagation(); downloadFile(f.path); }}><IconDownload /> 下载</button>
             </div>
           ))}
         </div>
@@ -467,14 +467,14 @@ function ToolCallBlock({ toolCall, streaming }) {
           <>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={fp}>{fp.split('/').pop() || fp}</span>
-            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>⬇️</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}><IconDownload /></button>
           </>
         )}
         {!result.is_error && epaths.map((p, i) => (
           <Fragment key={i}>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={p}>{p.split('/').pop() || p}</span>
-            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>⬇️</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}><IconDownload /></button>
           </Fragment>
         ))}
       </div>
@@ -693,14 +693,14 @@ function ToolResultBlock({ toolResult }) {
           <>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={fp}>{fp.split('/').pop() || fp}</span>
-            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}>⬇️</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(fp); }}><IconDownload /></button>
           </>
         )}
         {!isError && epaths.map((p, i) => (
           <Fragment key={i}>
             <span className="result-inline-sep">·</span>
             <span className="result-inline-path" title={p}>{p.split('/').pop() || p}</span>
-            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}>⬇️</button>
+            <button type="button" className="result-inline-dl" title="下载文件" onClick={(e) => { e.stopPropagation(); downloadFile(p); }}><IconDownload /></button>
           </Fragment>
         ))}
       </div>

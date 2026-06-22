@@ -50,7 +50,16 @@ export default function VersionCard() {
   const handleCheck = useCallback(async () => {
     setChecking(true); setCheckResult(null);
     try { const d = await checkVersion({ remote }); setCheckResult(d); }
-    catch (err) { setCheckResult({ error: err.message }); }
+    catch (err) {
+      const msg = err.message || '';
+      let hint = '检测失败';
+      if (/timeout|ETIMEDOUT|连接超时/i.test(msg)) hint = '连接仓库超时，请检查网络或仓库地址';
+      else if (/ENOTFOUND|getaddrinfo|DNS|找不到/i.test(msg)) hint = '无法解析仓库地址，请检查 URL 是否正确';
+      else if (/401|403|权限|Authentication/i.test(msg)) hint = '仓库访问被拒绝，请检查认证信息';
+      else if (/not found|404|不存在/i.test(msg)) hint = '仓库不存在或地址无效';
+      else hint = `检测失败: ${msg}`;
+      setCheckResult({ error: hint });
+    }
     setChecking(false);
   }, [remote]);
 
@@ -85,6 +94,9 @@ export default function VersionCard() {
             style={{ padding: '6px 14px', fontSize: 12, borderRadius: 6, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer' }}>
             {checking ? '检测中...' : '检测新版本'}
           </button>
+          {checkResult?.error && (
+            <span style={{ fontSize: 12, color: 'var(--danger)', marginLeft: 8, alignSelf: 'center' }}>{checkResult.error}</span>
+          )}
         </div>
         {checkResult && !checkResult.error && (
           <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: checkResult.hasUpdate ? 'rgba(255,183,77,0.1)' : 'rgba(76,175,80,0.1)', border: `1px solid ${checkResult.hasUpdate ? 'rgba(255,183,77,0.3)' : 'rgba(76,175,80,0.2)'}` }}>

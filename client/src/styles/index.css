@@ -3375,6 +3375,7 @@ html, body, #root {
 }
 .result-inline-dl {
   background: none;
+  display: inline-flex; align-items: center; justify-content: center;
   border: 1px solid var(--glass-border);
   border-radius: 4px;
   color: var(--accent);
@@ -3450,6 +3451,7 @@ html, body, #root {
 }
 .msg-artifacts-dl {
   flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 10px;
   font-size: 12px;
   border-radius: 6px;
