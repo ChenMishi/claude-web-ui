@@ -980,7 +980,7 @@ export default function ChatView() {
             ↓ 查看最新消息
           </button>
         )}
-        {displayMode === 'minimal' && isStreaming && execStatus.phase !== 'idle' && execStatus.phase !== 'done' && (
+        {displayMode === 'minimal' && execStatus.phase !== 'idle' && execStatus.phase !== 'done' && (
           <div className="msg-exec-mini">
             <span className="msg-exec-mini-icon">
               {execStatus.phase === 'thinking' ? '💭' : execStatus.phase === 'running' ? '🔧' : '⚡'}
