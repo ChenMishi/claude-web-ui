@@ -91,7 +91,7 @@
   --glass-border: rgba(0, 0, 0, 0.04);
   --glass-border-hover: rgba(0, 0, 0, 0.08);
   --glass-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  --glass-radius: 8px;
+  --glass-radius: 16px;
   --glass-blur: 0px;
   --glass-dropdown-bg: #FFFFFF;
   /* 输入框 */
@@ -241,11 +241,11 @@ html, body, #root {
   min-width: var(--sidebar-width);
   height: 100%;
   background: var(--bg-primary);
+  overflow: hidden;
   box-shadow: var(--glass-shadow);
   transition: margin-left 0.3s,
               min-width 0.3s,
               width 0.3s;
-  overflow: hidden;
 }
 
 .sidebar.collapsed {
@@ -325,6 +325,7 @@ html, body, #root {
 }
 
 .sidebar-user-collapsible {
+  position: relative;
   overflow: visible;
   max-height: 80px;
   opacity: 1;
@@ -1240,7 +1241,6 @@ html, body, #root {
   position: relative;
   padding: 16px 20px;
   flex: 1;
-  max-width: calc(100% - 326px);
   min-width: 0;
 }
 
@@ -1604,16 +1604,22 @@ html, body, #root {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border-radius: var(--glass-radius);
+  border-radius: var(--glass-radius) var(--glass-radius) 0 var(--glass-radius);
   box-shadow: var(--glass-shadow);
+  width: 100%;
+}
+
+.input-row-spacer {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ── Carved divider between cards ── */
 .input-divider {
   width: 2px;
-  height: 48px;
+  height: 70px;
   flex-shrink: 0;
-  margin-bottom: 16px;
+  margin-bottom: 6px;
   background: linear-gradient(
     to right,
     rgba(0,0,0,0.08) 0px,
@@ -1624,18 +1630,69 @@ html, body, #root {
   border-radius: 1px;
 }
 
-/* ── Right card: selectors ── */
+/* ── Right side selectors (flex child inside input-row) ── */
 .input-selects-card {
-  padding: 12px 16px;
   flex-shrink: 0;
+  width: 335px;
+  height: 80px;
+  padding: 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: 0 var(--glass-radius) var(--glass-radius) 0;
+  box-shadow: var(--glass-shadow);
 }
 
 /* ── Textarea + buttons row (inside left input-area) ── */
+/* ── Inline selectors (inside textarea area, before send button) ── */
+.inline-send-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.inline-selects {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inline-selects-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.inline-send-btns {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .input-row-inner {
   position: relative;
   display: flex;
   gap: 10px;
   align-items: flex-end;
+  flex: 1;
+  min-width: 0;
+}
+
+.input-selects-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.input-selects-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 
 .input-row-inner textarea {
@@ -1686,7 +1743,6 @@ html, body, #root {
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
-  flex: 1;
 }
 
 .input-selects-row {
@@ -1727,7 +1783,26 @@ html, body, #root {
   font-family: var(--font);
 }
 
-.input-select-model { min-width: 120px; }
+.input-select-model {
+  width: 110px;
+}
+.input-select-model-text {
+  display: inline-block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 100%;
+}
+.input-select-model:hover .input-select-model-text {
+  text-overflow: clip;
+  animation: scroll-model-text 4s linear infinite;
+}
+@keyframes scroll-model-text {
+  0%   { transform: translateX(0); }
+  20%  { transform: translateX(0); }
+  80%  { transform: translateX(calc(-100% + 130px)); }
+  100% { transform: translateX(calc(-100% + 130px)); }
+}
 .input-select-perm { min-width: 70px; }
 .input-select-skill { min-width: 40px; }
 
@@ -3602,6 +3677,41 @@ html, body, #root {
 .result-status-line.ok { color: var(--success); }
 .result-status-line.error { color: var(--danger); }
 
+/* ── Compact mode: single-line tool/thinking/result ── */
+.msg-compact {
+  padding: 4px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  line-height: 1.5;
+}
+.msg-compact span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+.msg-compact-tool { color: var(--accent); opacity: 0.75; }
+.msg-compact-result.error { color: var(--danger); }
+
+/* ── Minimal mode: exec status inside assistant bubble ── */
+.msg-exec-mini {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+.msg-exec-mini-icon { font-size: 13px; }
+.msg-exec-mini-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Execution Status Bar — simple text line inside input area */
 .exec-bar {
   font-size: 13px;
@@ -3676,7 +3786,7 @@ html, body, #root {
   min-width: 0;
 }
 
-/* ── Right Panels (floating cards, no unified background) ── */
+/* ── Right Panels (flex child in chat-content) ── */
 .right-panels {
   width: 320px;
   min-width: 260px;
@@ -4245,7 +4355,6 @@ html, body, #root {
 /* ── Sidebar User Info ── */
 /* ── Sidebar User Bar (bottom-left, outside nav card) ── */
 .sidebar-user-wrap {
-  position: relative;
   flex-shrink: 0;
 }
 .sidebar-user-bar {
@@ -4254,9 +4363,7 @@ html, body, #root {
   gap: 10px;
   margin: 0 10px 10px;
   padding: 10px 12px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: rgba(255, 255, 255, 0.04);
   border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
@@ -4264,7 +4371,7 @@ html, body, #root {
   transition: all 0.15s;
 }
 .sidebar-user-bar:hover {
-  background: var(--glass-bg-hover);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .sidebar-user-avatar {

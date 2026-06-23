@@ -20,6 +20,17 @@ export default function ClaudeCodeCard() {
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
+  // Auto-check Claude Code update every 6 hours (only if installed)
+  useEffect(() => {
+    if (!status?.claudeInstalled) return;
+    const doCheck = () => {
+      checkClaudeUpdate().then(res => setUpdateInfo(res)).catch(() => {});
+    };
+    doCheck(); // check once on mount
+    const t = setInterval(doCheck, 360 * 60000);
+    return () => clearInterval(t);
+  }, [status?.claudeInstalled]);
+
   const handleInstall = useCallback(async () => {
     setInstalling(true); setInstallLog(''); setInstallPct(0);
     try {

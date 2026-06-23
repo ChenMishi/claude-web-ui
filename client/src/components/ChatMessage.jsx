@@ -5,6 +5,7 @@ import { PrismLight as Prism } from 'react-syntax-highlighter';
 import { downloadFile, authHeaders } from '../api';
 import { getFileIcon } from '../utils/fileIcons';
 import { IconDownload } from './icons';
+import { useApp } from '../context/AppContext';
 
 // ── 图片缩略图组件 ──
 function ImageThumbnail({ attachment, onOpen }) {
@@ -202,6 +203,7 @@ export default memo(function ChatMessage({ message }) {
   const { role, content, error, toolCall, toolResult, timestamp, streaming } = message;
   const attachments = message.attachments;
   const [lightbox, setLightbox] = useState(null);
+  const { displayMode } = useApp();
 
   // User message collapse for long messages (>10 lines)
   const [userExpanded, setUserExpanded] = useState(false);
@@ -219,6 +221,7 @@ export default memo(function ChatMessage({ message }) {
 
   // Artifact summary — files created during the session
   if (role === 'artifacts') {
+    if (displayMode === 'minimal') return null;
     const files = message.files || [];
     if (files.length === 0) return null;
     const isSingle = files.length === 1;
@@ -242,6 +245,7 @@ export default memo(function ChatMessage({ message }) {
   }
 
   if (role === 'system') {
+    if (displayMode === 'minimal') return null;
     const isAbort = typeof content === 'string' && content.startsWith('⏹');
     return (
       <div className={`system-msg ${isAbort ? 'abort' : 'error'}`}>
@@ -252,16 +256,46 @@ export default memo(function ChatMessage({ message }) {
 
   // Thinking block display
   if (role === 'thinking') {
+    if (displayMode === 'minimal') return null;
+    if (displayMode === 'compact') {
+      return <div className="msg-compact msg-compact-thinking"><span>💭 思考中…</span></div>;
+    }
     return <ThinkingBlock content={content} streaming={streaming} />;
   }
 
   // Tool call display
   if (role === 'tool' && toolCall) {
+    if (displayMode === 'minimal') return null;
+    if (displayMode === 'compact') {
+      const icons = { Bash: '▶️', Read: '📖', Write: '✏️', Edit: '⚙️', Glob: '🔍', Grep: '🔎', AskUserQuestion: '❓', Task: '📋', TodoRead: '📝', TodoWrite: '📝' };
+      const verbs = { Bash: '执行', Read: '读取', Write: '写入', Edit: '编辑', Glob: '搜索', Grep: '查找', AskUserQuestion: '询问', Task: '执行任务', TodoRead: '读取任务', TodoWrite: '写入任务' };
+      const icon = icons[toolCall.name] || '🔧';
+      const verb = verbs[toolCall.name] || toolCall.name;
+      const preview = (() => {
+        if (toolCall.input?.file_path) return toolCall.input.file_path;
+        if (typeof toolCall.input === 'string') return toolCall.input.slice(0, 60);
+        const s = JSON.stringify(toolCall.input ?? {});
+        return s.length > 60 ? s.slice(0, 60) + '…' : s;
+      })();
+      return <div className="msg-compact msg-compact-tool"><span>{icon} {verb} {preview}</span></div>;
+    }
     return <ToolCallBlock toolCall={toolCall} streaming={streaming} />;
   }
 
   // Tool result display
   if (role === 'tool' && toolResult) {
+    if (displayMode === 'minimal') return null;
+    if (displayMode === 'compact') {
+      const verb = getStatusVerb(toolResult.toolName || '');
+      const status = toolResult.is_error ? '✗ 失败' : '✓ 完成';
+      const summary = (() => {
+        const c = typeof toolResult.content === 'string' ? toolResult.content : '';
+        if (!c) return '';
+        const firstLine = c.split('\n')[0];
+        return firstLine.length > 40 ? firstLine.slice(0, 40) + '…' : firstLine;
+      })();
+      return <div className={`msg-compact msg-compact-result ${toolResult.is_error ? 'error' : ''}`}><span>{status}{summary ? ` — ${summary}` : ''}</span></div>;
+    }
     return <ToolResultBlock toolResult={toolResult} />;
   }
 

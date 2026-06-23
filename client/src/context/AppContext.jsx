@@ -53,6 +53,7 @@ const initialState = {
   availableModels: [],
   currentModel: loadState('currentModel', ''),
   systemPrompt: loadState('systemPrompt', ''),
+  displayMode: loadState('displayMode', 'full'),
   execStatus: {
     phase: 'idle', // idle | thinking | running | responding | done
     detail: '',
@@ -405,8 +406,9 @@ export function AppContextProvider({ children }) {
       localStorage.setItem('claude-ui:permissionLevel', JSON.stringify(state.permissionLevel));
       localStorage.setItem('claude-ui:model', JSON.stringify(state.model));
       localStorage.setItem('claude-ui:systemPrompt', JSON.stringify(state.systemPrompt));
+      localStorage.setItem('claude-ui:displayMode', JSON.stringify(state.displayMode));
     } catch {}
-  }, [state.currentProjectId, state.currentSessionId, state.theme, state.permissionLevel, state.model, state.systemPrompt]);
+  }, [state.currentProjectId, state.currentSessionId, state.theme, state.permissionLevel, state.model, state.systemPrompt, state.displayMode]);
 
   // Sync theme to <html data-theme> attribute
   useEffect(() => {

@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { runAgent, getProjects, getProjectSessions, abortSession, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages } from '../api';
 import ChatMessage from './ChatMessage';
-import ChatInput, { InputSelectsCard } from './ChatInput';
+import ChatInput from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
 import ExecutionPanel from './ExecutionPanel';
 import TaskPanel from './TaskPanel';
@@ -71,7 +71,7 @@ export default function ChatView() {
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, bindTaskId, updateTask, setMainTask, updateMainTask, execStatus,
-    currentModel, finishAllStreaming, finalizeStreaming,
+    currentModel, finishAllStreaming, finalizeStreaming, displayMode,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -687,6 +687,7 @@ export default function ChatView() {
     let userContent = promptText || <>📎 发送了附件</>;
     bAppend({ role: 'user', content: userContent, attachments: attachments || null, timestamp: Date.now() });
     hasAssistantText.current = false;
+    textAccum.current = '';
     hasThinking.current = false;
     textAccum.current = '';
 
@@ -979,6 +980,21 @@ export default function ChatView() {
             ↓ 查看最新消息
           </button>
         )}
+        {displayMode === 'minimal' && isStreaming && execStatus.phase !== 'idle' && execStatus.phase !== 'done' && (
+          <div className="msg-exec-mini">
+            <span className="msg-exec-mini-icon">
+              {execStatus.phase === 'thinking' ? '💭' : execStatus.phase === 'running' ? '🔧' : '⚡'}
+            </span>
+            <span className="msg-exec-mini-text">
+              {execStatus.phase === 'thinking' ? '思考中' :
+               execStatus.phase === 'running' ? (() => {
+                 const idx = execStatus.detail.indexOf(':');
+                 return idx > 0 ? execStatus.detail.slice(idx + 1).slice(0, 40) : execStatus.detail.slice(0, 40);
+               })() :
+               execStatus.phase === 'responding' ? '生成回复' : ''}
+            </span>
+          </div>
+        )}
         </div>
         </div>
         <div className="right-panels">
@@ -987,9 +1003,9 @@ export default function ChatView() {
         </div>
       </div>
       <div className="input-row">
-        <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} queuedMessages={queuedMessages} onRemoveQueued={(idx) => { pendingQueue.current.splice(idx, 1); setQueuedMessages([...pendingQueue.current]); }} onPrioritize={handlePrioritize} />
-        <span className="input-divider" />
-        <InputSelectsCard activeSkill={activeSkill} onSkillChange={setActiveSkill} />
+        <div className="input-row-spacer">
+          <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} queuedMessages={queuedMessages} onRemoveQueued={(idx) => { pendingQueue.current.splice(idx, 1); setQueuedMessages([...pendingQueue.current]); }} onPrioritize={handlePrioritize} />
+        </div>
       </div>
     </div>
   );
