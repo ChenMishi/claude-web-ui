@@ -203,6 +203,12 @@ export default memo(function ChatMessage({ message }) {
   const attachments = message.attachments;
   const [lightbox, setLightbox] = useState(null);
 
+  // User message collapse for long messages (>10 lines)
+  const [userExpanded, setUserExpanded] = useState(false);
+  const lineCount = role === 'user' ? (typeof content === 'string' ? content.split('\n').length : 0) : 0;
+  const COLLAPSE_LINES = 10;
+  const isLongUserMsg = role === 'user' && lineCount > COLLAPSE_LINES;
+
   // ⚠️ All hooks MUST be called before any conditional return (React hook rules)
   const safeContent = typeof content === 'string' ? content : '';
   const messageBody = useMemo(() => (
@@ -293,7 +299,21 @@ export default memo(function ChatMessage({ message }) {
           </div>
         );
       })()}
-      {messageBody}
+      {isLongUserMsg && !userExpanded ? (
+        <div className="message-content message-collapsed-inline" onClick={() => setUserExpanded(true)}>
+          <MarkdownRenderer content={safeContent.split('\n').slice(0, COLLAPSE_LINES).join('\n')} />
+          <span className="message-expand-inline">... 展开 ▼</span>
+        </div>
+      ) : (
+        <>
+          {messageBody}
+          {isLongUserMsg && userExpanded && (
+            <div className="message-collapse-bar-bottom">
+              <button className="message-collapse-btn" onClick={() => setUserExpanded(false)}>▲ 收起</button>
+            </div>
+          )}
+        </>
+      )}
       {lightbox && <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />}
     </div>
   );

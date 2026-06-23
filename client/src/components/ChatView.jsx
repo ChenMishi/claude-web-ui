@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { runAgent, getProjects, getProjectSessions, abortSession, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages } from '../api';
 import ChatMessage from './ChatMessage';
-import ChatInput from './ChatInput';
+import ChatInput, { InputSelectsCard } from './ChatInput';
 import WelcomeScreen from './WelcomeScreen';
 import ExecutionPanel from './ExecutionPanel';
 import TaskPanel from './TaskPanel';
@@ -81,8 +81,14 @@ export default function ChatView() {
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
   const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
   const isActiveStream = useRef(false);  // true during active SSE stream, guards cleanup abort
+  const isStreamingRef = useRef(false);   // tracks latest isStreaming, avoids stale closure issues
+  const sendingRef = useRef(false);        // send lock — prevents concurrent handleSend calls
+  const fromQueueRef = useRef(false);       // true when handleSend is called by onDone queue consumer (not user-initiated)
   const throttleRef = useRef(null);  // setTimeout id for bUpdate throttling during responding phase
   const toolNameMap = useRef(new Map());  // tool_use_id → tool name, for result display
+  const streamSessionIdRef = useRef(null);  // sessionId of active stream; used by bAppend/bUpdate/setMessages to route messages to correct cache
+  // Sync ref with state so stale handleSend closures always see the latest isStreaming
+  isStreamingRef.current = isStreaming;
   const [askUser, setAskUser] = useState(null);
   const [toolConfirm, setToolConfirm] = useState(null); // { tool, action, input } — separate from askUser
   const [loadingMore, setLoadingMore] = useState(false);
@@ -112,7 +118,7 @@ export default function ChatView() {
     if (isAskBuffered.current && askRef.current) {
       askBufferRef.current.push(msg);
     } else {
-      appendRef.current(msg);
+      appendRef.current(msg, streamSessionIdRef.current);
     }
   };
   const bUpdate = (content) => {
@@ -122,7 +128,7 @@ export default function ChatView() {
         buf[buf.length - 1] = { ...buf[buf.length - 1], content, streaming: true };
       }
     } else {
-      updateRef.current(content);
+      updateRef.current(content, streamSessionIdRef.current);
     }
   };
 
@@ -153,6 +159,8 @@ export default function ChatView() {
     try {
       const msgs = await getSessionMessages(currentSessionId, offset);
       if (msgs.length === 0) { setHasMore(false); setLoadingMore(false); return; }
+      // 后端每次返回固定 20 条文本消息，不足 20 条说明已到文件开头
+      if (msgs.length < 20) { setHasMore(false); }
       // Convert server messages to chat format
       const olderMsgs = [];
       for (const m of msgs) {
@@ -598,7 +606,31 @@ export default function ChatView() {
     setQueuedMessages([]);
   }, []);
 
+  // Ref to handleSend — avoids TDZ because handlePrioritize is declared before handleSend
+  const handleSendRef = useRef(null);
+
+  // 优先插入排队消息：中断当前任务，立即发送该消息
+  const handlePrioritize = useCallback(async (idx) => {
+    const item = pendingQueue.current[idx];
+    if (!item) return;
+    // 从队列中移除该项
+    pendingQueue.current.splice(idx, 1);
+    setQueuedMessages([...pendingQueue.current]);
+    // 释放发送锁 + 中断当前执行
+    sendingRef.current = false;
+    ++execIdRef.current;
+    stopTimer();
+    if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
+    if (currentSessionId) {
+      try { await abortSession(currentSessionId); } catch {}
+    }
+    finalizeStreaming();
+    // 等待后端中断完成后再发送插队消息
+    setTimeout(() => handleSendRef.current?.(item.text), 500);
+  }, [currentSessionId]);
+
   const handleStop = useCallback((execStatus) => {
+    sendingRef.current = false;  // release send lock
     ++execIdRef.current;  // bump so stale SSE errors are ignored
     stopTimer();
     clearPendingQueue();  // 清空排队消息
@@ -622,13 +654,19 @@ export default function ChatView() {
   const handleSend = useCallback((text, attachments) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
-    // 如果正在执行中，不中断，改为排队等待
-    if (isStreaming) {
+    // 发送锁 — 防止并发 handleSend（例如 onDone 重复触发导致队列被批量消费）
+    if (sendingRef.current || isStreamingRef.current) {
       const item = { text: text.trim(), timestamp: Date.now() };
-      pendingQueue.current.push(item);
+      // 队列消费者（onDone shift 后调用）：放回队首保持顺序；用户主动发送：追加队尾
+      if (fromQueueRef.current) {
+        pendingQueue.current.unshift(item);
+      } else {
+        pendingQueue.current.push(item);
+      }
       setQueuedMessages([...pendingQueue.current]);
       return;
     }
+    sendingRef.current = true;
 
     // Bump execution ID so stale SSE errors from previous run are ignored
     const myExecId = ++execIdRef.current;
@@ -655,6 +693,8 @@ export default function ChatView() {
     const project = projects.find(p => p.id === currentProjectId);
     const cwd = project?.cwd || '/root';
     const sessionId = currentSessionId || 'new';
+    const mySessionId = sessionId;  // captured for callback guards against session switch
+    streamSessionIdRef.current = mySessionId;  // route bAppend/bUpdate/setMessages to correct cache
 
     // Abort any previous stream and create a new AbortController for this send
     abortRef.current?.abort();
@@ -744,7 +784,7 @@ export default function ChatView() {
           if (idx >= 0) {
             const filePath = msgs[idx].toolCall?.input?.file_path || null;
             msgs[idx] = { ...msgs[idx], streaming: false, toolCall: { ...msgs[idx].toolCall, result: { content: content || '', is_error, toolName, filePath, extractedPaths: extractedPaths || [] } } };
-            setMessages(msgs);
+            setMessages(msgs, mySessionId);
             return;
           }
         }
@@ -757,7 +797,11 @@ export default function ChatView() {
         setToolConfirm({ tool, action, input });
       },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency }) => {
+        streamSessionIdRef.current = null;
         isActiveStream.current = false;
+        sendingRef.current = false;  // release send lock
+        // Ignore done events from previous (aborted) executions
+        if (execIdRef.current !== myExecId) return;
         if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
         finalizeStreaming();  // 原子操作: 关闭所有 streaming + 保存缓存 + 设置 isStreaming=false
         stopTimer();
@@ -782,14 +826,20 @@ export default function ChatView() {
         const next = pendingQueue.current.shift();
         if (next) {
           setQueuedMessages([...pendingQueue.current]);
-          setTimeout(() => handleSend(next.text), 300);
+          fromQueueRef.current = true;
+          setTimeout(() => {
+            handleSend(next.text);
+            fromQueueRef.current = false;
+          }, 300);
         }
       },
       onTitle: ({ title }) => {
         if (title) updateMainTask(title);
       },
       onError: (err) => {
+        streamSessionIdRef.current = null;
         isActiveStream.current = false;
+        sendingRef.current = false;  // release send lock
         // Ignore errors from previous (aborted) executions
         if (execIdRef.current !== myExecId) return;
         // AskUserQuestion abort is expected — don't show error
@@ -804,6 +854,7 @@ export default function ChatView() {
       },
     });
   }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, addTask, bindTaskId, updateTask, setMainTask, updateMainTask]);
+  handleSendRef.current = handleSend;
 
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;
@@ -935,7 +986,11 @@ export default function ChatView() {
           <ExecutionPanel />
         </div>
       </div>
-      <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} queuedMessages={queuedMessages} onRemoveQueued={(idx) => { pendingQueue.current.splice(idx, 1); setQueuedMessages([...pendingQueue.current]); }} />
+      <div className="input-row">
+        <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} queuedMessages={queuedMessages} onRemoveQueued={(idx) => { pendingQueue.current.splice(idx, 1); setQueuedMessages([...pendingQueue.current]); }} onPrioritize={handlePrioritize} />
+        <span className="input-divider" />
+        <InputSelectsCard activeSkill={activeSkill} onSkillChange={setActiveSkill} />
+      </div>
     </div>
   );
 }

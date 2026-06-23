@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { getDirs, linkProject, unlinkProject, mkdir } from '../api';
 import { IconFolder } from './icons';
@@ -128,8 +129,8 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
         </button>
       </div>
 
-      {/* Inline confirmation popup */}
-      {confirmDel && (
+      {/* Inline confirmation popup — rendered via Portal to avoid backdrop-filter stacking context */}
+      {confirmDel && createPortal(
         <div
           className="confirm-popup-overlay"
           onClick={() => setConfirmDel(null)}
@@ -145,7 +146,8 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
               <button className="confirm-popup-ok" onClick={() => handleUnlink(confirmDel.id)}>确定</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {showDialog && (

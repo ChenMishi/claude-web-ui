@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { getDirs, readFile, writeFile, deleteFileOrDir, mkdir } from '../api';
 import FileTransfer from './FileTransfer';
@@ -370,8 +371,8 @@ export default function FileBrowser() {
         </div>
       )}
 
-      {/* Delete confirmation dialog */}
-      {confirmDelete && (
+      {/* Delete confirmation dialog — rendered via Portal to avoid backdrop-filter stacking context */}
+      {confirmDelete && createPortal(
         <div className="confirm-backdrop" onClick={() => setConfirmDelete(null)}>
           <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
             <div className="confirm-dialog-icon"><IconAlert/></div>
@@ -383,7 +384,8 @@ export default function FileBrowser() {
               <button className="danger-btn" onClick={handleConfirmDelete}>确认删除</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

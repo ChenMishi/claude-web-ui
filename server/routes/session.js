@@ -789,6 +789,12 @@ router.post('/session/:id/abort', (req, res) => {
   if (!runtime) return res.status(404).json({ error: 'Session not found' });
   if (runtime.status !== 'busy') return res.status(409).json({ error: 'Session is not busy' });
   runtime.abort?.abort();
+  // 立即清理旧订阅者，防止 SDK 后续 broadcastDone 污染新请求的 SSE 连接
+  for (const sub of runtime.subscribers) {
+    try { if (!sub.writableEnded) sub.end(); } catch {}
+  }
+  runtime.subscribers.clear();
+  runtime.status = 'idle';
   res.json({ ok: true });
 });
 
@@ -815,7 +821,79 @@ router.patch('/session/:id', (req, res) => {
 });
 
 // Get session messages
-// 从文件末尾倒读，避免把整个大文件（可能几十 MB）一次读入内存
+// 从文件末尾倒读，只收集包含实际文本内容的消息（过滤纯工具调用）
+// textOffset: 跳过前 N 条文本消息, textLimit: 最多返回条数
+function readLastTextRecords(jsonlPath, textOffset, textLimit) {
+  const CHUNK_SIZE = 65536; // 64KB 块
+  let fd;
+  try {
+    fd = fs.openSync(jsonlPath, 'r');
+    const stat = fs.fstatSync(fd);
+    const results = [];
+    let textCount = 0; // 已找到的文本消息总数
+    let pos = stat.size;
+    let leftover = '';
+
+    while (pos > 0 && results.length < textLimit) {
+      const readSize = Math.min(CHUNK_SIZE, pos);
+      pos -= readSize;
+      const buf = Buffer.alloc(readSize);
+      fs.readSync(fd, buf, 0, readSize, pos);
+      const chunk = buf.toString('utf8') + leftover;
+      const lines = chunk.split('\n');
+      leftover = lines.shift() || '';
+
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        try {
+          const rec = JSON.parse(line);
+          if (rec.type === 'user' || rec.type === 'assistant') {
+            const content = rec.message?.content;
+            // 判断是否包含实际文本内容（排除纯工具调用/工具结果消息）
+            const hasText = typeof content === 'string'
+              ? content.trim().length > 0
+              : Array.isArray(content) && content.some(b => b.type === 'text' && (b.text || '').trim());
+            if (hasText) {
+              textCount++;
+              if (textCount > textOffset) {
+                results.unshift(rec);
+                if (results.length >= textLimit) break;
+              }
+            }
+          }
+        } catch { /* 跳过损坏行 */ }
+      }
+    }
+
+    // 文件开头剩余的第一行
+    if (leftover.trim() && results.length < textLimit) {
+      try {
+        const rec = JSON.parse(leftover);
+        if (rec.type === 'user' || rec.type === 'assistant') {
+          const content = rec.message?.content;
+          const hasText = typeof content === 'string'
+            ? content.trim().length > 0
+            : Array.isArray(content) && content.some(b => b.type === 'text' && (b.text || '').trim());
+          if (hasText) {
+            textCount++;
+            if (textCount > textOffset) {
+              results.unshift(rec);
+            }
+          }
+        }
+      } catch {}
+    }
+
+    return results;
+  } finally {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch {}
+    }
+  }
+}
+
+// 保留原函数用于其他可能的调用方
 function readLastUserAssistantRecords(jsonlPath, needed) {
   const CHUNK_SIZE = 65536; // 64KB 块
   let fd;
@@ -870,7 +948,7 @@ function readLastUserAssistantRecords(jsonlPath, needed) {
 
 router.get('/session/:id/message', (req, res) => {
   const { id } = req.params;
-  const limit = 200;
+  const TEXT_LIMIT = 20;
   let jsonlPath = null;
   if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
     for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
@@ -884,13 +962,10 @@ router.get('/session/:id/message', (req, res) => {
   const messages = [];
   try {
     const reqOffset = req.query.offset !== undefined ? parseInt(req.query.offset) : null;
-    const skip = reqOffset !== null && !isNaN(reqOffset) ? reqOffset : 0;
-    const needed = skip + limit;
-    // 从文件末尾倒读，只解析需要的行数
-    const msgRecords = readLastUserAssistantRecords(jsonlPath, needed);
-    const start = Math.max(0, msgRecords.length - skip - limit);
-    const end = Math.max(0, msgRecords.length - skip);
-    messages.push(...msgRecords.slice(start, end));
+    const textOffset = reqOffset !== null && !isNaN(reqOffset) ? reqOffset : 0;
+    // 从文件末尾倒读，按文本消息数分页，每次返回固定 20 条
+    const msgRecords = readLastTextRecords(jsonlPath, textOffset, TEXT_LIMIT);
+    messages.push(...msgRecords);
   } catch {}
   res.json(messages);
 });
@@ -1207,6 +1282,7 @@ router.post('/session/:id/message', async (req, res) => {
 
   runtime.status = 'busy';
   runtime.abort = new AbortController();
+  const abortCtrl = runtime.abort;  // 保存引用，catch 中用于判断是否已被新执行替换
   runtime.buffer = []; // clear buffer from any previous run
   runtime.model = body.options?.model || 'unknown';
 
@@ -1316,6 +1392,9 @@ router.post('/session/:id/message', async (req, res) => {
     // If all strategies exhausted without success, result holds the last error
 
     if (wantsStream) {
+      // 如果 abort controller 已被替换，说明新执行已接管，跳过广播
+      if (runtime.abort !== abortCtrl) return;
+
       // If we have a pending title from before and now know the sessionId, store it
       if (runtime.pendingTitle && runtime.sessionId && isNew) {
         storeSessionTitle(runtime.sessionId, runtime.pendingTitle, runtime.cwd, req.user);
@@ -1326,12 +1405,6 @@ router.post('/session/:id/message', async (req, res) => {
         migrateSessionToUserDir(runtime.sessionId, runtime.cwd, req.user);
       }
 
-      broadcast(runtime, 'done', {
-        sessionId: runtime.sessionId,
-        cost: result?.cost,
-        tokens: result?.tokens,
-        currency: result?.currency,
-      });
       broadcastDone(runtime, {
         sessionId: runtime.sessionId,
         cost: result?.cost,
@@ -1376,6 +1449,8 @@ router.post('/session/:id/message', async (req, res) => {
   } catch (err) {
     console.error('[SESSION] Error details:', err?.message, err?.stack?.split('\n').slice(0,3).join('\n'));
     logError('Session message error', err);
+    // 如果 abort controller 已被新执行替换，说明插队/新请求已接管，跳过广播避免污染新 SSE 连接
+    if (runtime.abort !== abortCtrl) return;
     if (err.name === 'AbortError') {
       try {
         broadcast(runtime, 'error', { message: 'aborted' });
@@ -1389,9 +1464,12 @@ router.post('/session/:id/message', async (req, res) => {
       } catch {}
     }
   } finally {
-    runtime.status = 'idle';
-    runtime.abort = null;
-    runtime.buffer = [];
+    // 仅当 abort controller 未被替换时才清理（未被新执行接管）
+    if (runtime.abort === abortCtrl) {
+      runtime.status = 'idle';
+      runtime.abort = null;
+      runtime.buffer = [];
+    }
   }
 });
 

@@ -104,7 +104,9 @@ function reducer(state, action) {
       if (state.chatMessages.length > 0) {
         cache[saveKey] = state.chatMessages;
       }
-      const restored = textOnly(cache[sid] || []);
+      // 流式期间切回正在执行的会话：恢复完整消息（含 tool/thinking），不经过 textOnly
+      const isStreamingTarget = state.isStreaming && action.isStreamingSession;
+      const restored = isStreamingTarget ? (cache[sid] || []) : textOnly(cache[sid] || []);
       saveCache(cache);
       next = { ...state, currentSessionId: sid, chatMessages: restored, messageCache: cache };
       break;
@@ -120,37 +122,64 @@ function reducer(state, action) {
       next = { ...state, currentSessionId: action.payload, messageCache: cache2 };
       break;
     }
-    case 'SET_MESSAGES':
-      next = { ...state, chatMessages: action.payload }; break;
-    case 'APPEND_MESSAGE': {
-      const newMsgs = [...state.chatMessages, action.payload];
-      const newCache = { ...state.messageCache };
-      const key = state.currentSessionId || '__pending__';
-      newCache[key] = newMsgs;
-      // 流式期间不写缓存 — 每条消息 append 都写 localStorage 会造成主线程阻塞。
-      // 重连时更严重：buffer 回放 50+ 事件在同一同步循环里各写一次，页面直接卡死。
-      // 缓存在 done 信号（UPDATE_LAST_MESSAGE null）时统一写入一次完整状态。
-      if (!state.isStreaming) {
-        saveCache(newCache);
+    case 'SET_MESSAGES': {
+      const targetSid = action.targetSessionId;
+      if (targetSid && targetSid !== (state.currentSessionId || '__pending__')) {
+        const newCache = { ...state.messageCache };
+        newCache[targetSid] = action.payload;
+        next = { ...state, messageCache: newCache };
+      } else {
+        next = { ...state, chatMessages: action.payload };
       }
-      next = { ...state, chatMessages: newMsgs, messageCache: newCache };
+      break;
+    }
+    case 'APPEND_MESSAGE': {
+      const targetSid = action.targetSessionId;
+      const currentKey = state.currentSessionId || '__pending__';
+      const isCurrent = !targetSid || targetSid === currentKey;
+      if (isCurrent) {
+        const newMsgs = [...state.chatMessages, action.payload];
+        const newCache = { ...state.messageCache };
+        newCache[currentKey] = newMsgs;
+        if (!state.isStreaming) saveCache(newCache);
+        next = { ...state, chatMessages: newMsgs, messageCache: newCache };
+      } else {
+        const newCache = { ...state.messageCache };
+        const cached = newCache[targetSid] || [];
+        newCache[targetSid] = [...cached, action.payload];
+        next = { ...state, messageCache: newCache };
+      }
       break;
     }
     case 'UPDATE_LAST_MESSAGE': {
-      if (state.chatMessages.length === 0) return state;
-      const msgs = [...state.chatMessages];
-      if (action.payload === null) {
-        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], streaming: false };
-        // 仅在 done 信号（payload=null）时写缓存 —— 每轮对话仅 1 次，不会卡死。
-        // 流式内容更新（payload=string）每帧触发数百次，跳过 localStorage 写入。
-        const newCache = { ...state.messageCache };
-        const key = state.currentSessionId || '__pending__';
-        newCache[key] = msgs;
-        saveCache(newCache);
-        next = { ...state, chatMessages: msgs, messageCache: newCache };
+      const targetSid = action.targetSessionId;
+      const currentKey = state.currentSessionId || '__pending__';
+      const isCurrent = !targetSid || targetSid === currentKey;
+      if (isCurrent) {
+        if (state.chatMessages.length === 0) return state;
+        const msgs = [...state.chatMessages];
+        if (action.payload === null) {
+          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], streaming: false };
+          const newCache = { ...state.messageCache };
+          newCache[currentKey] = msgs;
+          saveCache(newCache);
+          next = { ...state, chatMessages: msgs, messageCache: newCache };
+        } else {
+          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: action.payload };
+          next = { ...state, chatMessages: msgs };
+        }
       } else {
-        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: action.payload };
-        next = { ...state, chatMessages: msgs };
+        const newCache = { ...state.messageCache };
+        const cached = [...(newCache[targetSid] || [])];
+        if (cached.length === 0) { next = state; break; }
+        if (action.payload === null) {
+          cached[cached.length - 1] = { ...cached[cached.length - 1], streaming: false };
+          saveCache(newCache);
+        } else {
+          cached[cached.length - 1] = { ...cached[cached.length - 1], content: action.payload };
+        }
+        newCache[targetSid] = cached;
+        next = { ...state, messageCache: newCache };
       }
       break;
     }
@@ -287,11 +316,11 @@ export function AppContextProvider({ children }) {
   const setProjects = useCallback((projects) => dispatch({ type: 'SET_PROJECTS', payload: projects }), []);
   const selectProject = useCallback((id) => dispatch({ type: 'SELECT_PROJECT', payload: id }), []);
   const setSessions = useCallback((sessions) => dispatch({ type: 'SET_SESSIONS', payload: sessions }), []);
-  const selectSession = useCallback((id) => dispatch({ type: 'SELECT_SESSION', payload: id }), []);
+  const selectSession = useCallback((id, isStreamingSession) => dispatch({ type: 'SELECT_SESSION', payload: id, isStreamingSession }), []);
   const setSessionId = useCallback((id) => dispatch({ type: 'SET_SESSION_ID', payload: id }), []);
-  const setMessages = useCallback((messages) => dispatch({ type: 'SET_MESSAGES', payload: messages }), []);
-  const appendMessage = useCallback((msg) => dispatch({ type: 'APPEND_MESSAGE', payload: msg }), []);
-  const updateLastMessage = useCallback((content) => dispatch({ type: 'UPDATE_LAST_MESSAGE', payload: content }), []);
+  const setMessages = useCallback((messages, targetSessionId) => dispatch({ type: 'SET_MESSAGES', payload: messages, targetSessionId }), []);
+  const appendMessage = useCallback((msg, targetSessionId) => dispatch({ type: 'APPEND_MESSAGE', payload: msg, targetSessionId }), []);
+  const updateLastMessage = useCallback((content, targetSessionId) => dispatch({ type: 'UPDATE_LAST_MESSAGE', payload: content, targetSessionId }), []);
   const setStreaming = useCallback((v) => dispatch({ type: 'SET_STREAMING', payload: v }), []);
   const setView = useCallback((v) => dispatch({ type: 'SET_VIEW', payload: v }), []);
   const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), []);

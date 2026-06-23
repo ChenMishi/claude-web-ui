@@ -1,8 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-// (icons reverted to emoji for task panel)
 
-const STATUS_ICON = { pending: '#', in_progress: '⏱️', completed: '✅' };
+const STATUS_ICON = { pending: '◻️', in_progress: '⏳', completed: '✅' };
 const STATUS_LABEL = { pending: '待处理', in_progress: '进行中', completed: '已完成' };
 
 const StatusIcon = ({ status }) => {

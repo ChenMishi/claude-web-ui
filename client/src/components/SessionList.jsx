@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { deleteSession, renameSession, getSessionMessages, getProjectSessions, getProjects } from '../api';
 
 export default function SessionList() {
   const {
-    sessions, currentSessionId, selectSession,
+    sessions, currentSessionId, selectSession, isStreaming,
     currentProjectId, setMessages, setStreaming,
     setSessions, setProjects,
   } = useApp();
@@ -13,7 +14,7 @@ export default function SessionList() {
   const [confirmDel, setConfirmDel] = useState(null); // { id, x, y }
 
   const handleSelect = (id) => {
-    selectSession(id);
+    selectSession(id, isStreaming);
   };
 
   const handleDelClick = (e, id) => {
@@ -105,8 +106,8 @@ export default function SessionList() {
         </div>
       )}
 
-      {/* Inline confirmation popup */}
-      {confirmDel && (
+      {/* Inline confirmation popup — rendered via Portal to avoid backdrop-filter stacking context */}
+      {confirmDel && createPortal(
         <div className="confirm-popup-overlay" onClick={() => setConfirmDel(null)}>
           <div
             className="confirm-popup"
@@ -119,7 +120,8 @@ export default function SessionList() {
               <button className="confirm-popup-ok" onClick={handleDelete}>确定</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

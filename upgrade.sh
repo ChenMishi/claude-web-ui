@@ -138,19 +138,18 @@ if [ -f .pid ]; then
     OLD_PID=$(cat .pid)
 fi
 
-# ---------- 拉取最新代码 ----------
+# ---------- 强制拉取最新代码 ----------
 pct 10 "拉取最新代码..."
 log "拉取最新代码..."
 
-# 暂存本地改动然后拉取，避免冲突
-if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-    warn "检测到本地改动，暂存后拉取..."
-    git stash push -u -m "upgrade-auto-stash-$(date +%s)" 2>/dev/null || true
-fi
-git pull 2>&1 | tail -3 || {
-    err "git pull 失败，请手动更新"
+# 强制重置到 origin/master，丢弃所有本地改动（升级场景应始终使用最新代码）
+git fetch origin master 2>&1 | tail -3
+git reset --hard origin/master 2>&1 || {
+    err "代码拉取失败，请检查网络或仓库地址"
     exit 1
 }
+git clean -fd 2>/dev/null || true
+log "代码已更新到 $(git rev-parse --short HEAD)"
 
 # ---------- 确保编译工具 ----------
 pct 15 "检查编译工具..."

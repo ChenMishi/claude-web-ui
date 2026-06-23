@@ -43,37 +43,166 @@ function formatSizeLocal(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, queuedMessages, onRemoveQueued }) {
+export function InputSelectsCard({ activeSkill, onSkillChange }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
-    setView, setMessages, currentProjectId, selectProject, theme, chatMessages, projects,
+    setView, currentProjectId, projects,
     availableModels, currentModel, switchCurrentModel } = useApp();
-  const inputRef = useRef(null);
-  const cmdListRef = useRef(null);
   const skillsRef = useRef(null);
   const skillsContainerRef = useRef(null);
   const modelDropdownRef = useRef(null);
   const permDropdownRef = useRef(null);
-  const [showCommands, setShowCommands] = useState(false);
   const [showSkills, setShowSkills] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showPermDropdown, setShowPermDropdown] = useState(false);
-  const [filteredCmds, setFilteredCmds] = useState([]);
-  const [selectedIdx, setSelectedIdx] = useState(0);
   const [skills, setSkills] = useState([]);
 
-  // Attachment state
-  const [attachments, setAttachments] = useState([]); // { id, file, uploading, metadata }
-  const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef(null);
-  const attachIdRef = useRef(0);
-
-  // Load skills from API
   useEffect(() => {
     const project = projects.find(p => p.id === currentProjectId);
     listSkills(project?.cwd || null)
       .then(d => setSkills(d.skills || []))
       .catch(() => {});
   }, [currentProjectId, projects]);
+
+  useEffect(() => {
+    if (!showSkills && !showModelDropdown && !showPermDropdown) return;
+    const handler = (e) => {
+      if (showSkills && skillsContainerRef.current && !skillsContainerRef.current.contains(e.target)) {
+        setShowSkills(false);
+      }
+      if (showModelDropdown && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target)) {
+        setShowModelDropdown(false);
+      }
+      if (showPermDropdown && permDropdownRef.current && !permDropdownRef.current.contains(e.target)) {
+        setShowPermDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showSkills, showModelDropdown, showPermDropdown]);
+
+  return (
+    <div className="input-selects-card">
+      <div className="input-selects-column">
+        <div className="input-selects-row">
+          <div className="input-select-group" ref={modelDropdownRef}>
+            <span className="input-select-icon" title="模型"><IconZap /></span>
+            <button
+              className="input-select input-select-model"
+              onClick={() => setShowModelDropdown(!showModelDropdown)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+            >{currentModel || model}</button>
+            {showModelDropdown && (
+              <div className="input-dropdown-panel">
+                {(availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
+                  <div
+                    key={m}
+                    className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
+                    onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
+                  >
+                    {m}
+                    {(currentModel || model) === m && <span className="check">✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className={`input-select-group perm-${permissionLevel}`} ref={permDropdownRef}>
+            <span className="input-select-icon" title="工具权限"><IconLock /></span>
+            <button
+              className="input-select input-select-perm"
+              onClick={() => setShowPermDropdown(!showPermDropdown)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap' }}
+            >{{ auto: '自动执行', 'confirm-dangerous': '写入确认', 'confirm-all': '全部确认' }[permissionLevel]}</button>
+            {showPermDropdown && (
+              <div className="input-dropdown-panel">
+                {[
+                  { value: 'auto', label: '自动执行' },
+                  { value: 'confirm-dangerous', label: '写入确认' },
+                  { value: 'confirm-all', label: '全部确认' },
+                ].map(p => (
+                  <div
+                    key={p.value}
+                    className={`input-dropdown-item ${permissionLevel === p.value ? 'active' : ''}`}
+                    onClick={() => { setSetting('permissionLevel', p.value); setShowPermDropdown(false); }}
+                  >
+                    {p.label}
+                    {permissionLevel === p.value && <span className="check">✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="input-select-group" style={{ position: 'relative' }} ref={skillsContainerRef}>
+          <span className="input-select-icon" title="技能">🧩</span>
+          <button
+            className="input-select input-select-skill"
+            onClick={() => setShowSkills(!showSkills)}
+            style={{ background: 'transparent', border: 'none', color: showSkills || activeSkill ? 'var(--accent)' : 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', whiteSpace: 'nowrap' }}
+          >{activeSkill ? <>{typeof activeSkill.icon === 'string' ? <span>{activeSkill.icon} </span> : activeSkill.icon}{activeSkill.displayName}</> : '技能'}</button>
+          {activeSkill && (
+            <button
+              onClick={() => { onSkillChange(null); }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1 }}
+              title="取消激活"
+            >✕</button>
+          )}
+          {showSkills && (
+            <div className="skills-popup" ref={skillsRef}>
+              <div className="skills-popup-title">选择技能（激活后改变 Claude 行为模式）</div>
+              <div className="skills-popup-grid">
+                {skills.length === 0 ? (
+                  <div className="skills-popup-empty">暂无技能，前往设置页「技能管理」创建或安装</div>
+                ) : (
+                  skills.map(s => {
+                    const isActive = activeSkill?.name === s.name;
+                    return (
+                      <button
+                        key={s.name}
+                        className={`skills-chip ${isActive ? 'active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isActive) {
+                            onSkillChange(null);
+                          } else {
+                            onSkillChange({ name: s.name, displayName: s.displayName, icon: s.icon || '🧩' });
+                          }
+                          setShowSkills(false);
+                        }}
+                      >
+                        <span className="skills-chip-icon">{s.icon || '🧩'}</span>
+                        <span className="skills-chip-label">{s.displayName || s.name}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <div className="skills-popup-footer">
+                <a href="#" onClick={e => { e.preventDefault(); setView('skills'); setShowSkills(false); }}>管理技能 →</a>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, queuedMessages, onRemoveQueued, onPrioritize }) {
+  const { isStreaming, currentSessionId, execStatus, setSetting,
+    setView, setMessages, currentProjectId, selectProject, theme, chatMessages,
+    availableModels } = useApp();
+  const inputRef = useRef(null);
+  const cmdListRef = useRef(null);
+  const [showCommands, setShowCommands] = useState(false);
+  const [filteredCmds, setFilteredCmds] = useState([]);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+
+  // Attachment state
+  const [attachments, setAttachments] = useState([]); // { id, file, uploading, metadata }
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+  const attachIdRef = useRef(0);
 
   // ── Attachment handlers ──
   const addAttachments = useCallback((files) => {
@@ -302,24 +431,13 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     }
   };
 
-  // Close popups on outside click
+  // Close command popup on outside click
   useEffect(() => {
-    if (!showCommands && !showSkills && !showModelDropdown && !showPermDropdown) return;
-    const handler = (e) => {
-      if (showSkills && skillsContainerRef.current && !skillsContainerRef.current.contains(e.target)) {
-        setShowSkills(false);
-      }
-      if (showModelDropdown && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target)) {
-        setShowModelDropdown(false);
-      }
-      if (showPermDropdown && permDropdownRef.current && !permDropdownRef.current.contains(e.target)) {
-        setShowPermDropdown(false);
-      }
-      if (showCommands) setShowCommands(false);
-    };
+    if (!showCommands) return;
+    const handler = () => { setShowCommands(false); };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [showCommands, showSkills, showModelDropdown, showPermDropdown]);
+  }, [showCommands]);
 
   return (
     <div className="input-area" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
@@ -336,6 +454,11 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
             <div key={idx} className="queued-item">
               <span className="queued-icon">⏱️</span>
               <span className="queued-text">{item.text}</span>
+              <button
+                className="queued-prioritize"
+                onClick={() => onPrioritize && onPrioritize(idx)}
+                title="优先插入，中断当前任务"
+              >⚡ 插队</button>
               <button
                 className="queued-remove"
                 onClick={() => onRemoveQueued && onRemoveQueued(idx)}
@@ -384,7 +507,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           </div>
         </div>
       )}
-      <div className="input-wrapper">
+      <div className="input-row-inner">
         <button className="attach-btn" onClick={handleFilePick} title="添加附件 (Ctrl+V 粘贴图片)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
@@ -407,125 +530,6 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           onPaste={handlePaste}
           disabled={false}
         />
-        <div className="input-select-group" ref={modelDropdownRef}>
-          <span className="input-select-icon" title="模型"><IconZap /></span>
-          <button
-            className="input-select input-select-model"
-            onClick={() => setShowModelDropdown(!showModelDropdown)}
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-          >{currentModel || model}</button>
-          {showModelDropdown && (
-            <div className="input-dropdown-panel">
-              {(availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
-                <div
-                  key={m}
-                  className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
-                  onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
-                >
-                  {m}
-                  {(currentModel || model) === m && <span className="check">✓</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className={`input-select-group perm-${permissionLevel}`} ref={permDropdownRef}>
-          <span className="input-select-icon" title="工具权限"><IconLock /></span>
-          <button
-            className="input-select input-select-perm"
-            onClick={() => setShowPermDropdown(!showPermDropdown)}
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap' }}
-          >{{ auto: '自动执行', 'confirm-dangerous': '写入确认', 'confirm-all': '全部确认' }[permissionLevel]}</button>
-          {showPermDropdown && (
-            <div className="input-dropdown-panel">
-              {[
-                { value: 'auto', label: '自动执行' },
-                { value: 'confirm-dangerous', label: '写入确认' },
-                { value: 'confirm-all', label: '全部确认' },
-              ].map(p => (
-                <div
-                  key={p.value}
-                  className={`input-dropdown-item ${permissionLevel === p.value ? 'active' : ''}`}
-                  onClick={() => { setSetting('permissionLevel', p.value); setShowPermDropdown(false); }}
-                >
-                  {p.label}
-                  {permissionLevel === p.value && <span className="check">✓</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="input-select-group" style={{ position: 'relative' }} ref={skillsContainerRef}>
-          <span className="input-select-icon" title="技能">🧩</span>
-          <button
-            className="input-select input-select-skill"
-            onClick={() => setShowSkills(!showSkills)}
-            style={{ background: 'transparent', border: 'none', color: showSkills || activeSkill ? 'var(--accent)' : 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', whiteSpace: 'nowrap' }}
-          >{activeSkill ? <>{typeof activeSkill.icon === 'string' ? <span>{activeSkill.icon} </span> : activeSkill.icon}{activeSkill.displayName}</> : '技能'}</button>
-          {activeSkill && (
-            <button
-              onClick={() => {
-                const el = inputRef.current;
-                if (el && activeSkill) {
-                  const prefix = '/' + activeSkill.name + ' ';
-                  if (el.value.startsWith(prefix)) el.value = el.value.slice(prefix.length);
-                  else if (el.value.startsWith('/' + activeSkill.name)) el.value = el.value.slice(activeSkill.name.length + 1);
-                }
-                onSkillChange(null);
-              }}
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1 }}
-              title="取消激活"
-            >✕</button>
-          )}
-          {showSkills && (
-            <div className="skills-popup" ref={skillsRef}>
-              <div className="skills-popup-title">选择技能（激活后改变 Claude 行为模式）</div>
-              <div className="skills-popup-grid">
-                {skills.length === 0 ? (
-                  <div className="skills-popup-empty">暂无技能，前往设置页「技能管理」创建或安装</div>
-                ) : (
-                  skills.map(s => {
-                    const isActive = activeSkill?.name === s.name;
-                    return (
-                      <button
-                        key={s.name}
-                        className={`skills-chip ${isActive ? 'active' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const el = inputRef.current;
-                          if (isActive) {
-                            onSkillChange(null);
-                            if (el) {
-                              const prefix = '/' + s.name + ' ';
-                              if (el.value.startsWith(prefix)) el.value = el.value.slice(prefix.length);
-                              else if (el.value.startsWith('/' + s.name)) el.value = el.value.slice(s.name.length + 1);
-                            }
-                          } else {
-                            onSkillChange({ name: s.name, displayName: s.displayName, icon: s.icon || '🧩' });
-                            if (el) {
-                              const cmd = '/' + s.name + ' ';
-                              el.value = cmd + el.value;
-                              el.focus();
-                              el.style.height = 'auto';
-                              el.style.height = Math.min(el.scrollHeight, 160) + 'px';
-                            }
-                          }
-                          setShowSkills(false);
-                        }}
-                      >
-                        <span className="skills-chip-icon">{s.icon || '🧩'}</span>
-                        <span className="skills-chip-label">{s.displayName || s.name}</span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-              <div className="skills-popup-footer">
-                <a href="#" onClick={e => { e.preventDefault(); setView('skills'); setShowSkills(false); }}>管理技能 →</a>
-              </div>
-            </div>
-          )}
-        </div>
         {isStreaming && (
           <button className="stop-btn" onClick={handleStop}>
             ⏹ 中止
