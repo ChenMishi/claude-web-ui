@@ -291,6 +291,17 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     }
   }, [activeSkill]);
 
+  // Toggle scroll animation on model text only when it overflows
+  useEffect(() => {
+    document.querySelectorAll('.input-select-model-text').forEach(el => {
+      if (el.scrollWidth > el.clientWidth) {
+        el.classList.add('overflowing');
+      } else {
+        el.classList.remove('overflowing');
+      }
+    });
+  }, [currentModel, model]);
+
   // Attachment state
   const [attachments, setAttachments] = useState([]); // { id, file, uploading, metadata }
   const [dragOver, setDragOver] = useState(false);
