@@ -268,6 +268,29 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     return () => document.removeEventListener('mousedown', handler);
   }, [showSkills, showModelDropdown, showPermDropdown, showDisplayDropdown]);
 
+  // 技能激活/取消时同步输入框前缀
+  const prevSkillRef = useRef(null);
+  useEffect(() => {
+    const prev = prevSkillRef.current;
+    prevSkillRef.current = activeSkill?.name || null;
+    const el = inputRef.current;
+    if (!el) return;
+
+    if (activeSkill) {
+      // 激活技能：移除旧前缀（如果有），添加新前缀
+      let val = el.value;
+      if (prev && val.startsWith('/' + prev)) {
+        val = val.slice(prev.length + 1).replace(/^ /, '');
+      }
+      el.value = '/' + activeSkill.name + ' ' + val;
+    } else if (prev) {
+      // 取消技能：移除旧前缀
+      if (el.value.startsWith('/' + prev)) {
+        el.value = el.value.slice(prev.length + 1).replace(/^ /, '');
+      }
+    }
+  }, [activeSkill]);
+
   // Attachment state
   const [attachments, setAttachments] = useState([]); // { id, file, uploading, metadata }
   const [dragOver, setDragOver] = useState(false);
