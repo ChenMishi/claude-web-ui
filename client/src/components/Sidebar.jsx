@@ -296,7 +296,7 @@ export default function Sidebar() {
       </nav>
 
       {user && (
-        <div className={`sidebar-user-collapsible${sidebarUpCollapsed ? ' collapsed' : ''}`}>
+        <div className="sidebar-user-collapsible">
         <div className="sidebar-user-wrap" ref={userMenuRef}>
           <div className="sidebar-user-bar" onClick={() => setMenuOpen(!menuOpen)}>
             {user.avatar ? (

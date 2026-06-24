@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { authHeaders, getInitStatus, saveInitConfig, testProxy, checkClaudeUpdate,
          getProviderConfig, saveProviderConfig, fetchModels } from '../api';
 import { useApp } from '../context/AppContext';
-import { IconSettings, IconClipboard, IconPackage, IconBot, IconImage, IconRefresh, IconGlobe, IconSave, IconChevronRight, IconPin } from './icons';
+import { IconSettings, IconClipboard, IconPackage, IconBot, IconImage, IconRefresh, IconGlobe, IconSave, IconPin } from './icons';
 
 const BASE = '/api';
 
@@ -484,7 +484,7 @@ export default function InitPanel() {
           </div>
           <details className="init-advanced" style={{ marginBottom: 10 }}>
             <summary style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>
-              <IconChevronRight/> 高级选项 {editChatUrl ? '(已配置)' : ''}
+                          高级选项 {editChatUrl ? '(已配置)' : ''}
             </summary>
             <div className="init-config-row" style={{ marginTop: 8 }}>
               <label>Anthropic 聊天地址</label>

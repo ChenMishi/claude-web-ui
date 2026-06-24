@@ -407,6 +407,7 @@ html, body, #root {
 }
 
 .sidebar-body-inner::-webkit-scrollbar { width: 4px; }
+.sidebar-body-inner::-webkit-scrollbar-track { margin: 8px 0; background: transparent; }
 .sidebar-body-inner::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* Project Selector */
@@ -1011,12 +1012,12 @@ html, body, #root {
   align-self: flex-end;
   background: rgba(108, 99, 255, 0.1);
   border: none;
-  box-shadow: 0 2px 16px rgba(108, 99, 255, 0.06), 0 0 0 1px rgba(108, 99, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(108, 99, 255, 0.10);
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .message.user:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 28px rgba(108, 99, 255, 0.10), 0 0 0 1px rgba(108, 99, 255, 0.12);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.20), 0 0 0 1px rgba(108, 99, 255, 0.18);
 }
 
 .message.assistant {
@@ -3411,12 +3412,12 @@ html, body, #root {
   color: #fff;
   border: none;
   border-radius: 12px;
-  box-shadow: 0 2px 20px rgba(91, 143, 185, 0.07);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(91, 143, 185, 0.15);
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 [data-theme="light"] .message.user:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 30px rgba(91, 143, 185, 0.12);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(91, 143, 185, 0.22);
 }
 
 /* 用户气泡内文字/标签适配白底 accent 色 */
@@ -4217,6 +4218,7 @@ html, body, #root {
 .init-install-scroll pre, .init-install-log pre { margin: 0; }
 .init-config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .init-config-row label { font-size: 12px; color: var(--text-muted); white-space: nowrap; min-width: 60px; }
+
 .init-config-inputs { display: flex; align-items: center; gap: 6px; }
 
 /* Sub-header inside init sections */
@@ -4443,15 +4445,17 @@ html, body, #root {
   gap: 10px;
   margin: 0 10px 10px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
-  box-shadow: var(--glass-shadow);
   cursor: pointer;
   transition: all 0.15s;
 }
 .sidebar-user-bar:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.10);
+  border-color: var(--glass-border-hover);
 }
 
 .sidebar-user-avatar {

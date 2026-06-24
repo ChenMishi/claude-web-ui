@@ -219,9 +219,8 @@ export default memo(function ChatMessage({ message }) {
     </div>
   ), [safeContent, streaming]);
 
-  // Artifact summary — files created during the session
+  // Artifact summary — files created during the session (all modes)
   if (role === 'artifacts') {
-    if (displayMode === 'minimal') return null;
     const files = message.files || [];
     if (files.length === 0) return null;
     const isSingle = files.length === 1;
