@@ -71,7 +71,13 @@ export default function ExecutionBar() {
   return (
     <div className={`exec-bar ${done ? 'done' : ''}`}>
       <span className="exec-bar-symbol">{SymbolIcon}</span>
-      <span className="exec-bar-action">{action}…</span>
+      <span className="exec-bar-action">{action}{!done && (
+        <span className="exec-bar-dots">
+          <span className="dot">.</span>
+          <span className="dot">.</span>
+          <span className="dot">.</span>
+        </span>
+      )}</span>
       <span className="exec-bar-meta">
         ({fmtTime(elapsed)}{!done ? <span> · {tokEls} · {PHASE_LABELS[phase] || phase}</span> : ''})
       </span>

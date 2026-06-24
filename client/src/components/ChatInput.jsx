@@ -594,7 +594,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
         <textarea
           ref={inputRef}
           rows="1"
-          placeholder={isStreaming ? '输入消息中途插入... (Enter 发送)' : '输入消息... (Shift+Enter 换行) 输入 / 查看快捷指令'}
+          placeholder={isStreaming ? '输入消息可排队或插入...(Enter 发送)' : '输入消息... (Shift+Enter 换行) 输入 / 查看快捷指令'}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
           onPaste={handlePaste}

@@ -16,7 +16,7 @@ export default function Sidebar() {
   const {
     sidebarOpen, toggleSidebar,
     projects, setProjects,
-    currentProjectId, selectProject, setSessions,
+    currentProjectId, selectProject, selectSession, setSessions,
     currentSessionId, setMessages, chatMessages,
     setView, activeView, theme, setSetting,
     updateAvailable, user, logout, isStreaming,
@@ -37,6 +37,7 @@ export default function Sidebar() {
 
   // Track whether initial load has already happened to prevent effect chains
   const initialLoadRef = useRef(false);
+  const projectLoadedRef = useRef(false);
   const lastLoadedSessionRef = useRef(null);
 
   // Close user menu on outside click
@@ -89,6 +90,7 @@ export default function Sidebar() {
         const sessions = await getProjectSessions(targetProjectId);
         if (cancelled) return;
         setSessions(sessions);
+        projectLoadedRef.current = true;  // 标记初始项目加载完成，后续切换项目由 effect 接管
 
         // Determine target session
         const targetSessionId = currentSessionId || (sessions.length > 0 ? sessions[0].id : null);
@@ -170,6 +172,27 @@ export default function Sidebar() {
 
     return () => { cancelled = true; };
   }, [currentSessionId]);
+
+  // 切换项目时自动加载新项目下的会话列表
+  useEffect(() => {
+    if (!currentProjectId) return;
+    if (!projectLoadedRef.current) return;  // 跳过初始加载中
+    if (streamingRef.current) return;
+
+    let cancelled = false;
+
+    getProjectSessions(currentProjectId).then(sessions => {
+      if (cancelled) return;
+      setSessions(sessions);
+      // 自动选中第一个会话（如果当前没有选中）
+      if (sessions.length > 0) {
+        selectSession(sessions[0].id);
+      }
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [currentProjectId]);
+
   useEffect(() => {
     if (!isAdmin) return;
     getInitStatus().then(d => {
@@ -187,7 +210,7 @@ export default function Sidebar() {
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${sidebarMinimal ? 'minimal' : ''} ${sidebarUpCollapsed ? 'up-collapsed' : ''} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
         <h2>{sidebarMinimal ? 'AI' : 'AI IntelliWork Hub'}</h2>
-        {!sidebarMinimal && <div className="sidebar-version">v2.2.0</div>}
+        {!sidebarMinimal && <div className="sidebar-version">v2.2.1</div>}
       </div>
 
       {!sidebarMinimal && (

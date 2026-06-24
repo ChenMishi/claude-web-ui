@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { runAgent, getProjects, getProjectSessions, abortSession, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages } from '../api';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
+import ChatStatusBar from './ChatStatusBar';
 import WelcomeScreen from './WelcomeScreen';
 import ExecutionPanel from './ExecutionPanel';
 import TaskPanel from './TaskPanel';
@@ -71,7 +72,7 @@ export default function ChatView() {
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, bindTaskId, updateTask, setMainTask, updateMainTask, execStatus,
-    currentModel, finishAllStreaming, finalizeStreaming, displayMode,
+    currentModel, finishAllStreaming, finalizeStreaming,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -721,6 +722,7 @@ export default function ChatView() {
         hasThinking.current = false;  // 防止跨消息状态污染
         // Reload session list as soon as we have the session ID for new sessions
         if (session_id && !currentSessionId) {
+          streamSessionIdRef.current = session_id;  // 立即更新 ref，让后续 SSE 事件路由到正确的 session
           setSessionId(session_id);
           getProjects().then(setProjects).catch(() => {});
           if (currentProjectId) {
@@ -900,7 +902,7 @@ export default function ChatView() {
               </button>
             </div>
           )}
-          {!hasMessages && <WelcomeScreen onSend={handleSend} />}
+          {!hasMessages && <WelcomeScreen />}
           {chatMessages.map((msg, i) => (
             <ChatMessage key={i} message={msg} />
           ))}
@@ -980,21 +982,7 @@ export default function ChatView() {
             ↓ 查看最新消息
           </button>
         )}
-        {displayMode === 'minimal' && execStatus.phase !== 'idle' && execStatus.phase !== 'done' && (
-          <div className="msg-exec-mini">
-            <span className="msg-exec-mini-icon">
-              {execStatus.phase === 'thinking' ? '💭' : execStatus.phase === 'running' ? '🔧' : '⚡'}
-            </span>
-            <span className="msg-exec-mini-text">
-              {execStatus.phase === 'thinking' ? '思考中' :
-               execStatus.phase === 'running' ? (() => {
-                 const idx = execStatus.detail.indexOf(':');
-                 return idx > 0 ? execStatus.detail.slice(idx + 1).slice(0, 40) : execStatus.detail.slice(0, 40);
-               })() :
-               execStatus.phase === 'responding' ? '生成回复' : ''}
-            </span>
-          </div>
-        )}
+        <ChatStatusBar />
         </div>
         </div>
         <div className="right-panels">

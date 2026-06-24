@@ -118,9 +118,18 @@ function reducer(state, action) {
       if (cache2.__pending__) {
         cache2[action.payload] = cache2.__pending__;
         delete cache2.__pending__;
-        saveCache(cache2);
       }
-      next = { ...state, currentSessionId: action.payload, messageCache: cache2 };
+      // 迁移 streamSessionIdRef='new' 暂存的消息到正式 sessionId
+      const orphanedMsgs = cache2['new'] || [];
+      if (orphanedMsgs.length > 0) {
+        cache2[action.payload] = [...(cache2[action.payload] || []), ...orphanedMsgs];
+        delete cache2['new'];
+      }
+      saveCache(cache2);
+      const merged = orphanedMsgs.length > 0
+        ? [...state.chatMessages, ...orphanedMsgs]
+        : state.chatMessages;
+      next = { ...state, currentSessionId: action.payload, chatMessages: merged, messageCache: cache2 };
       break;
     }
     case 'SET_MESSAGES': {

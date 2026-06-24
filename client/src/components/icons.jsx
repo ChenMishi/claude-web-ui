@@ -21,6 +21,10 @@ export const IconLogout = () => <svg {...svgProps}><path d="M9 21H5a2 2 0 0 1-2-
 export const IconRestart = () => <svg {...svgProps}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>;
 export const IconClock = () => <svg {...svgProps}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 export const IconCheck = () => <svg {...svgProps}><polyline points="20 6 9 17 4 12"/></svg>;
+export const IconDoubleCheck = () => <svg {...svgProps}>
+  <polyline points="18 6 7 16 3 11"/>
+  <polyline points="22 6 11 16 7 11"/>
+</svg>;
 export const IconX = () => <svg {...svgProps}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 export const IconAlert = () => <svg {...svgProps}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
 export const IconChevronRight = () => <svg {...svgProps}><polyline points="9 18 15 12 9 6"/></svg>;
