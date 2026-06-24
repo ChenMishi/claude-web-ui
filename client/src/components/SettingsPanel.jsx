@@ -11,10 +11,11 @@ import { IconSettings, IconUsers, IconZap, IconClipboard, IconBarChart, IconRefr
 
 export default function SettingsPanel() {
   const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId, user,
-    availableModels, currentModel, switchCurrentModel } = useApp();
+    availableModels, currentModel, switchCurrentModel, updateAvailable } = useApp();
   const isAdmin = user?.role === 'admin';
   const project = projects.find(p => p.id === currentProjectId);
   const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'users' | 'init' | 'logs' | 'upgrade'
+  const [upgradeCheckTrigger, setUpgradeCheckTrigger] = useState(0);
 
   const [users, setUsers] = useState([]);
   const [newUsername, setNewUsername] = useState('');
@@ -86,7 +87,10 @@ export default function SettingsPanel() {
           <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}><IconZap/> 初始化</button>
           <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}><IconClipboard/> 日志</button>
           <button className={settingsTab === 'stats' ? 'active' : ''} onClick={() => setSettingsTab('stats')}><IconBarChart/> 统计</button>
-          <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => setSettingsTab('upgrade')}><IconRefresh/> 升级</button>
+          <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => { setSettingsTab('upgrade'); setUpgradeCheckTrigger(c => c + 1); }}>
+            <IconRefresh/> 升级
+            {updateAvailable && <span className="settings-tab-badge" />}
+          </button>
         </div>
 
         <div className="settings-tab-body">      {settingsTab === 'general' ? (
@@ -248,8 +252,8 @@ export default function SettingsPanel() {
         <InitPanel />
       ) : settingsTab === 'upgrade' ? (
         <>
-          <VersionCard />
-          <ClaudeCodeCard />
+          <VersionCard triggerCheck={upgradeCheckTrigger} />
+          <ClaudeCodeCard triggerCheck={upgradeCheckTrigger} />
         </>
       ) : settingsTab === 'stats' ? (
         <StatsPanel />

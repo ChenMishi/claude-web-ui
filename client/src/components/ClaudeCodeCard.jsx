@@ -4,7 +4,7 @@ import { IconBot } from './icons';
 
 const BASE = '/api';
 
-export default function ClaudeCodeCard() {
+export default function ClaudeCodeCard({ triggerCheck }) {
   const [status, setStatus] = useState(null);       // { claudeInstalled, claudeVersion, claudePath }
   const [installing, setInstalling] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
@@ -30,6 +30,11 @@ export default function ClaudeCodeCard() {
     const t = setInterval(doCheck, 360 * 60000);
     return () => clearInterval(t);
   }, [status?.claudeInstalled]);
+
+  // Auto-check when user clicks upgrade tab
+  useEffect(() => {
+    if (triggerCheck > 0 && status?.claudeInstalled) handleCheckUpdate();
+  }, [triggerCheck]);
 
   const handleInstall = useCallback(async () => {
     setInstalling(true); setInstallLog(''); setInstallPct(0);

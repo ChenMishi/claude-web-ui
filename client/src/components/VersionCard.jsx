@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeStatus } from '../api';
 import { IconTag, IconRocket } from './icons';
 
-export default function VersionCard() {
+export default function VersionCard({ triggerCheck }) {
   const { setUpdateAvailable } = useApp();
   const [info, setInfo] = useState(null);
   const [remote, setRemote] = useState('');
@@ -20,6 +20,10 @@ export default function VersionCard() {
     getVersionInfo().then(d => { setInfo(d); setRemote(d.remote || ''); }).catch(() => {});
   }, []);
 
+  // Auto-check when user clicks upgrade tab
+  useEffect(() => {
+    if (triggerCheck > 0) handleCheck();
+  }, [triggerCheck]);
   // Periodic check every 6 hours
   useEffect(() => {
     const t = setInterval(() => {

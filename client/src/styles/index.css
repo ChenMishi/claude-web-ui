@@ -2811,6 +2811,15 @@ html, body, #root {
   font-weight: 500;
 }
 
+.settings-tab-badge {
+  display: inline-block;
+  width: 7px; height: 7px;
+  background: #ff6b35;
+  border-radius: 50%;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
 /* Settings tab body — content area inside the card */
 .settings-tab-body {
   padding: 20px;
