@@ -5114,16 +5114,16 @@ html, body, #root {
 /* Storage password modal */
 .storage-password-overlay {
   position: fixed; inset: 0; z-index: 9999;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center;
 }
 .storage-password-modal {
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
   width: 380px; max-width: 90vw;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 .storage-password-title {
   font-size: 16px; font-weight: 600; color: var(--text-primary);
@@ -5137,8 +5137,9 @@ html, body, #root {
   width: 100%; box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid var(--border); border-radius: 8px;
-  background: var(--bg-input); color: var(--text-primary);
+  background: var(--bg-primary); color: var(--text-primary);
   font-size: 14px; outline: none;
+  filter: brightness(0.95);
 }
 .storage-password-input:focus {
   border-color: var(--accent);
