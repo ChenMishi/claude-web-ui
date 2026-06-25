@@ -245,19 +245,21 @@ export default function BackupCard() {
             onClose={() => setShowPicker(false)}
           />
         )}
-        <div className="settings-row">
-          <label>自动备份</label>
-          <select value={config.frequency || 'manual'} onChange={e => setConfig({ ...config, frequency: e.target.value })}>
-            <option value="manual">手动</option>
-            <option value="hourly">每小时</option>
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-          </select>
-        </div>
-        <div className="settings-row">
-          <label>最大备份数</label>
-          <input type="number" min="1" max="100" value={config.maxBackups || 3} style={{ width: 100 }}
-            onChange={e => setConfig({ ...config, maxBackups: parseInt(e.target.value) || 3 })} />
+        <div style={{ display: 'flex', gap: 16 }}>
+          <div className="settings-row" style={{ flex: 1 }}>
+            <label>自动备份</label>
+            <select value={config.frequency || 'manual'} onChange={e => setConfig({ ...config, frequency: e.target.value })}>
+              <option value="manual">手动</option>
+              <option value="hourly">每小时</option>
+              <option value="daily">每天</option>
+              <option value="weekly">每周</option>
+            </select>
+          </div>
+          <div className="settings-row" style={{ flex: 1 }}>
+            <label>最大备份数</label>
+            <input type="number" min="1" max="100" value={config.maxBackups || 3}
+              onChange={e => setConfig({ ...config, maxBackups: parseInt(e.target.value) || 3 })} />
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="init-btn init-btn-save" onClick={handleConfigSave}>保存配置</button>
