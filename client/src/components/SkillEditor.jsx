@@ -36,6 +36,14 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
   const [error, setError] = useState('');
   const [importMsg, setImportMsg] = useState('');
   const fileInputRef = useRef(null);
+  const catDropdownRef = useRef(null);
+  const permDropdownRef = useRef(null);
+  const modelDropdownRef = useRef(null);
+  const scopeDropdownRef = useRef(null);
+  const [showCatDropdown, setShowCatDropdown] = useState(false);
+  const [showPermDropdown, setShowPermDropdown] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showScopeDropdown, setShowScopeDropdown] = useState(false);
 
   const handleImportFile = async (e) => {
     const file = e.target.files?.[0];
@@ -104,6 +112,19 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
         .finally(() => setLoading(false));
     }
   }, [skill, projectDir]);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    if (!showCatDropdown && !showPermDropdown && !showModelDropdown && !showScopeDropdown) return;
+    const handler = (e) => {
+      if (showCatDropdown && catDropdownRef.current && !catDropdownRef.current.contains(e.target)) setShowCatDropdown(false);
+      if (showPermDropdown && permDropdownRef.current && !permDropdownRef.current.contains(e.target)) setShowPermDropdown(false);
+      if (showModelDropdown && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target)) setShowModelDropdown(false);
+      if (showScopeDropdown && scopeDropdownRef.current && !scopeDropdownRef.current.contains(e.target)) setShowScopeDropdown(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCatDropdown, showPermDropdown, showModelDropdown, showScopeDropdown]);
 
   const toggleTool = (tool, setter) => {
     setter(prev =>
@@ -213,33 +234,70 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
           <div className="skills-editor-row">
             <div className="skills-editor-field">
               <label>分类</label>
-              <select value={category} onChange={e => setCategory(e.target.value)}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <div className="skills-select-group" ref={catDropdownRef}>
+                <button className="skills-dropdown-btn" onClick={() => { setShowCatDropdown(!showCatDropdown); setShowPermDropdown(false); setShowModelDropdown(false); setShowScopeDropdown(false); }}>
+                  {category} <span className="skills-dropdown-arrow">▾</span>
+                </button>
+                {showCatDropdown && (
+                  <div className="input-dropdown-panel skills-dropdown-panel">
+                    {CATEGORIES.map(c => (
+                      <div key={c} className={`input-dropdown-item ${category === c ? 'active' : ''}`}
+                        onClick={() => { setCategory(c); setShowCatDropdown(false); }}>
+                        {c}{category === c && <span className="check">✓</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="skills-editor-field">
               <label>权限模式</label>
-              <select value={permissionMode} onChange={e => setPermissionMode(e.target.value)}>
-                {PERM_MODES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
+              <div className="skills-select-group" ref={permDropdownRef}>
+                <button className="skills-dropdown-btn" onClick={() => { setShowPermDropdown(!showPermDropdown); setShowCatDropdown(false); setShowModelDropdown(false); setShowScopeDropdown(false); }}>
+                  {PERM_MODES.find(p => p.value === permissionMode)?.label || permissionMode} <span className="skills-dropdown-arrow">▾</span>
+                </button>
+                {showPermDropdown && (
+                  <div className="input-dropdown-panel skills-dropdown-panel">
+                    {PERM_MODES.map(p => (
+                      <div key={p.value} className={`input-dropdown-item ${permissionMode === p.value ? 'active' : ''}`}
+                        onClick={() => { setPermissionMode(p.value); setShowPermDropdown(false); }}>
+                        {p.label}{permissionMode === p.value && <span className="check">✓</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="skills-editor-field">
               <label>推荐模型</label>
-              <select value={model} onChange={e => setModel(e.target.value)}>
-                <option value="">使用当前模型</option>
-                {availableModels.length > 0 ? (
-                  availableModels.map(m => <option key={m} value={m}>{m}</option>)
-                ) : (
-                  <>
-                    <option value="claude-opus-4-7">Claude Opus 4.7</option>
-                    <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-                  </>
+              <div className="skills-select-group" ref={modelDropdownRef}>
+                <button className="skills-dropdown-btn" onClick={() => { setShowModelDropdown(!showModelDropdown); setShowCatDropdown(false); setShowPermDropdown(false); setShowScopeDropdown(false); }}>
+                  {model || '使用当前模型'} <span className="skills-dropdown-arrow">▾</span>
+                </button>
+                {showModelDropdown && (
+                  <div className="input-dropdown-panel skills-dropdown-panel">
+                    <div className={`input-dropdown-item ${!model ? 'active' : ''}`}
+                      onClick={() => { setModel(''); setShowModelDropdown(false); }}>
+                      使用当前模型{!model && <span className="check">✓</span>}
+                    </div>
+                    {availableModels.length > 0 ? (
+                      availableModels.map(m => (
+                        <div key={m} className={`input-dropdown-item ${model === m ? 'active' : ''}`}
+                          onClick={() => { setModel(m); setShowModelDropdown(false); }}>
+                          {m}{model === m && <span className="check">✓</span>}
+                        </div>
+                      ))
+                    ) : (
+                      ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'].map(m => (
+                        <div key={m} className={`input-dropdown-item ${model === m ? 'active' : ''}`}
+                          onClick={() => { setModel(m); setShowModelDropdown(false); }}>
+                          {m}{model === m && <span className="check">✓</span>}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
-                {model && !availableModels.includes(model) && availableModels.length > 0 && (
-                  <option value={model}>{model} (当前技能设定)</option>
-                )}
-              </select>
+              </div>
             </div>
           </div>
 
@@ -280,13 +338,26 @@ export default function SkillEditor({ skill, projectDir, onClose }) {
             />
           </div>
 
-          {!isEdit && isAdmin && (
+          {isAdmin && (
             <div className="skills-editor-field">
               <label>安装到</label>
-              <select value={targetScope} onChange={e => setTargetScope(e.target.value)}>
-                <option value="personal">个人技能</option>
-                <option value="shared">共享技能（所有用户可用）</option>
-              </select>
+              <div className="skills-select-group" ref={scopeDropdownRef}>
+                <button className="skills-dropdown-btn" onClick={() => { setShowScopeDropdown(!showScopeDropdown); setShowCatDropdown(false); setShowPermDropdown(false); setShowModelDropdown(false); }}>
+                  {targetScope === 'shared' ? '共享技能（所有用户可用）' : '个人技能'} <span className="skills-dropdown-arrow">▾</span>
+                </button>
+                {showScopeDropdown && (
+                  <div className="input-dropdown-panel skills-dropdown-panel skills-dropdown-panel-up">
+                    <div className={`input-dropdown-item ${targetScope === 'personal' ? 'active' : ''}`}
+                      onClick={() => { setTargetScope('personal'); setShowScopeDropdown(false); }}>
+                      个人技能{targetScope === 'personal' && <span className="check">✓</span>}
+                    </div>
+                    <div className={`input-dropdown-item ${targetScope === 'shared' ? 'active' : ''}`}
+                      onClick={() => { setTargetScope('shared'); setShowScopeDropdown(false); }}>
+                      共享技能（所有用户可用）{targetScope === 'shared' && <span className="check">✓</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

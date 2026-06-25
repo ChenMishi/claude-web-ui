@@ -222,6 +222,8 @@ function handleSDKMessage(message, runtime, isStreaming) {
   if (message.type === 'system') {
     if (message.session_id && !runtime.sessionId) {
       assignSessionId(runtime, message.session_id);
+      // Notify frontend so it knows the sessionId as early as possible
+      if (isStreaming) broadcast(runtime, 'session', { sessionId: message.session_id });
     }
     return;
   }
@@ -280,7 +282,7 @@ function handleSDKMessage(message, runtime, isStreaming) {
           const writePath = runtime.writeFilePaths?.get(block.tool_use_id);
           if (writePath && !block.is_error) {
             if (!extractedPaths[block.tool_use_id]) extractedPaths[block.tool_use_id] = [];
-            extractedPaths[block.tool_use_id].push(writePath);
+            extractedPaths[block.tool_use_id].push(path.resolve(runtime.cwd || '/', writePath));
             runtime.writeFilePaths.delete(block.tool_use_id);
           }
         }
@@ -1352,39 +1354,73 @@ router.post('/session/:id/message', async (req, res) => {
 
       let imageError = false;
 
-      for await (const message of query({ prompt: arg, options })) {
-        // ── Detect [Unsupported Image] placeholder anywhere in the message ──
-        if (strategy === 'native' && promptStrategies.length > 1) {
-          // Check full serialized message — SDK may place the placeholder in any field
-          if (JSON.stringify(message).includes('[Unsupported Image]')) {
-            // SDK silently replaced image with placeholder — retry with next strategy
-            imageError = true;
-            // Remove the placeholder message from the broadcast buffer
-            runtime.buffer = (runtime.buffer || []).filter(
-              m => !(m.type === 'user' && JSON.stringify(m.message?.content || '').includes('[Unsupported Image]'))
-            );
-            break;
-          }
-        }
+      // Idle watchdog: only active during text generation (responding phase).
+      // During tool execution (Bash, npm install, etc.) the SDK may be quiet for
+      // long periods on slow networks, so no timeout is applied there.
+      const RESPONDING_IDLE_TIMEOUT = 60000; // 1 minute
+      let idleTimer = null;
+      const resetIdleTimer = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          console.log('[SESSION] No message during responding for', RESPONDING_IDLE_TIMEOUT / 1000, 's, aborting');
+          abortCtrl.abort();
+        }, RESPONDING_IDLE_TIMEOUT);
+      };
+      const clearIdleTimer = () => {
+        if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+      };
 
-        const info = handleSDKMessage(message, runtime, wantsStream);
-        if (message.type === 'assistant' || message.type === 'user') {
-          allMessages.push(message);
-        }
-        if (message.type === 'result') {
-          if (message.subtype !== 'success') {
-            const errText = (message.errors || []).join('; ') || `SDK result: ${message.subtype}`;
-            // Check if this is an image-related error and we have more strategies to try
-            if (strategy === 'native' && /image|unsupported|not.*support/i.test(errText) && promptStrategies.length > 1) {
-              imageError = true;
-              break; // break inner for-await, continue outer loop to next strategy
+      try {
+        for await (const message of query({ prompt: arg, options })) {
+          // ── Idle watchdog: only activate during pure text generation ──
+          if (message.type === 'assistant') {
+            const content = message.message?.content || [];
+            const hasText = content.some(b => b.type === 'text');
+            const hasToolUse = content.some(b => b.type === 'tool_use');
+            if (hasToolUse) {
+              clearIdleTimer(); // tool call — may run long Bash, no timeout
+            } else if (hasText) {
+              resetIdleTimer(); // pure text generation — start/refresh watchdog
             }
-            logError('SDK result error', errText);
-            result = { error: errText };
-          } else {
-            result = info;
+          } else if (message.type === 'user') {
+            clearIdleTimer(); // tool results flowing in — no timeout
+          }
+
+          // ── Detect [Unsupported Image] placeholder anywhere in the message ──
+          if (strategy === 'native' && promptStrategies.length > 1) {
+            // Check full serialized message — SDK may place the placeholder in any field
+            if (JSON.stringify(message).includes('[Unsupported Image]')) {
+              // SDK silently replaced image with placeholder — retry with next strategy
+              imageError = true;
+              // Remove the placeholder message from the broadcast buffer
+              runtime.buffer = (runtime.buffer || []).filter(
+                m => !(m.type === 'user' && JSON.stringify(m.message?.content || '').includes('[Unsupported Image]'))
+              );
+              break;
+            }
+          }
+
+          const info = handleSDKMessage(message, runtime, wantsStream);
+          if (message.type === 'assistant' || message.type === 'user') {
+            allMessages.push(message);
+          }
+          if (message.type === 'result') {
+            if (message.subtype !== 'success') {
+              const errText = (message.errors || []).join('; ') || `SDK result: ${message.subtype}`;
+              // Check if this is an image-related error and we have more strategies to try
+              if (strategy === 'native' && /image|unsupported|not.*support/i.test(errText) && promptStrategies.length > 1) {
+                imageError = true;
+                break; // break inner for-await, continue outer loop to next strategy
+              }
+              logError('SDK result error', errText);
+              result = { error: errText };
+            } else {
+              result = info;
+            }
           }
         }
+      } finally {
+        clearIdleTimer();
       }
 
       if (!imageError) break; // success or non-image error → exit strategy loop
@@ -1453,7 +1489,7 @@ router.post('/session/:id/message', async (req, res) => {
     if (runtime.abort !== abortCtrl) return;
     if (err.name === 'AbortError') {
       try {
-        broadcast(runtime, 'error', { message: 'aborted' });
+        broadcast(runtime, 'error', { message: '回复超时，已自动结束' });
         broadcastDone(runtime, { aborted: true });
       } catch {}
     } else {

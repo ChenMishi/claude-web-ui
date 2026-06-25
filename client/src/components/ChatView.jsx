@@ -87,6 +87,7 @@ export default function ChatView() {
   const fromQueueRef = useRef(false);       // true when handleSend is called by onDone queue consumer (not user-initiated)
   const throttleRef = useRef(null);  // setTimeout id for bUpdate throttling during responding phase
   const toolNameMap = useRef(new Map());  // tool_use_id → tool name, for result display
+  const filePathMap = useRef(new Map());  // tool_use_id → file_path, populated in onToolUse, read in onToolResult (avoids React state race)
   const streamSessionIdRef = useRef(null);  // sessionId of active stream; used by bAppend/bUpdate/setMessages to route messages to correct cache
   // Sync ref with state so stale handleSend closures always see the latest isStreaming
   isStreamingRef.current = isStreaming;
@@ -493,6 +494,8 @@ export default function ChatView() {
                           toolBlocks.forEach(t => {
                             // Track tool name for result display
                             toolNameMap.current.set(t.id, t.name);
+                            // Track file_path for Write artifacts
+                            if (t.name === 'Write' && t.input?.file_path) filePathMap.current.set(t.id, t.input.file_path);
                             // Track tasks during reconnect
                             if (t.name === 'TaskCreate') {
                               addTask(t.input?.subject || '', t.input?.description || '', t.id);
@@ -516,16 +519,21 @@ export default function ChatView() {
                           const extractedPaths = sseExtractedPaths[t.tool_use_id] || [];
                           const isCompactTool = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(tName);
                           const hasBashPaths = tName === 'Bash' && extractedPaths.length > 0;
-                          // Collect artifact files for end-of-session summary (Write only, not Edit)
+                          const hasWritePaths = tName === 'Write' && extractedPaths.length > 0;
+                          // Collect artifact files for end-of-session summary
                           if (tName === 'Write') {
-                            const fp = (chatMessagesRef.current.find(m => m.role === 'tool' && m.toolCall?.tool_use_id === t.tool_use_id) || {}).toolCall?.input?.file_path;
-                            if (fp && !t.is_error) artifactFilesRef.current.set(fp, fp.split('/').pop() || fp);
+                            if (extractedPaths.length > 0) {
+                              extractedPaths.forEach(p => artifactFilesRef.current.set(p, p.split('/').pop() || p));
+                            } else {
+                              const fp = filePathMap.current.get(t.tool_use_id);
+                              if (fp && !t.is_error) { artifactFilesRef.current.set(fp, fp.split('/').pop() || fp); filePathMap.current.delete(t.tool_use_id); }
+                            }
                           }
                           if (hasBashPaths && !t.is_error) {
                             extractedPaths.forEach(p => artifactFilesRef.current.set(p, p.split('/').pop() || p));
                           }
                           // Write/Edit/Task/Bash(有产物)：合并到工具调用消息，代码块底部内嵌显示
-                          if (isCompactTool || hasBashPaths) {
+                          if (isCompactTool || hasBashPaths || hasWritePaths) {
                             const msgs = [...chatMessagesRef.current];
                             const idx = msgs.findIndex(m => m.role === 'tool' && m.toolCall?.tool_use_id === t.tool_use_id);
                             if (idx >= 0) {
@@ -704,6 +712,7 @@ export default function ChatView() {
     abortRef.current = abort;
 
     artifactFilesRef.current.clear();
+    filePathMap.current.clear();
     isActiveStream.current = true;
     runAgent({
       sessionId,
@@ -717,6 +726,17 @@ export default function ChatView() {
         if (usage) execTokens(toTokens(usage));
         hasAssistantText.current = false;  // 防止跨消息状态污染
         bAppend({ role: 'thinking', content: thinkingText, streaming: true, timestamp: Date.now() });
+      },
+      onSession: ({ sessionId }) => {
+        // Receive sessionId from server as early as the system message
+        if (sessionId && !currentSessionId) {
+          streamSessionIdRef.current = sessionId;
+          setSessionId(sessionId);
+          getProjects().then(setProjects).catch(() => {});
+          if (currentProjectId) {
+            getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
+          }
+        }
       },
       onAssistant: ({ content, usage, session_id }) => {
         hasThinking.current = false;  // 防止跨消息状态污染
@@ -752,6 +772,8 @@ export default function ChatView() {
         hasThinking.current = false;
         // Track tool name for result display
         toolNameMap.current.set(tool_use_id, tool);
+        // Track file_path for Write artifacts (avoid React state race in onToolResult)
+        if (tool === 'Write' && input?.file_path) filePathMap.current.set(tool_use_id, input.file_path);
         // Track tasks
         if (tool === 'TaskCreate') {
           addTask(input?.subject || '', input?.description || '', tool_use_id);
@@ -772,16 +794,22 @@ export default function ChatView() {
         const toolName = toolNameMap.current.get(tool_use_id) || '';
         const isCompactTool = /^(Write|Edit|TaskCreate|TaskUpdate|Task)$/.test(toolName);
         const hasBashPaths = toolName === 'Bash' && extractedPaths && extractedPaths.length > 0;
-        // Collect artifact files for end-of-session summary (Write only, not Edit)
+        const hasWritePaths = toolName === 'Write' && extractedPaths && extractedPaths.length > 0;
+        // Collect artifact files for end-of-session summary
         if (toolName === 'Write' && !is_error) {
-          const fp = (chatMessagesRef.current.find(m => m.role === 'tool' && m.toolCall?.tool_use_id === tool_use_id) || {}).toolCall?.input?.file_path;
-          if (fp) artifactFilesRef.current.set(fp, fp.split('/').pop() || fp);
+          // Prefer server-resolved absolute paths from extractedPaths, fall back to filePathMap
+          if (extractedPaths && extractedPaths.length > 0) {
+            extractedPaths.forEach(p => artifactFilesRef.current.set(p, p.split('/').pop() || p));
+          } else {
+            const fp = filePathMap.current.get(tool_use_id);
+            if (fp) { artifactFilesRef.current.set(fp, fp.split('/').pop() || fp); filePathMap.current.delete(tool_use_id); }
+          }
         }
         if (hasBashPaths && !is_error) {
           extractedPaths.forEach(p => artifactFilesRef.current.set(p, p.split('/').pop() || p));
         }
-        // Write/Edit/Task/Bash(有产物) 类工具：将结果合并到工具调用消息中，在代码块底部内嵌显示
-        if (isCompactTool || hasBashPaths) {
+        // Write/Edit/Task/Bash(有产物): merge result into tool call message
+        if (isCompactTool || hasBashPaths || hasWritePaths) {
           const msgs = [...chatMessagesRef.current];
           const idx = msgs.findIndex(m => m.role === 'tool' && m.toolCall?.tool_use_id === tool_use_id);
           if (idx >= 0) {
@@ -861,7 +889,6 @@ export default function ChatView() {
 
   const handleResolveAsk = useCallback((answers) => {
     if (!askUser || !currentSessionId) return;
-    resolveQuestion(currentSessionId, answers).catch(() => {});
     const vals = Object.values(answers.answers || answers);
     const text = vals.filter(Boolean).join('，');
     setAskUser(null);
@@ -872,11 +899,19 @@ export default function ChatView() {
       buf.forEach(msg => appendRef.current(msg));
       askBufferRef.current = [];
     }
-    // AskUserQuestion: session was aborted, answer starts a new turn
     if (text) {
-      setTimeout(() => handleSend(text), 200);
+      // Abort current SDK turn (canUseTool is unreliable),
+      // then send answer as a new message via handleSend.
+      abortSession(currentSessionId).catch(() => {});
+      sendingRef.current = false;
+      ++execIdRef.current;
+      stopTimer();
+      if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
+      finalizeStreaming();
+      execReset();
+      setTimeout(() => handleSend(text), 500);
     }
-  }, [askUser, currentSessionId, handleSend]);
+  }, [askUser, currentSessionId, handleSend, stopTimer, finalizeStreaming, execReset]);
 
   // Tool confirmation handler — separate from AskUserQuestion
   const handleToolConfirm = useCallback((allowed) => {

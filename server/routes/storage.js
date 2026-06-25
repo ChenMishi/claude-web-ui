@@ -64,16 +64,24 @@ router.get('/storage/info', requireAuth, requireRole('admin'), (req, res) => {
             const st = fs.statSync(sessionPath);
             if (st.isFile() && session.endsWith('.jsonl')) {
               chatRecordsSize += st.size;
-            } else if (st.isDirectory() && (session === 'tool-results' || session === 'subagents')) {
-              const sz = dirSize(sessionPath);
-              artifactSize += sz;
-              if (sz > 0) {
-                artifactSessions.push({
-                  session: session,
-                  project: project,
-                  path: safePath(sessionPath),
-                  size: sz,
-                });
+            } else if (st.isDirectory()) {
+              // tool-results/ and subagents/ are inside session UUID directories
+              for (const sub of ['tool-results', 'subagents']) {
+                const subPath = path.join(sessionPath, sub);
+                try {
+                  if (fs.statSync(subPath).isDirectory()) {
+                    const sz = dirSize(subPath);
+                    artifactSize += sz;
+                    if (sz > 0) {
+                      artifactSessions.push({
+                        session: session,
+                        project: project,
+                        path: safePath(subPath),
+                        size: sz,
+                      });
+                    }
+                  }
+                } catch {}
               }
             }
           } catch {}
@@ -169,10 +177,16 @@ router.post('/storage/clean', requireAuth, requireRole('admin'), async (req, res
                     fs.unlinkSync(sessionPath);
                     freed += sz;
                   }
-                } else if (fs.statSync(sessionPath).isDirectory() && session === target) {
-                  const sz = dirSize(sessionPath);
-                  fs.rmSync(sessionPath, { recursive: true, force: true });
-                  freed += sz;
+                } else if (fs.statSync(sessionPath).isDirectory()) {
+                  // tool-results/ and subagents/ are inside session UUID directories
+                  const subPath = path.join(sessionPath, target);
+                  try {
+                    if (fs.statSync(subPath).isDirectory()) {
+                      const sz = dirSize(subPath);
+                      fs.rmSync(subPath, { recursive: true, force: true });
+                      freed += sz;
+                    }
+                  } catch {}
                 }
               } catch {}
             }

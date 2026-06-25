@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { getStorageInfo, cleanStorage } from '../api';
 import { IconFolder, IconChevronDown, IconChevronRight } from './icons';
 
@@ -161,8 +162,8 @@ export default function StorageCard() {
         )}
       </div>
 
-      {/* ── 密码验证弹窗 ── */}
-      {showPasswordModal && (
+      {/* ── 密码验证弹窗 (Portal 到 body，避免受卡片 CSS 影响) ── */}
+      {showPasswordModal && createPortal(
         <div className="storage-password-overlay" onClick={() => setShowPasswordModal(false)}>
           <div className="storage-password-modal" onClick={e => e.stopPropagation()}>
             <div className="storage-password-title">验证管理员密码</div>
@@ -172,6 +173,7 @@ export default function StorageCard() {
               type="password"
               className="storage-password-input"
               placeholder="请输入管理员密码"
+              autoComplete="off"
               value={password}
               onChange={e => { setPassword(e.target.value); setPasswordError(''); }}
               onKeyDown={handlePasswordKeyDown}
@@ -182,7 +184,8 @@ export default function StorageCard() {
               <button className="init-btn init-btn-install" onClick={confirmChatRecordsClean}>确认清理</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

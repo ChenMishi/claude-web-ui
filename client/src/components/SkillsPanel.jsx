@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { listSkills, deleteSkillApi, listMarketplaceSkills, installMarketplaceSkill } from '../api';
 import SkillEditor from './SkillEditor';
@@ -23,6 +24,7 @@ export default function SkillsPanel() {
   const [editingSkill, setEditingSkill] = useState(null);
   const [detailSkill, setDetailSkill] = useState(null);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null); // { name, x, y } or null
 
   const loadSkills = useCallback(() => {
     setLoading(true);
@@ -43,8 +45,16 @@ export default function SkillsPanel() {
   useEffect(() => { loadSkills(); }, [loadSkills]);
   useEffect(() => { if (tab === 'marketplace') loadMarketplace(); }, [tab, loadMarketplace]);
 
-  const handleDelete = async (name) => {
-    if (!confirm(`确定删除技能 "${name}"？`)) return;
+  const handleDelete = (e, name) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setConfirmDelete({ name, x: rect.left + rect.width / 2, y: rect.top });
+  };
+
+  const handleConfirmDelete = async () => {
+    const name = confirmDelete?.name;
+    if (!name) return;
+    setConfirmDelete(null);
     try {
       await deleteSkillApi(name, projectDir);
       loadSkills();
@@ -140,7 +150,7 @@ export default function SkillsPanel() {
                   <div className="skills-card-actions">
                     <button className="skills-card-btn skills-card-btn-edit" onClick={() => handleEdit(s)} title="编辑">⚙</button>
                     {s.editable && (
-                      <button className="skills-card-btn skills-card-btn-del" onClick={() => handleDelete(s.name)} title="删除">✕</button>
+                      <button className="skills-card-btn skills-card-btn-del" onClick={(e) => handleDelete(e, s.name)} title="删除">✕</button>
                     )}
                   </div>
                 </div>
@@ -232,6 +242,24 @@ export default function SkillsPanel() {
             if (installed) loadSkills();
           }}
         />
+      )}
+
+      {/* Inline confirmation popup — rendered via Portal to avoid backdrop-filter stacking context */}
+      {confirmDelete && createPortal(
+        <div className="confirm-popup-overlay" onClick={() => setConfirmDelete(null)}>
+          <div
+            className="confirm-popup"
+            style={{ left: confirmDelete.x, top: confirmDelete.y - 10 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="confirm-popup-text">确定删除技能 "{confirmDelete.name}"？</div>
+            <div className="confirm-popup-actions">
+              <button className="confirm-popup-cancel" onClick={() => setConfirmDelete(null)}>取消</button>
+              <button className="confirm-popup-ok" onClick={handleConfirmDelete}>确定</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

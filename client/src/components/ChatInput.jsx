@@ -634,136 +634,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           onPaste={handlePaste}
           disabled={false}
         />
-        {/* Selectors 2×2 between textarea and send */}
-        <div className="input-selects-grid">
-          <div className="input-selects-row">
-            <div className="input-select-group" ref={modelDropdownRef}>
-              <span className="input-select-icon" title="模型">⚡</span>
-              <button
-                className="input-select input-select-model"
-                onClick={() => setShowModelDropdown(!showModelDropdown)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{currentModel || model}</span></button>
-              {showModelDropdown && (
-                <div className="input-dropdown-panel">
-                  {(availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
-                    <div
-                      key={m}
-                      className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
-                      onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
-                    >
-                      {m}
-                      {(currentModel || model) === m && <span className="check">✓</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className={`input-select-group perm-${permissionLevel}`} ref={permDropdownRef}>
-              <span className="input-select-icon" title="工具权限">🔒</span>
-              <button
-                className="input-select input-select-perm"
-                onClick={() => setShowPermDropdown(!showPermDropdown)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap' }}
-              >{{ auto: '自动执行', 'confirm-dangerous': '写入确认', 'confirm-all': '全部确认' }[permissionLevel]}</button>
-              {showPermDropdown && (
-                <div className="input-dropdown-panel">
-                  {[
-                    { value: 'auto', label: '自动执行' },
-                    { value: 'confirm-dangerous', label: '写入确认' },
-                    { value: 'confirm-all', label: '全部确认' },
-                  ].map(p => (
-                    <div
-                      key={p.value}
-                      className={`input-dropdown-item ${permissionLevel === p.value ? 'active' : ''}`}
-                      onClick={() => { setSetting('permissionLevel', p.value); setShowPermDropdown(false); }}
-                    >
-                      {p.label}
-                      {permissionLevel === p.value && <span className="check">✓</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="input-selects-row">
-            <div className="input-select-group" ref={displayDropdownRef}>
-              <span className="input-select-icon" title="展示模式">📋</span>
-              <button
-                className="input-select input-select-display"
-                onClick={() => setShowDisplayDropdown(!showDisplayDropdown)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap' }}
-              >{{ full: '完整交互', compact: '精简交互', minimal: '极简交互' }[displayMode]}</button>
-              {showDisplayDropdown && (
-                <div className="input-dropdown-panel">
-                  {[
-                    { value: 'full', label: '完整交互' },
-                    { value: 'compact', label: '精简交互' },
-                    { value: 'minimal', label: '极简交互' },
-                  ].map(d => (
-                    <div
-                      key={d.value}
-                      className={`input-dropdown-item ${displayMode === d.value ? 'active' : ''}`}
-                      onClick={() => { setSetting('displayMode', d.value); setShowDisplayDropdown(false); }}
-                    >
-                      {d.label}
-                      {displayMode === d.value && <span className="check">✓</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="input-select-group" style={{ position: 'relative' }} ref={skillsContainerRef}>
-            <span className="input-select-icon" title="技能">🧩</span>
-            <button
-              className="input-select input-select-skill"
-              onClick={() => setShowSkills(!showSkills)}
-              style={{ background: 'transparent', border: 'none', color: showSkills || activeSkill ? 'var(--accent)' : 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', whiteSpace: 'nowrap' }}
-            >{activeSkill ? <>{typeof activeSkill.icon === 'string' ? <span>{activeSkill.icon} </span> : activeSkill.icon}{activeSkill.displayName}</> : '技能'}</button>
-            {activeSkill && (
-              <button
-                onClick={() => { onSkillChange(null); }}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1 }}
-                title="取消激活"
-              >✕</button>
-            )}
-            {showSkills && (
-              <div className="skills-popup" ref={skillsRef}>
-                <div className="skills-popup-title">选择技能（激活后改变 Claude 行为模式）</div>
-                <div className="skills-popup-grid">
-                  {skills.length === 0 ? (
-                    <div className="skills-popup-empty">暂无技能，前往设置页「技能管理」创建或安装</div>
-                  ) : (
-                    skills.map(s => {
-                      const isActive = activeSkill?.name === s.name;
-                      return (
-                        <button
-                          key={s.name}
-                          className={`skills-chip ${isActive ? 'active' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isActive) {
-                              onSkillChange(null);
-                            } else {
-                              onSkillChange({ name: s.name, displayName: s.displayName, icon: s.icon || '🧩' });
-                            }
-                            setShowSkills(false);
-                          }}
-                        >
-                          <span className="skills-chip-icon">{s.icon || '🧩'}</span>
-                          <span className="skills-chip-label">{s.displayName || s.name}</span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-                <div className="skills-popup-footer">
-                  <a href="#" onClick={e => { e.preventDefault(); setView('skills'); setShowSkills(false); }}>管理技能 →</a>
-                </div>
-              </div>
-            )}
-            </div>
-          </div>
-        </div>
+        {/* Selectors row below textarea */}
         {isStreaming && (
           <button className="stop-btn" onClick={handleStop}>
             ⏹ 中止
@@ -772,6 +643,134 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
         <button className="send-btn" onClick={handleSend} disabled={false}>
           发送
         </button>
+      </div>
+      {/* Selectors row below textarea */}
+      <div className="input-selects-grid">
+        <div className="input-selects-row">
+          <div className="input-select-group" ref={modelDropdownRef}>
+            <span className="input-select-icon" title="模型">⚡</span>
+            <button
+              className="input-select input-select-model"
+              onClick={() => setShowModelDropdown(!showModelDropdown)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{currentModel || model}</span></button>
+            {showModelDropdown && (
+              <div className="input-dropdown-panel">
+                {(availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
+                  <div
+                    key={m}
+                    className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
+                    onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
+                  >
+                    {m}
+                    {(currentModel || model) === m && <span className="check">✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className={`input-select-group perm-${permissionLevel}`} ref={permDropdownRef}>
+            <span className="input-select-icon" title="工具权限">🔒</span>
+            <button
+              className="input-select input-select-perm"
+              onClick={() => setShowPermDropdown(!showPermDropdown)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap' }}
+            >{{ auto: '自动执行', 'confirm-dangerous': '写入确认', 'confirm-all': '全部确认' }[permissionLevel]}</button>
+            {showPermDropdown && (
+              <div className="input-dropdown-panel">
+                {[
+                  { value: 'auto', label: '自动执行' },
+                  { value: 'confirm-dangerous', label: '写入确认' },
+                  { value: 'confirm-all', label: '全部确认' },
+                ].map(p => (
+                  <div
+                    key={p.value}
+                    className={`input-dropdown-item ${permissionLevel === p.value ? 'active' : ''}`}
+                    onClick={() => { setSetting('permissionLevel', p.value); setShowPermDropdown(false); }}
+                  >
+                    {p.label}
+                    {permissionLevel === p.value && <span className="check">✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="input-select-group" ref={displayDropdownRef}>
+            <span className="input-select-icon" title="展示模式">📋</span>
+            <button
+              className="input-select input-select-display"
+              onClick={() => setShowDisplayDropdown(!showDisplayDropdown)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap' }}
+            >{{ full: '完整交互', compact: '精简交互', minimal: '极简交互' }[displayMode]}</button>
+            {showDisplayDropdown && (
+              <div className="input-dropdown-panel">
+                {[
+                  { value: 'full', label: '完整交互' },
+                  { value: 'compact', label: '精简交互' },
+                  { value: 'minimal', label: '极简交互' },
+                ].map(d => (
+                  <div
+                    key={d.value}
+                    className={`input-dropdown-item ${displayMode === d.value ? 'active' : ''}`}
+                    onClick={() => { setSetting('displayMode', d.value); setShowDisplayDropdown(false); }}
+                  >
+                    {d.label}
+                    {displayMode === d.value && <span className="check">✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="input-select-group" style={{ position: 'relative' }} ref={skillsContainerRef}>
+          <span className="input-select-icon" title="技能">🧩</span>
+          <button
+            className="input-select input-select-skill"
+            onClick={() => setShowSkills(!showSkills)}
+            style={{ background: 'transparent', border: 'none', color: showSkills || activeSkill ? 'var(--accent)' : 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', whiteSpace: 'nowrap' }}
+          >{activeSkill ? <>{typeof activeSkill.icon === 'string' ? <span>{activeSkill.icon} </span> : activeSkill.icon}{activeSkill.displayName}</> : '技能'}</button>
+          {activeSkill && (
+            <button
+              onClick={() => { onSkillChange(null); }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1 }}
+              title="取消激活"
+            >✕</button>
+          )}
+          {showSkills && (
+            <div className="skills-popup" ref={skillsRef}>
+              <div className="skills-popup-title">选择技能（激活后改变 Claude 行为模式）</div>
+              <div className="skills-popup-grid">
+                {skills.length === 0 ? (
+                  <div className="skills-popup-empty">暂无技能，前往设置页「技能管理」创建或安装</div>
+                ) : (
+                  skills.map(s => {
+                    const isActive = activeSkill?.name === s.name;
+                    return (
+                      <button
+                        key={s.name}
+                        className={`skills-chip ${isActive ? 'active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isActive) {
+                            onSkillChange(null);
+                          } else {
+                            onSkillChange({ name: s.name, displayName: s.displayName, icon: s.icon || '🧩' });
+                          }
+                          setShowSkills(false);
+                        }}
+                      >
+                        <span className="skills-chip-icon">{s.icon || '🧩'}</span>
+                        <span className="skills-chip-label">{s.displayName || s.name}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <div className="skills-popup-footer">
+                <a href="#" onClick={e => { e.preventDefault(); setView('skills'); setShowSkills(false); }}>管理技能 →</a>
+              </div>
+            </div>
+          )}
+          </div>
+        </div>
       </div>
     </div>
   );

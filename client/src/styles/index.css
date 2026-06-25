@@ -1,3 +1,14 @@
+/* ===== Global scrollbar theming ===== */
+html {
+  scrollbar-color: var(--border) var(--bg-secondary);
+  scrollbar-width: thin;
+}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: var(--bg-secondary); }
+*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+*::-webkit-scrollbar-corner { background: var(--bg-secondary); }
+
 /* ===== Base (shared across themes) ===== */
 :root {
   --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -1007,6 +1018,8 @@ html, body, #root {
 @keyframes skillsPopupIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes fadeDown { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes dropdownIn { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes skillsDropdownIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes skillsDropdownInUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 .message.user {
   align-self: flex-end;
@@ -1246,7 +1259,7 @@ html, body, #root {
 /* Input Area */
 .input-area {
   position: relative;
-  padding: 16px 20px;
+  padding: 12px 20px 8px;
   flex: 1;
   min-width: 0;
 }
@@ -1690,10 +1703,12 @@ html, body, #root {
 
 .input-selects-grid {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 6px;
   flex-shrink: 0;
-  align-self: center;
 }
 
 .input-selects-row {
@@ -1774,7 +1789,10 @@ html, body, #root {
 
 .input-select-icon {
   font-size: 11px;
-  line-height: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -1788,6 +1806,9 @@ html, body, #root {
   outline: none;
   height: 100%;
   font-family: var(--font);
+  display: flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .input-select-model {
@@ -2223,6 +2244,39 @@ html, body, #root {
   border-color: var(--accent);
 }
 .skills-editor-field input:disabled { opacity: 0.5; }
+
+/* Custom dropdown buttons in skill editor (replaces native <select>) */
+.skills-select-group { position: relative; }
+.skills-dropdown-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  outline: none;
+}
+.skills-dropdown-btn:hover { border-color: var(--accent); }
+.skills-dropdown-arrow { font-size: 10px; color: var(--text-muted); margin-left: 8px; }
+.skills-dropdown-panel {
+  top: calc(100% + 4px);
+  bottom: auto;
+  left: 0;
+  transform: none;
+  min-width: 100%;
+  animation: skillsDropdownIn 0.15s ease;
+}
+.skills-dropdown-panel-up {
+  top: auto;
+  bottom: calc(100% + 4px);
+  animation: skillsDropdownInUp 0.15s ease;
+}
 .skills-body-editor {
   min-height: 200px;
   resize: vertical;
@@ -3721,8 +3775,8 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 4px;
-  width: fit-content;
-  padding: 2px 4px 2px 20px;
+  max-width: 100%;
+  padding: 2px 20px 2px 20px;
   font-size: 12px;
   color: var(--text-muted);
   opacity: 0.65;
@@ -3757,7 +3811,10 @@ html, body, #root {
 
 /* Text label */
 .chat-status-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
 /* Animated dots */
@@ -3781,6 +3838,10 @@ html, body, #root {
 @keyframes status-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+@keyframes status-flipy {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(360deg); }
 }
 @keyframes status-bounce {
   0%, 100% { transform: translateY(0); }
@@ -3810,6 +3871,20 @@ html, body, #root {
 
 .exec-bar-symbol {
   flex-shrink: 0;
+}
+.exec-bar-symbol.pulse     { animation: status-pulse 1.2s ease-in-out infinite; }
+.exec-bar-symbol.spin      { animation: status-spin  1.0s linear       infinite; }
+.exec-bar-symbol.spin-slow { animation: status-spin  2.5s linear       infinite; }
+.exec-bar-symbol.bounce    { animation: status-bounce 0.6s ease-in-out infinite; }
+.exec-bar-symbol.flipy     { animation: status-flipy  1.2s linear       infinite; }
+.exec-bar-symbol.done-icon {
+  animation: none;
+  display: flex;
+  align-items: center;
+}
+.exec-bar-symbol.done-icon svg {
+  width: 15px;
+  height: 15px;
 }
 
 .exec-bar-action {
