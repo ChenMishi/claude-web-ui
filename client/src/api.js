@@ -562,6 +562,10 @@ export function getBackupDownloadUrl(filename) {
   return `${BASE}/backup/download/${encodeURIComponent(filename)}`;
 }
 
+// Storage
+export async function getStorageInfo() { return fetchJSON('/storage/info'); }
+export async function cleanStorage(targets, password) { return fetchJSON('/storage/clean', { method: 'POST', body: JSON.stringify({ targets, password }) }); }
+
 // Stats
 export async function getStatsSummary(params = {}) {
   const qs = new URLSearchParams(params).toString();

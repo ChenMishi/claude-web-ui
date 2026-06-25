@@ -5064,3 +5064,93 @@ html, body, #root {
 }
 .restore-progress-title { font-size: 16px; color: var(--text-primary); margin: 0 0 8px; }
 .restore-progress-hint { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+/* ── Storage Card ── */
+.storage-list { display: flex; flex-direction: column; gap: 4px; }
+.storage-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--glass-bg);
+  transition: background 0.15s;
+}
+.storage-row-clickable { cursor: pointer; }
+.storage-row-clickable:hover { background: rgba(108, 99, 255, 0.06); }
+.storage-icon { flex-shrink: 0; font-size: 14px; width: 20px; text-align: center; }
+.storage-label { font-size: 13px; color: var(--text-primary); font-weight: 500; white-space: nowrap; }
+.storage-desc { font-size: 11px; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.storage-size { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; min-width: 60px; text-align: right; }
+.storage-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px; white-space: nowrap;
+}
+.storage-badge.protected {
+  color: var(--text-muted); background: rgba(128,128,128,0.12);
+}
+.storage-clean-btn {
+  padding: 4px 12px !important; font-size: 11px !important; border-radius: 6px !important;
+  flex-shrink: 0; min-width: 56px;
+}
+.storage-clean-btn-small {
+  padding: 2px 10px !important; font-size: 11px !important; border-radius: 5px !important;
+  flex-shrink: 0;
+}
+.storage-category {
+  border-radius: 8px; overflow: hidden;
+}
+.storage-detail-list {
+  display: flex; flex-direction: column;
+  border-left: 2px solid var(--border);
+  margin-left: 18px; padding-left: 10px;
+}
+.storage-detail-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.storage-detail-label { color: var(--text-primary); white-space: nowrap; min-width: 70px; }
+.storage-detail-path { color: var(--text-muted); font-size: 11px; font-family: var(--font-mono); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.storage-detail-size { color: var(--text-muted); font-family: var(--font-mono); font-size: 11px; white-space: nowrap; min-width: 50px; text-align: right; }
+
+/* Storage password modal */
+.storage-password-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+}
+.storage-password-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  width: 380px; max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.storage-password-title {
+  font-size: 16px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.storage-password-desc {
+  font-size: 13px; color: var(--text-muted);
+  margin-bottom: 16px; line-height: 1.5;
+}
+.storage-password-input {
+  width: 100%; box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-input); color: var(--text-primary);
+  font-size: 14px; outline: none;
+}
+.storage-password-input:focus {
+  border-color: var(--accent);
+}
+.storage-password-error {
+  font-size: 12px; color: var(--danger);
+  margin-top: 6px;
+}
+.storage-password-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+  margin-top: 16px;
+}
+.storage-password-actions button {
+  padding: 8px 20px !important; font-size: 13px !important; border-radius: 8px !important;
+}

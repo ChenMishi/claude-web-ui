@@ -93,6 +93,7 @@ function createApp() {
   app.use('/api', require('./routes/fs'));
   app.use('/api', require('./routes/stats'));
 app.use('/api', require('./routes/backup'));
+app.use('/api', require('./routes/storage'));
 
   // Swagger docs
   try {

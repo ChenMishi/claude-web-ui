@@ -7,6 +7,7 @@ import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
 import StatsPanel from './StatsPanel';
 import BackupCard from './BackupCard';
+import StorageCard from './StorageCard';
 import { IconSettings, IconUsers, IconZap, IconClipboard, IconBarChart, IconRefresh, IconChat, IconDollar, IconLock } from './icons';
 
 export default function SettingsPanel() {
@@ -191,6 +192,9 @@ export default function SettingsPanel() {
 
           {/* Card: 备份还原 (admin only) */}
           {isAdmin && <BackupCard />}
+
+          {/* Card: 存储管理 (admin only) */}
+          {isAdmin && <StorageCard />}
 
           {/* Card: 系统信息 */}
           <div className="settings-card">

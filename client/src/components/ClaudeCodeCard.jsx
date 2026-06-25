@@ -11,6 +11,8 @@ export default function ClaudeCodeCard({ triggerCheck }) {
   const [installPct, setInstallPct] = useState(0);
   const [installLog, setInstallLog] = useState('');
   const [upgradeLog, setUpgradeLog] = useState('');
+  const [upgradeDone, setUpgradeDone] = useState(false);
+  const [upgradeError, setUpgradeError] = useState(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
 
@@ -60,13 +62,13 @@ export default function ClaudeCodeCard({ triggerCheck }) {
   }, [loadStatus]);
 
   const handleCheckUpdate = useCallback(async () => {
-    setCheckingUpdate(true); setUpdateInfo(null);
+    setCheckingUpdate(true); setUpdateInfo(null); setUpgradeDone(false); setUpgradeError(null);
     try { const res = await checkClaudeUpdate(); setUpdateInfo(res); } catch {}
     setCheckingUpdate(false);
   }, []);
 
   const handleUpgrade = useCallback(async () => {
-    setUpgrading(true); setUpgradeLog('');
+    setUpgrading(true); setUpgradeLog(''); setUpgradeDone(false); setUpgradeError(null);
     try {
       const res = await fetch(`${BASE}/init/upgrade-claude`, {
         method: 'POST', headers: authHeaders({ Accept: 'text/event-stream' }),
@@ -83,10 +85,13 @@ export default function ClaudeCodeCard({ triggerCheck }) {
           }
         }
       }
-    } catch {}
+      setUpgradeDone(true);
+    } catch (err) {
+      setUpgradeError(err.message || '升级失败');
+    }
     setUpgrading(false);
-    setTimeout(() => loadStatus(), 1000);
-  }, [loadStatus]);
+    setTimeout(() => { loadStatus(); handleCheckUpdate(); }, 1000);
+  }, [loadStatus, handleCheckUpdate]);
 
   if (!status) return null;
 
@@ -138,6 +143,12 @@ export default function ClaudeCodeCard({ triggerCheck }) {
           </div>
         )}
         {upgradeLog && <div className="init-install-log" style={{ marginTop: 8 }}><div className="init-install-scroll"><pre>{upgradeLog}</pre></div></div>}
+        {upgradeDone && !upgrading && (
+          <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 8 }}>✅ Claude Code 升级完成</div>
+        )}
+        {upgradeError && (
+          <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 8 }}>❌ {upgradeError}</div>
+        )}
       </div>
     </div>
   );
