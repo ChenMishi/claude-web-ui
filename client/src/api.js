@@ -184,6 +184,7 @@ export function uploadChatAttachment(file, onProgress) {
 // File system (write / delete)
 export const writeFile = (filePath, content) => fetchJSON('/fs/write', { method: 'POST', body: JSON.stringify({ filePath, content }) });
 export const deleteFileOrDir = (filePath) => fetchJSON('/fs/delete', { method: 'DELETE', body: JSON.stringify({ filePath }) });
+export const renameFileOrDir = (filePath, newName) => fetchJSON('/fs/rename', { method: 'POST', body: JSON.stringify({ filePath, newName }) });
 
 // Upload a single file with progress (base64 via JSON, XHR for progress events)
 export function uploadFile(dir, file, onProgress) {
@@ -578,4 +579,18 @@ export async function getStatsSummary(params = {}) {
 export async function getStatsUsage(params = {}) {
   const qs = new URLSearchParams(params).toString();
   return fetchJSON(`/stats/usage${qs ? '?' + qs : ''}`);
+}
+
+// Session artifacts
+export async function getSessionArtifacts(sessionId, cwd) {
+  return fetchJSON(`/session/${sessionId}/artifacts?cwd=${encodeURIComponent(cwd || '')}`);
+}
+export async function deleteSessionArtifacts(sessionId, files, cwd) {
+  return fetchJSON(`/session/${sessionId}/artifacts`, {
+    method: 'DELETE',
+    body: JSON.stringify({ files, cwd }),
+  });
+}
+export function getArtifactDownloadUrl(sessionId, fileName, cwd) {
+  return `${BASE}/session/${sessionId}/artifacts/download?file=${encodeURIComponent(fileName)}&cwd=${encodeURIComponent(cwd || '')}`;
 }

@@ -20,8 +20,9 @@ const { findUserById } = require('../auth/users');
 const {
   getRuntimeSession, deleteRuntimeSession, getOrCreateRuntime,
   createPendingRuntime, assignSessionId, resolvePendingApproval, setPendingApproval,
-  broadcast, subscribeToStream, broadcastDone,
+  broadcast, subscribeToStream, broadcastDone, getSessionWorkDir,
 } = require('../store');
+const { ensureProjectSymlinks } = require('../symlinks');
 
 // Agent SDK — enables full tool calling (Bash, Read, Write, Edit, etc.)
 // The SDK and its platform binary are npm dependencies (see package.json)
@@ -217,6 +218,217 @@ function extractBashFilePaths(command, resultContent, cwd) {
   });
 }
 
+// ── Filter artifact paths: keep only meaningful user-facing files ──
+function filterArtifactPaths(absPaths, cwd) {
+  const cwdAbs = path.resolve(cwd || '/');
+
+  // Directories and extensions to exclude
+  const excludeDirs = new Set([
+    'node_modules', '__pycache__', '.git', 'dist', 'build', '.next',
+    'target', 'out', 'coverage', '.cache', 'vendor', 'bower_components',
+  ]);
+  const excludeExts = new Set([
+    '.pyc', '.pyo', '.o', '.obj', '.class', '.dll', '.so', '.dylib',
+    '.wasm', '.map', '.tsbuildinfo',
+  ]);
+
+  return absPaths.filter(p => {
+    // 1. Must be inside project cwd (exclude /tmp, /var, system paths etc.)
+    if (!p.startsWith(cwdAbs + path.sep) && p !== cwdAbs) return false;
+
+    // 2. No hidden file/directory anywhere in the path (relative to cwd)
+    const rel = p.slice(cwdAbs.length);
+    const segments = rel.split(path.sep).filter(Boolean);
+    if (segments.some(s => s.startsWith('.'))) return false;
+
+    // 3. No junk directories
+    if (segments.some(s => excludeDirs.has(s))) return false;
+
+    // 4. No compiled/transient file extensions
+    if (excludeExts.has(path.extname(p).toLowerCase())) return false;
+
+    return true;
+  });
+}
+
+// ── Extract file paths from user prompt text (for "帮我把这个excel加一个sheet" etc.) ──
+function extractUserMentionedFiles(runtime) {
+  const files = new Map(); // absolutePath → toolResultsName
+  const cwd = runtime.cwd || '/';
+  const prompt = runtime.userPrompt || '';
+  const sessionStart = runtime.sessionStartTime || 0;
+
+  if (!prompt && !runtime.attachmentPaths?.length) return files;
+
+  // Build search text: user prompt + attachment filenames
+  const attachmentNames = (runtime.attachmentPaths || []).map(p => path.basename(p));
+  const searchText = prompt + ' ' + attachmentNames.join(' ');
+
+  // Extract candidate filenames from text:
+  //   - quoted paths: "xxx.xlsx", 'src/utils/helper.ts'
+  //   - bare paths with extensions: xxx.sh, src/xxx.ts
+  //   - attachment basenames
+  const candidates = new Set();
+
+  // Quoted strings
+  for (const m of searchText.matchAll(/["'`]([^"'`]+?\.[a-zA-Z0-9]{1,8})["'`]/g)) {
+    candidates.add(m[1]);
+  }
+  // Bare paths with known extensions (including compound extensions like .tar.gz)
+  for (const m of searchText.matchAll(/(?:^|\s|[、，,])([^\s、，,]{1,120}\.(?:tar\.gz|tar\.bz2|tar\.xz|tgz|[a-zA-Z0-9]{1,8}))(?:\s|$|[、，,.。，])/g)) {
+    candidates.add(m[1]);
+  }
+  // Also search for bare filenames of common user-facing types (excel, word, pdf, image, script, config, archive)
+  const commonExtRe = /(?:^|\s|[、，,])([^\s、，,]{1,80}\.(?:xlsx?|docx?|pptx?|pdf|csv|txt|json|yaml|yml|xml|html?|css|jsx?|tsx?|py|sh|sql|png|jpe?g|gif|webp|svg|zip|tar\.gz|tgz|7z|rar|md|toml|cfg|ini|env))(?:\s|$|[、，,.。，])/gi;
+  for (const m of searchText.matchAll(commonExtRe)) {
+    candidates.add(m[1]);
+  }
+  // Add attachment basenames
+  for (const ap of (runtime.attachmentPaths || [])) {
+    candidates.add(path.basename(ap));
+  }
+
+  if (candidates.size === 0) return files;
+
+  // Find these files in the project directory tree (exclude junk dirs)
+  const excludeDirs = new Set(['node_modules', '.git', '__pycache__', 'dist', 'build', '.next', 'target', '.cache']);
+
+  function findInDir(dir, depth) {
+    if (depth > 8) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || excludeDirs.has(entry.name)) continue;
+      const fp = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        findInDir(fp, depth + 1);
+      } else if (candidates.has(entry.name)) {
+        // Check if modified during this session
+        try {
+          const stat = fs.statSync(fp);
+          if (stat.mtimeMs >= sessionStart - 5000) { // 5s tolerance
+            // Build tool-results name: preserve one level of parent dir for disambiguation
+            const parentName = path.basename(path.dirname(fp));
+            const safeName = (parentName && parentName !== path.basename(cwd))
+              ? parentName + '_' + entry.name
+              : entry.name;
+            // Avoid overwriting: add counter if duplicate
+            let finalName = safeName;
+            let counter = 1;
+            const existingNames = new Set(Array.from(files.values()));
+            while (existingNames.has(finalName)) {
+              const ext = path.extname(safeName);
+              const base = safeName.slice(0, -ext.length);
+              finalName = `${base}(${counter})${ext}`;
+              counter++;
+            }
+            files.set(fp, finalName);
+          }
+        } catch {}
+      }
+    }
+  }
+
+  findInDir(cwd, 0);
+
+  // Also check attachment paths directly (they may be outside cwd, e.g. uploads/)
+  for (const ap of (runtime.attachmentPaths || [])) {
+    if (files.has(ap)) continue;
+    try {
+      if (fs.existsSync(ap) && fs.statSync(ap).isFile()) {
+        files.set(ap, path.basename(ap));
+      }
+    } catch {}
+  }
+
+  return files;
+}
+
+// ── Copy collected artifact files to session's tool-results directory ──
+// Stores real data at {cwd}/.claude/sessions/{sessionId}/tool-results/
+function copyToToolResults(sessionId, cwd, filePaths) {
+  const workDir = getSessionWorkDir(cwd);
+  const resultsDir = path.join(workDir, sessionId, 'tool-results');
+  try { fs.mkdirSync(resultsDir, { recursive: true }); } catch {}
+
+  const mapping = {}; // originalPath → toolResultsPath
+
+  for (const [srcPath, destName] of filePaths) {
+    // Safety: only allow safe characters in destName
+    const safeName = destName.replace(/[^a-zA-Z0-9_\-\.\(\)一-鿿]/g, '_');
+    const destPath = path.join(resultsDir, safeName);
+    try {
+      // Try hard link first (zero extra disk space, same inode)
+      // Fall back to copy if cross-filesystem
+      try {
+        fs.linkSync(srcPath, destPath);
+      } catch (linkErr) {
+        if (linkErr.code === 'EXDEV' || linkErr.code === 'EPERM') {
+          fs.copyFileSync(srcPath, destPath);
+        } else {
+          throw linkErr;
+        }
+      }
+      mapping[srcPath] = destPath;
+    } catch (e) {
+      console.log('[artifact] link/copy failed for', srcPath, ':', e.message);
+    }
+  }
+
+  return mapping;
+}
+
+// ── Finalize artifacts: collect all paths, copy to tool-results, return updated paths ──
+function finalizeArtifacts(runtime, extractedPaths, authUser) {
+  const sessionId = runtime.sessionId;
+  const cwd = runtime.cwd;
+  if (!sessionId || !cwd) return extractedPaths;
+
+  const allFiles = new Map(); // absPath → destName
+
+  // 1. Collect paths already extracted from Bash/Write tools
+  for (const [, paths] of Object.entries(extractedPaths || {})) {
+    for (const p of paths) {
+      if (!allFiles.has(p)) {
+        try {
+          if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+            allFiles.set(p, path.basename(p));
+          }
+        } catch {}
+      }
+    }
+  }
+
+  // 2. Collect user-mentioned files from prompt
+  const userFiles = extractUserMentionedFiles(runtime);
+  for (const [p, name] of userFiles) {
+    if (!allFiles.has(p)) allFiles.set(p, name);
+  }
+
+  if (allFiles.size === 0) return extractedPaths;
+
+  console.log('[artifact] finalizeArtifacts: collected', allFiles.size, 'files for session', sessionId);
+
+  // 3. Copy to tool-results directory (in cwd/.claude/sessions/)
+  const mapping = copyToToolResults(sessionId, cwd, allFiles);
+  console.log('[artifact] copied', Object.keys(mapping).length, 'files to tool-results');
+
+  // 4. Create symlinks in ~/.claude/projects/ for centralized management
+  try { ensureProjectSymlinks(cwd, sessionId, authUser); } catch (e) {
+    console.log('[artifact] symlink creation failed:', e.message);
+  }
+
+  // 4. Update extractedPaths with tool-results paths
+  const updatedPaths = {};
+  for (const [toolId, paths] of Object.entries(extractedPaths || {})) {
+    updatedPaths[toolId] = paths.map(p => mapping[p] || p).filter(p => {
+      try { return fs.existsSync(p); } catch { return false; }
+    });
+  }
+
+  return updatedPaths;
+}
+
 function handleSDKMessage(message, runtime, isStreaming) {
 
   if (message.type === 'system') {
@@ -273,8 +485,11 @@ function handleSDKMessage(message, runtime, isStreaming) {
             const paths = extractBashFilePaths(cmd, typeof block.content === 'string' ? block.content : '', runtime.cwd);
             console.log('[artifact] extracted paths:', JSON.stringify(paths));
             if (paths.length > 0) {
-              // Resolve relative paths to absolute using session cwd
-              extractedPaths[block.tool_use_id] = paths.map(p => path.resolve(runtime.cwd || '/', p));
+              const filtered = filterArtifactPaths(paths, runtime.cwd);
+              console.log('[artifact] filtered paths:', JSON.stringify(filtered));
+              if (filtered.length > 0) {
+                extractedPaths[block.tool_use_id] = filtered;
+              }
             }
             runtime.bashCommands.delete(block.tool_use_id);
           }
@@ -287,6 +502,17 @@ function handleSDKMessage(message, runtime, isStreaming) {
           }
         }
       }
+      // Merge extracted paths into runtime accumulator for finalization at session end
+      if (!runtime.allExtractedPaths) runtime.allExtractedPaths = {};
+      for (const [toolId, paths] of Object.entries(extractedPaths)) {
+        if (!runtime.allExtractedPaths[toolId]) runtime.allExtractedPaths[toolId] = [];
+        for (const p of paths) {
+          if (!runtime.allExtractedPaths[toolId].includes(p)) {
+            runtime.allExtractedPaths[toolId].push(p);
+          }
+        }
+      }
+
       broadcast(runtime, 'message', {
         type: 'user',
         uuid: message.uuid || '',
@@ -594,6 +820,11 @@ function migrateSessionToUserDir(sessionId, cwd, authUser) {
   const srcFile = findSessionInDir(CLAUDE_PROJECTS_DIR, sessionId);
   if (!srcFile) return;
 
+  // If already a symlink, the session has already been migrated — skip
+  try {
+    if (fs.lstatSync(srcFile).isSymbolicLink()) return;
+  } catch {}
+
   const { getProjectDirName } = require('../store');
   const projectDir = getProjectDirName(cwd);
   const dstDir = path.join(userProjectsDir, projectDir);
@@ -703,12 +934,30 @@ async function generateTitleText(prompt) {
   }
 }
 
-// Store title .meta.json to disk
+// Store title .meta.json to disk (in cwd/.claude/sessions/, symlinked from projects dir)
 function storeSessionTitle(sessionId, title, cwd, authUser) {
-  const { projects: projectsDir } = getUserDataDir(authUser);
-  const dirPath = path.join(projectsDir, require('../store').getProjectDirName(cwd || ''));
-  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-  fs.writeFileSync(path.join(dirPath, `${sessionId}.meta.json`), JSON.stringify({ title }), 'utf8');
+  const workDir = getSessionWorkDir(cwd);
+  try { fs.mkdirSync(workDir, { recursive: true }); } catch {}
+  fs.writeFileSync(path.join(workDir, `${sessionId}.meta.json`), JSON.stringify({ title }), 'utf8');
+  // Ensure symlinks are set up (handles both new and existing sessions)
+  try { ensureProjectSymlinks(cwd, sessionId, authUser); } catch {}
+}
+
+// Helper: scan both admin and user project dirs for a session file
+function findSessionFile(id, authUser) {
+  const dirsToScan = [CLAUDE_PROJECTS_DIR];
+  const { projects: userProjects } = getUserDataDir(authUser);
+  if (userProjects !== CLAUDE_PROJECTS_DIR) dirsToScan.push(userProjects);
+
+  for (const baseDir of dirsToScan) {
+    if (!fs.existsSync(baseDir)) continue;
+    for (const entry of fs.readdirSync(baseDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const file = path.join(baseDir, entry.name, `${id}.jsonl`);
+      if (fs.existsSync(file)) return { file, entryDir: path.join(baseDir, entry.name), entry };
+    }
+  }
+  return null;
 }
 
 // --- Session info ---
@@ -716,23 +965,18 @@ router.get('/session/:id', (req, res) => {
   const { id } = req.params;
   const runtime = getRuntimeSession(id);
   let found = null;
-  if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
-    for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const file = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`);
-      if (fs.existsSync(file)) {
-        let title = parseTitleFromJsonl(file) || id.slice(0, 8);
-        const metaPath = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.meta.json`);
-        if (fs.existsSync(metaPath)) {
-          try { title = JSON.parse(fs.readFileSync(metaPath, 'utf8')).title; } catch {}
-        }
-        const cwd = runtime?.cwd || dirNameToCwd(entry.name);
-        let lastModified = 0;
-        try { lastModified = fs.statSync(file).mtimeMs; } catch {}
-        found = { id, title, cwd, status: runtime?.status || 'idle', lastModified };
-        break;
-      }
+  const sessionInfo = findSessionFile(id, req.user);
+  if (sessionInfo) {
+    const { file, entryDir } = sessionInfo;
+    let title = parseTitleFromJsonl(file) || id.slice(0, 8);
+    const metaPath = path.join(entryDir, `${id}.meta.json`);
+    if (fs.existsSync(metaPath)) {
+      try { title = JSON.parse(fs.readFileSync(metaPath, 'utf8')).title; } catch {}
     }
+    const cwd = runtime?.cwd || dirNameToCwd(path.basename(entryDir));
+    let lastModified = 0;
+    try { lastModified = fs.statSync(file).mtimeMs; } catch {}
+    found = { id, title, cwd, status: runtime?.status || 'idle', lastModified };
   }
   if (!found) {
     try {
@@ -772,12 +1016,45 @@ router.delete('/session/:id', (req, res) => {
     for (const entry of fs.readdirSync(baseDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const file = path.join(baseDir, entry.name, `${id}.jsonl`);
-      if (fs.existsSync(file)) {
-        fs.rmSync(file, { force: true });
-        const metaFile = path.join(baseDir, entry.name, `${id}.meta.json`);
-        if (fs.existsSync(metaFile)) fs.rmSync(metaFile, { force: true });
-        deleted = true;
+      if (!fs.existsSync(file)) continue;
+
+      // Resolve symlink to find real file location for cleanup
+      let realFile = file;
+      try {
+        if (fs.lstatSync(file).isSymbolicLink()) {
+          realFile = fs.realpathSync(file);
+        }
+      } catch {}
+
+      // Delete the symlink/entry in projects dir
+      fs.rmSync(file, { force: true });
+      const metaFile = path.join(baseDir, entry.name, `${id}.meta.json`);
+      if (fs.existsSync(metaFile)) {
+        try {
+          if (fs.lstatSync(metaFile).isSymbolicLink()) {
+            const realMeta = fs.realpathSync(metaFile);
+            try { fs.unlinkSync(realMeta); } catch {}
+          }
+        } catch {}
+        fs.rmSync(metaFile, { force: true });
       }
+
+      // Delete session subdirectory symlink and its real target
+      const dirLink = path.join(baseDir, entry.name, id);
+      try {
+        if (fs.lstatSync(dirLink).isSymbolicLink()) {
+          const realSessionDir = fs.realpathSync(dirLink);
+          fs.rmSync(realSessionDir, { recursive: true, force: true });
+        }
+        fs.rmSync(dirLink, { recursive: true, force: true });
+      } catch {}
+
+      // Delete real .jsonl if it wasn't already covered above
+      if (realFile !== file && fs.existsSync(realFile)) {
+        try { fs.unlinkSync(realFile); } catch {}
+      }
+
+      deleted = true;
     }
   }
   if (!deleted) return res.status(404).json({ error: 'Session not found' });
@@ -805,20 +1082,17 @@ router.patch('/session/:id', (req, res) => {
   const { id } = req.params;
   const title = (req.body.title || '').trim();
   if (!title) return res.status(400).json({ error: 'title is required' });
-  let found = false;
-  if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
-    for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const file = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`);
-      if (fs.existsSync(file)) {
-        const metaPath = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.meta.json`);
-        fs.writeFileSync(metaPath, JSON.stringify({ title }), 'utf8');
-        found = true;
-        break;
-      }
+  const sessionInfo = findSessionFile(id, req.user);
+  if (!sessionInfo) return res.status(404).json({ error: 'Session not found' });
+  // Resolve real path (follow symlink) so .meta.json is written alongside the real .jsonl
+  let realDir = sessionInfo.entryDir;
+  try {
+    if (fs.lstatSync(sessionInfo.file).isSymbolicLink()) {
+      realDir = path.dirname(fs.realpathSync(sessionInfo.file));
     }
-  }
-  if (!found) return res.status(404).json({ error: 'Session not found' });
+  } catch {}
+  const metaPath = path.join(realDir, `${id}.meta.json`);
+  fs.writeFileSync(metaPath, JSON.stringify({ title }), 'utf8');
   res.json({ ok: true });
 });
 
@@ -951,14 +1225,8 @@ function readLastUserAssistantRecords(jsonlPath, needed) {
 router.get('/session/:id/message', (req, res) => {
   const { id } = req.params;
   const TEXT_LIMIT = 20;
-  let jsonlPath = null;
-  if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
-    for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const file = path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`);
-      if (fs.existsSync(file)) { jsonlPath = file; break; }
-    }
-  }
+  const sessionInfo = findSessionFile(id, req.user);
+  const jsonlPath = sessionInfo ? sessionInfo.file : null;
   if (!jsonlPath) return res.json([]);
 
   const messages = [];
@@ -1002,23 +1270,19 @@ router.post('/session/:id/message', async (req, res) => {
     if (!cwd) {
       const existing = getRuntimeSession(id);
       cwd = existing?.cwd;
-      if (!cwd && fs.existsSync(CLAUDE_PROJECTS_DIR)) {
-        for (const entry of fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true })) {
-          if (!entry.isDirectory()) continue;
-          if (fs.existsSync(path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`))) {
-            // Read cwd from the JSONL metadata
-            try {
-              const content = fs.readFileSync(path.join(CLAUDE_PROJECTS_DIR, entry.name, `${id}.jsonl`), 'utf8');
-              const firstLine = content.split('\n').find(l => l.includes('"cwd"'));
-              if (firstLine) {
-                const obj = JSON.parse(firstLine);
-                if (typeof obj.cwd === 'string') cwd = obj.cwd;
-              }
-            } catch {}
-            if (!cwd) cwd = dirNameToCwd(entry.name);
-            foundInDir = entry.name;
-            break;
-          }
+      if (!cwd) {
+        const sessionInfo = findSessionFile(id, req.user);
+        if (sessionInfo) {
+          try {
+            const content = fs.readFileSync(sessionInfo.file, 'utf8');
+            const firstLine = content.split('\n').find(l => l.includes('"cwd"'));
+            if (firstLine) {
+              const obj = JSON.parse(firstLine);
+              if (typeof obj.cwd === 'string') cwd = obj.cwd;
+            }
+          } catch {}
+          if (!cwd) cwd = dirNameToCwd(path.basename(sessionInfo.entryDir));
+          foundInDir = path.basename(sessionInfo.entryDir);
         }
       }
     }
@@ -1029,14 +1293,17 @@ router.post('/session/:id/message', async (req, res) => {
       const { getProjectDirName } = require('../store');
       const expectedDir = getProjectDirName(cwd);
       if (foundInDir !== expectedDir) {
-        const srcFile = path.join(CLAUDE_PROJECTS_DIR, foundInDir, `${id}.jsonl`);
+        // Use findSessionFile to get the actual source path (may be in user dir)
+        const srcInfo = findSessionFile(id, req.user);
+        const srcFile = srcInfo ? srcInfo.file : null;
         const dstDir = path.join(CLAUDE_PROJECTS_DIR, expectedDir);
         const dstFile = path.join(dstDir, `${id}.jsonl`);
-        if (!fs.existsSync(dstDir)) fs.mkdirSync(dstDir, { recursive: true });
-        if (!fs.existsSync(dstFile)) {
-          fs.copyFileSync(srcFile, dstFile);
-          // Write .cwd for future lookups
-          fs.writeFileSync(path.join(dstDir, '.cwd'), cwd, 'utf8');
+        if (srcFile && !fs.existsSync(dstFile)) {
+          try {
+            if (!fs.existsSync(dstDir)) fs.mkdirSync(dstDir, { recursive: true });
+            fs.copyFileSync(srcFile, dstFile);
+            fs.writeFileSync(path.join(dstDir, '.cwd'), cwd, 'utf8');
+          } catch {}
         }
       }
     }
@@ -1052,6 +1319,12 @@ router.post('/session/:id/message', async (req, res) => {
   if (!prompt && (!body.attachments || body.attachments.length === 0)) {
     return res.status(400).json({ error: 'prompt is required' });
   }
+
+  // ── Store artifact tracking context on runtime ──
+  runtime.userPrompt = prompt;
+  runtime.attachmentPaths = (body.attachments || []).map(a => a.path).filter(Boolean);
+  runtime.sessionStartTime = Date.now();
+  runtime.allExtractedPaths = {};
 
   // ── Attachments: prepend file info to prompt ──
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
@@ -1441,11 +1714,30 @@ router.post('/session/:id/message', async (req, res) => {
         migrateSessionToUserDir(runtime.sessionId, runtime.cwd, req.user);
       }
 
+      // ── Finalize artifacts: collect all paths, copy to tool-results ──
+      let artifactFiles = [];
+      try {
+        const finalArtifacts = finalizeArtifacts(runtime, runtime.allExtractedPaths || {}, req.user);
+        // Build flat list of artifact files (now pointing to tool-results/) for frontend
+        const seen = new Set();
+        for (const [, paths] of Object.entries(finalArtifacts || {})) {
+          for (const p of paths) {
+            try {
+              if (!seen.has(p) && fs.existsSync(p) && fs.statSync(p).isFile()) {
+                seen.add(p);
+                artifactFiles.push({ path: p, name: path.basename(p) });
+              }
+            } catch {}
+          }
+        }
+      } catch (e) { console.log('[artifact] finalizeArtifacts error:', e.message); }
+
       broadcastDone(runtime, {
         sessionId: runtime.sessionId,
         cost: result?.cost,
         tokens: result?.tokens,
         currency: result?.currency,
+        artifactFiles,
       });
 
       // Write stats record
@@ -1576,6 +1868,107 @@ router.post('/session/:id/title', async (req, res) => {
 
   const title = await generateSessionTitle(id, prompt, req.body.cwd, req.user);
   res.json({ title });
+});
+
+// ── Session Artifact Management ──
+
+// Find tool-results directory: try cwd/.claude/sessions/ first, then projects dir
+function findArtifactsDir(cwd, sessionId, authUser) {
+  // Sanitize: sessionId must be a UUID or similar safe identifier
+  if (!sessionId || sessionId.includes('/') || sessionId.includes('..') || sessionId.includes('\\')) {
+    return null;
+  }
+  // 1. Try cwd-based sessions dir (new behavior)
+  if (cwd) {
+    const workDir = getSessionWorkDir(cwd);
+    const newPath = path.join(workDir, sessionId, 'tool-results');
+    if (fs.existsSync(newPath)) return newPath;
+  }
+  // 2. Fallback to projects dir (old behavior / symlinks)
+  const projectDir = resolveProjectDir(cwd, authUser);
+  const oldPath = path.join(projectDir, sessionId, 'tool-results');
+  if (fs.existsSync(oldPath)) return oldPath;
+  return null;
+}
+
+// List artifacts for a session (tool-results/ files)
+router.get('/session/:id/artifacts', (req, res) => {
+  const { id } = req.params;
+  const cwd = req.query.cwd || '';
+  try {
+    const resultsDir = findArtifactsDir(cwd, id, req.user);
+    if (!resultsDir || !fs.existsSync(resultsDir)) return res.json({ files: [] });
+    const entries = fs.readdirSync(resultsDir, { withFileTypes: true });
+    const files = entries
+      .filter(e => e.isFile())
+      .map(e => {
+        const stat = fs.statSync(path.join(resultsDir, e.name));
+        return { name: e.name, size: stat.size, mtime: stat.mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    res.json({ files });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Download an artifact file
+router.get('/session/:id/artifacts/download', (req, res) => {
+  const { id } = req.params;
+  const cwd = req.query.cwd || '';
+  const fileName = req.query.file;
+  if (!fileName) return res.status(400).json({ error: '缺少参数: file' });
+  // Prevent path traversal
+  if (fileName.includes('/') || fileName.includes('..')) {
+    return res.status(400).json({ error: '非法文件名' });
+  }
+  try {
+    const resultsDir = findArtifactsDir(cwd, id, req.user);
+    if (!resultsDir) return res.status(404).json({ error: '产物目录不存在' });
+    const filePath = path.join(resultsDir, fileName);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: '文件不存在' });
+    res.download(filePath);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete artifact file(s)
+router.delete('/session/:id/artifacts', (req, res) => {
+  const { id } = req.params;
+  const cwd = req.body.cwd || '';
+  const fileList = req.body.files;
+  if (!fileList || !Array.isArray(fileList) || fileList.length === 0) {
+    return res.status(400).json({ error: '缺少参数: files' });
+  }
+  let deleted = 0;
+  const errors = [];
+  try {
+    const resultsDir = findArtifactsDir(cwd, id, req.user);
+    if (!resultsDir) return res.json({ deleted: 0, errors: ['产物目录不存在'] });
+    for (const name of fileList) {
+      // Prevent path traversal
+      if (name.includes('/') || name.includes('..')) {
+        errors.push(`${name}: 非法文件名`);
+        continue;
+      }
+      const filePath = path.join(resultsDir, name);
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          deleted++;
+        }
+      } catch (e) { errors.push(`${name}: ${e.message}`); }
+    }
+    // Clean up empty tool-results dir
+    try {
+      const remaining = fs.readdirSync(resultsDir);
+      if (remaining.length === 0) fs.rmdirSync(resultsDir);
+    } catch {}
+    res.json({ ok: true, deleted, errors: errors.length > 0 ? errors : undefined });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

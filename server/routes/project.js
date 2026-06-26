@@ -66,6 +66,12 @@ router.get('/project', async (req, res) => {
   // Scan user's own project directory
   if (fs.existsSync(myProjectsDir)) {
     const entries = fs.readdirSync(myProjectsDir, { withFileTypes: true });
+    // Sort: _-prefix (new naming) before --prefix (old naming) so dedup prefers new
+    entries.sort((a, b) => {
+      const aNew = a.name.startsWith('_') ? 0 : a.name.startsWith('-') ? 1 : 2;
+      const bNew = b.name.startsWith('_') ? 0 : b.name.startsWith('-') ? 1 : 2;
+      return aNew - bNew;
+    });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const dirPath = path.join(myProjectsDir, entry.name);
@@ -84,7 +90,7 @@ router.get('/project', async (req, res) => {
     : os.homedir();
 
   if (!seenCwds.has(defaultCwd)) {
-    const dirName = defaultCwd.replace(/[/\\]+/g, '-').replace(/-$/, '') || '-';
+    const dirName = require('../store').getProjectDirName(defaultCwd);
     const projDir = path.join(myProjectsDir, dirName);
     if (!fs.existsSync(projDir)) {
       fs.mkdirSync(projDir, { recursive: true });
@@ -208,6 +214,30 @@ router.delete('/fs/delete', (req, res) => {
   }
 });
 
+// Rename file or directory
+router.post('/fs/rename', (req, res) => {
+  const { filePath, newName } = req.body || {};
+  if (!filePath || !newName) return res.status(400).json({ error: 'filePath and newName are required' });
+  if (!path.isAbsolute(filePath) || filePath.includes('..')) {
+    return res.status(403).json({ error: 'Forbidden — invalid path' });
+  }
+  if (newName.includes('/') || newName.includes('\\')) {
+    return res.status(400).json({ error: 'newName must not contain path separators' });
+  }
+  const err = restrictPath(req, filePath);
+  if (err) return res.status(403).json({ error: err });
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Path not found' });
+  const dir = path.dirname(filePath);
+  const newPath = path.join(dir, newName);
+  if (fs.existsSync(newPath)) return res.status(409).json({ error: '目标名称已存在' });
+  try {
+    fs.renameSync(filePath, newPath);
+    res.json({ ok: true, newPath });
+  } catch (err) {
+    res.status(500).json({ error: `重命名失败: ${err.message}` });
+  }
+});
+
 // Link a new project
 router.post('/project/link', (req, res) => {
   const cwd = (req.body.cwd || '').trim();
@@ -217,7 +247,8 @@ router.post('/project/link', (req, res) => {
   // Apply user path restriction
   const err = restrictPath(req, cwd);
   if (err) return res.status(403).json({ error: err });
-  const dirName = cwd.replace(/[/\\]+/g, '-').replace(/-$/, '') || '-';
+  const { getProjectDirName } = require('../store');
+  const dirName = getProjectDirName(cwd);
   const { projects: myProjectsDir } = getUserDataDir(req.user);
   const dirPath = path.join(myProjectsDir, dirName);
   if (!fs.existsSync(myProjectsDir)) fs.mkdirSync(myProjectsDir, { recursive: true });
@@ -254,18 +285,15 @@ router.delete('/project/:id', (req, res) => {
   }
 });
 
-// List sessions for a project
-router.get('/project/:id/session', (req, res) => {
-  const { id } = req.params;
-  const dirPath = resolveProjectPath(id, req.user);
-  if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Project not found' });
-  const cwd = dirNameToCwd(id);
-  const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl'));
-  const sessions = files.map(f => {
+// Collect session info from a directory
+function collectSessionsFromDir(dirPath, cwd, excludeIds) {
+  if (!fs.existsSync(dirPath)) return [];
+  const exclude = new Set(excludeIds || []);
+  const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl') && !exclude.has(f.replace('.jsonl', '')));
+  return files.map(f => {
     const sessionId = f.replace('.jsonl', '');
     const filePath = path.join(dirPath, f);
     let title = null;
-    // Check sidecar metadata
     const metaPath = path.join(dirPath, `${sessionId}.meta.json`);
     if (fs.existsSync(metaPath)) {
       try { title = JSON.parse(fs.readFileSync(metaPath, 'utf8')).title; } catch {}
@@ -276,6 +304,24 @@ router.get('/project/:id/session', (req, res) => {
     try { lastModified = fs.statSync(filePath).mtimeMs; } catch {}
     return { id: sessionId, title, cwd, lastModified };
   });
+}
+
+// List sessions for a project
+router.get('/project/:id/session', (req, res) => {
+  const { id } = req.params;
+  const dirPath = resolveProjectPath(id, req.user);
+  if (!fs.existsSync(dirPath)) return res.status(404).json({ error: 'Project not found' });
+  const cwd = dirNameToCwd(id);
+  const sessions = collectSessionsFromDir(dirPath, cwd);
+
+  // Also check old-naming counterpart (_ → -) for sessions SDK wrote there
+  const legacyId = id.replace(/_/g, '-');
+  if (legacyId !== id) {
+    const legacyPath = path.join(path.dirname(dirPath), legacyId);
+    const existingIds = sessions.map(s => s.id);
+    sessions.push(...collectSessionsFromDir(legacyPath, cwd, existingIds));
+  }
+
   sessions.sort((a, b) => b.lastModified - a.lastModified);
   res.json(sessions);
 });

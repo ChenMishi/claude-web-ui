@@ -293,6 +293,111 @@ function startServer(opts = {}) {
   // Reset any stale runtime states from previous server instance
   try { require('./store').resetAllRuntimes(); } catch {}
 
+  // Migrate old SDK convention project directories (- separator) to web UI convention (_ separator).
+// SDK binary replaced all non-alphanumeric chars with -, web UI only replaces / with _.
+// Must use .cwd file + getProjectDirName(cwd) for precision, because simple -→_ can't
+// distinguish hyphens in the original path from path separators (e.g. /data/my-project).
+  // SDK binary uses - as path separator (e.g. -root, -data-temp), web UI uses _ (e.g. _root, _data_temp).
+  // After migration, - prefixed names become symlinks → _ prefixed dirs, so both conventions work.
+  // This ensures the SDK's resume parameter can find sessions stored by the web UI.
+  try {
+    const { CLAUDE_PROJECTS_DIR: cfgProjectsDir } = require('./config');
+    const { getProjectDirName } = require('./store');
+    const dirsToCheck = [cfgProjectsDir];
+
+    // Collect user-specific projects directories
+    try {
+      const { loadUsers } = require('./auth/users');
+      const { users } = loadUsers();
+      for (const user of users) {
+        if (user.role !== 'admin' && user.homeDir) {
+          const userDir = path.join(user.homeDir, '.claude-web-ui', 'projects');
+          if (!dirsToCheck.includes(userDir)) dirsToCheck.push(userDir);
+        }
+      }
+    } catch {}
+
+    for (const projectsDir of dirsToCheck) {
+      if (!fs.existsSync(projectsDir)) continue;
+      let entries;
+      try { entries = fs.readdirSync(projectsDir, { withFileTypes: true }); } catch { continue; }
+
+      for (const entry of entries) {
+        // Only process real directories (not symlinks)
+        if (!entry.isDirectory()) continue;
+        if (entry.isSymbolicLink && entry.isSymbolicLink()) continue;
+        const oldName = entry.name;
+        if (oldName.startsWith('_')) continue; // already new convention
+
+        // Determine the correct new name — prefer .cwd file for precision
+        let newName = null;
+        try {
+          const cwdFile = path.join(projectsDir, oldName, '.cwd');
+          if (fs.existsSync(cwdFile)) {
+            newName = getProjectDirName(fs.readFileSync(cwdFile, 'utf8').trim());
+          }
+        } catch {}
+        // Fallback 1: extract cwd from .jsonl files (SDK convention stores cwd in first record)
+        if (!newName) {
+          try {
+            for (const f of fs.readdirSync(oldPath)) {
+              if (!f.endsWith('.jsonl')) continue;
+              const firstLine = fs.readFileSync(path.join(oldPath, f), 'utf8').split('\n').find(l => l.includes('"cwd"'));
+              if (firstLine) {
+                const obj = JSON.parse(firstLine);
+                if (typeof obj.cwd === 'string') { newName = getProjectDirName(obj.cwd); break; }
+              }
+            }
+          } catch {}
+        }
+        // Fallback 2: old convention = replace all non-alnum with -, new = replace only / with _
+        // For paths without hyphens: -data-temp → _data_temp (replace all - with _)
+        // For paths with hyphens:  -data-my-project → _data_my_project (best effort, .cwd preferred)
+        if (!newName && oldName.startsWith('-')) {
+          newName = oldName.replace(/-/g, '_');
+        }
+        if (!newName || newName === oldName) continue;
+
+        const oldPath = path.join(projectsDir, oldName);
+        const newPath = path.join(projectsDir, newName);
+
+        if (fs.existsSync(newPath)) {
+          // _ convention dir already exists — merge any unique files from - dir
+          let sessionFiles;
+          try { sessionFiles = fs.readdirSync(oldPath); } catch { continue; }
+          for (const f of sessionFiles) {
+            const src = path.join(oldPath, f);
+            const dst = path.join(newPath, f);
+            if (fs.existsSync(dst)) continue;
+            try {
+              // Try hard link first (zero extra disk on same filesystem)
+              fs.linkSync(src, dst);
+              console.log(`[migrate] 已链接: ${oldName}/${f} → ${newName}/${f}`);
+            } catch (linkErr) {
+              if (linkErr.code === 'EXDEV') {
+                try { fs.copyFileSync(src, dst); console.log(`[migrate] 已复制: ${oldName}/${f} → ${newName}/${f}`); } catch {}
+              }
+            }
+          }
+          // Remove - convention dir and replace with symlink
+          try { fs.rmSync(oldPath, { recursive: true, force: true }); } catch {}
+          try { fs.symlinkSync(newName, oldPath); console.log(`[migrate] 已创建符号链接: ${oldName} → ${newName}`); } catch {}
+        } else {
+          // _ convention dir doesn't exist — rename - dir to _, then symlink - → _
+          try {
+            fs.renameSync(oldPath, newPath);
+            fs.symlinkSync(newName, oldPath);
+            console.log(`[migrate] 已迁移: ${oldName} → ${newName} (含符号链接)`);
+          } catch (err) {
+            console.log(`[migrate] 迁移失败 ${oldName}: ${err.message}`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.log('[migrate] 项目目录迁移出错:', err.message);
+  }
+
   server.listen(port, '0.0.0.0', () => {
     const pkg = require('../package.json');
     console.log(`AI IntelliWork Hub v${pkg.version} running at http://0.0.0.0:${port}`);

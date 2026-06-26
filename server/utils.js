@@ -13,12 +13,14 @@ function isPathInside(absPath, cwd) {
 }
 
 function dirNameToCwd(dirName) {
-  const parts = dirName.split('-').slice(1);
+  // Support both conventions: _ (web UI) and - (SDK binary)
+  const sep = dirName.startsWith('_') ? '_' : '-';
+  const parts = dirName.split(sep).slice(1);
   function tryResolve(idx, current) {
     if (idx === parts.length) return fs.existsSync(current) ? current : null;
     let segment = '';
     for (let end = idx; end < parts.length; end++) {
-      segment = segment ? segment + '-' + parts[end] : parts[end];
+      segment = segment ? segment + sep + parts[end] : parts[end];
       const next = path.join(current, segment);
       if (fs.existsSync(next)) {
         const result = tryResolve(end + 1, next);

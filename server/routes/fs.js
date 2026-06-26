@@ -268,7 +268,14 @@ router.post('/fs/upload', requireAuth, (req, res, next) => {
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
-    const targetPath = path.join(targetDir, file.originalname);
+    // Use relPath (includes folder structure) if provided, otherwise use original filename
+    const relPath = req.body.relPath || file.originalname;
+    const targetPath = path.join(targetDir, relPath);
+    // Ensure parent directories exist (for folder uploads with relative paths)
+    const parentDir = path.dirname(targetPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
     fs.writeFileSync(targetPath, file.buffer);
     res.json({ ok: true, path: targetPath, size: file.buffer.length });
   } catch (err) {
@@ -285,12 +292,19 @@ router.get('/fs/download', requireAuth, (req, res) => {
     if (!fs.existsSync(resolved)) return res.status(404).json({ error: '文件不存在' });
     const stat = fs.statSync(resolved);
     if (stat.isDirectory()) {
-      // Download directory as tar.gz
-      const tmpFile = path.join(os.tmpdir(), `fs-dl-${Date.now()}.tar.gz`);
+      const format = req.query.format === 'zip' ? 'zip' : 'tar.gz';
+      const ext = format === 'zip' ? '.zip' : '.tar.gz';
+      const tmpFile = path.join(os.tmpdir(), `fs-dl-${Date.now()}${ext}`);
       try {
         const dirName = path.basename(resolved) || 'download';
-        execSync(`tar -czf "${tmpFile}" -C "${path.dirname(resolved)}" "${dirName}"`, { timeout: 120000 });
-        res.download(tmpFile, `${dirName}.tar.gz`, () => {
+        if (format === 'zip') {
+          const zip = new AdmZip();
+          zip.addLocalFolder(resolved, dirName);
+          zip.writeZip(tmpFile);
+        } else {
+          execSync(`tar -czf "${tmpFile}" -C "${path.dirname(resolved)}" "${dirName}"`, { timeout: 120000 });
+        }
+        res.download(tmpFile, `${dirName}${ext}`, () => {
           try { fs.unlinkSync(tmpFile); } catch {}
         });
       } catch (e) {

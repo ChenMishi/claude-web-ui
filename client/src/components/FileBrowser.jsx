@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { getDirs, readFile, writeFile, deleteFileOrDir, mkdir } from '../api';
-import FileTransfer from './FileTransfer';
-import { IconFolder, IconNewFolder, IconNewFile, IconRefresh, IconEdit, IconFile, IconClipboard, IconAlert } from './icons';
+import { getDirs, readFile, writeFile, deleteFileOrDir, renameFileOrDir, mkdir } from '../api';
+import { IconFolder, IconEdit, IconFile, IconClipboard, IconAlert, IconDownload, IconTrash, IconPencil, IconUpload } from './icons';
 
 export default function FileBrowser() {
   const { user } = useApp();
@@ -23,10 +22,58 @@ export default function FileBrowser() {
   const [newFileName, setNewFileName] = useState('');
   const [showNewFile, setShowNewFile] = useState(false);
   const [msg, setMsg] = useState('');
-  const [showTransfer, setShowTransfer] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null); // { type, path, name }
-  const [contextMenu, setContextMenu] = useState(null); // { x, y, path }
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, path, name, isDir }
+  const [renameTarget, setRenameTarget] = useState(null); // { path, name }
+  const [renameValue, setRenameValue] = useState('');
+  const [downloading, setDownloading] = useState(false); // { name } or false
+  const [uploading, setUploading] = useState(false);
+  const [showUploadMenu, setShowUploadMenu] = useState(false);
+  const [confirmUpload, setConfirmUpload] = useState(null); // { entries, folderName }
+  const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
+  const uploadBtnRef = useRef(null);
+
+  const supportsFSA = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+
+  // Recursively read files from a FileSystemDirectoryHandle
+  const readFsaDir = async (dirHandle, basePath = '') => {
+    const result = [];
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind === 'file') {
+        const file = await handle.getFile();
+        const relPath = basePath ? `${basePath}/${name}` : name;
+        result.push({ file, relPath: `${dirHandle.name}/${relPath}` });
+      } else if (handle.kind === 'directory') {
+        const sub = await readFsaDir(handle, basePath ? `${basePath}/${name}` : name);
+        result.push(...sub);
+      }
+    }
+    return result;
+  };
+
+  const selectFolderViaFSA = async () => {
+    try {
+      const dirHandle = await window.showDirectoryPicker();
+      const entries = await readFsaDir(dirHandle);
+      if (entries.length === 0) return;
+      // Show styled confirmation dialog instead of immediate upload
+      setConfirmUpload({ entries, folderName: dirHandle.name });
+    } catch (err) {
+      if (err.name !== 'AbortError') setMsg('选择文件夹失败: ' + err.message);
+    }
+  };
+
+  const handleConfirmUpload = () => {
+    const info = confirmUpload;
+    if (!info) return;
+    setConfirmUpload(null);
+    setUploading(true);
+    setMsg('');
+    startUploadQueue(info.entries, 0);
+  };
   const editRef = useRef(null);
+  const renameRef = useRef(null);
   const lastClickRef = useRef(0);
 
   const loadDir = () => {
@@ -150,7 +197,8 @@ export default function FileBrowser() {
   // Right-click context menu
   const handleContextMenu = (e, item) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, path: item.path, name: item.name });
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, path: item.path, name: item.name, isDir: item.isDir });
   };
 
   const handleCopyPath = () => {
@@ -171,6 +219,120 @@ export default function FileBrowser() {
     setContextMenu(null);
   };
 
+  const handleRenameStart = () => {
+    if (!contextMenu) return;
+    setRenameTarget({ path: contextMenu.path, name: contextMenu.name });
+    setRenameValue(contextMenu.name);
+    setContextMenu(null);
+  };
+
+  const handleRenameSubmit = async () => {
+    const target = renameTarget;
+    const newName = renameValue.trim();
+    if (!target || !newName || newName === target.name) {
+      setRenameTarget(null);
+      return;
+    }
+    try {
+      await renameFileOrDir(target.path, newName);
+      setMsg('✅ 已重命名');
+      setTimeout(() => setMsg(''), 2000);
+      if (selectedFile?.path === target.path) {
+        const newPath = target.path.replace(/[^/]+$/, newName);
+        setSelectedFile({ ...selectedFile, path: newPath, name: newName });
+      }
+      loadFiles();
+    } catch (err) {
+      setMsg('❌ ' + (err.message || '重命名失败'));
+    }
+    setRenameTarget(null);
+  };
+
+  const handleDownload = (format) => {
+    if (!contextMenu) return;
+    const filePath = contextMenu.path;
+    const url = `/api/fs/download?path=${encodeURIComponent(filePath)}${format ? '&format=' + format : ''}`;
+    setContextMenu(null);
+    setDownloading(contextMenu.name);
+    fetch(url, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('claude-ui:accessToken')}` }
+    })
+    .then(r => {
+      if (!r.ok) throw new Error(r.statusText);
+      return r.blob();
+    })
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const ext = format === 'zip' ? '.zip' : (format === 'tar.gz' ? '.tar.gz' : '');
+      a.download = contextMenu.name + ext;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      setMsg('✅ 下载完成');
+      setTimeout(() => setMsg(''), 2000);
+      setDownloading(false);
+    })
+    .catch(err => {
+      setMsg('❌ 下载失败: ' + err.message);
+      setTimeout(() => setMsg(''), 3000);
+      setDownloading(false);
+    });
+  };
+
+  const handleUploadFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const entries = files.map(f => ({ file: f, relPath: f.webkitRelativePath || f.name }));
+    setUploading(true);
+    setMsg('');
+    startUploadQueue(entries, 0);
+    e.target.value = '';
+  };
+
+  const startUploadQueue = async (entries, idx) => {
+    if (idx >= entries.length) {
+      setUploading(false);
+      setMsg('✅ 上传完成 (' + entries.length + ' 个文件)');
+      setTimeout(() => setMsg(''), 3000);
+      loadFiles();
+      return;
+    }
+    const { file, relPath } = entries[idx];
+    setMsg(`⬆ 正在上传 (${idx + 1}/${entries.length}): ${relPath}`);
+    try {
+      await uploadSingleFile(currentPath, file, relPath);
+    } catch (err) {
+      setMsg(`❌ 上传失败 (${idx + 1}/${entries.length}): ${relPath} — ${err.message}`);
+      setTimeout(() => setMsg(''), 3000);
+      setUploading(false);
+      return;
+    }
+    startUploadQueue(entries, idx + 1);
+  };
+
+  const uploadSingleFile = (dir, file, relPath) => {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('dir', dir);
+      formData.append('file', file);
+      formData.append('relPath', relPath);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/fs/upload');
+      xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('claude-ui:accessToken')}`);
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+          else reject(new Error(data.error || `HTTP ${xhr.status}`));
+        } catch { reject(new Error('解析响应失败')); }
+      };
+      xhr.onerror = () => reject(new Error('上传失败'));
+      xhr.send(formData);
+    });
+  };
   const fallbackCopy = (text) => {
     const ta = document.createElement('textarea');
     ta.value = text;
@@ -197,6 +359,18 @@ export default function FileBrowser() {
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
   }, [contextMenu]);
+
+  // Close upload menu on click outside
+  useEffect(() => {
+    if (!showUploadMenu) return;
+    const close = (e) => {
+      if (uploadBtnRef.current && !uploadBtnRef.current.contains(e.target)) {
+        setShowUploadMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [showUploadMenu]);
 
   const handleSaveFile = async () => {
     if (!selectedFile) return;
@@ -230,17 +404,28 @@ export default function FileBrowser() {
           <span className="file-tree-title"><IconFolder/> 文件浏览</span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 8, fontWeight: 400 }}>右键点击可复制路径</span>
         </div>
-        <div className="file-tree-toggle" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setShowNewDir(true)} title="新建目录"><IconNewFolder/> 新建目录</button>
-            <button onClick={() => setShowNewFile(true)} title="新建文件"><IconNewFile/> 新建文件</button>
+        <div className="file-tree-toggle" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={() => setShowNewDir(true)} title="新建目录">📁 新建目录</button>
+            <button onClick={() => setShowNewFile(true)} title="新建文件">📄 新建文件</button>
+            <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleUploadFiles} />
+            <input ref={folderInputRef} type="file" webkitdirectory="" directory="" style={{ display: 'none' }} onChange={handleUploadFiles} />
+            <button ref={uploadBtnRef} onClick={() => setShowUploadMenu(v => !v)} title="上传" style={{ position: 'relative' }}>📤 上传{showUploadMenu && (
+                <div className="context-menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 100, minWidth: 140 }} onClick={e => e.stopPropagation()}>
+                  <div className="context-menu-item" onClick={() => { setShowUploadMenu(false); fileInputRef.current?.click(); }}>
+                    📄 上传文件
+                  </div>
+                  <div className="context-menu-item" onClick={() => { setShowUploadMenu(false); if (supportsFSA) selectFolderViaFSA(); else folderInputRef.current?.click(); }}>
+                    📁 上传文件夹
+                  </div>
+                </div>
+              )}</button>
+            <button onClick={() => loadFiles()} title="刷新文件列表">🔄 刷新</button>
           </div>
-          <button onClick={() => setShowTransfer(true)} title="文件传输">⇅ 文件传输</button>
         </div>
 
         {/* Breadcrumb */}
-        <div className="dialog-breadcrumb" style={{ padding: '4px 8px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
+        <div className="dialog-breadcrumb" style={{ padding: '4px 8px', fontSize: 12, display: 'flex', alignItems: 'center' }}>
           <span className="breadcrumb-link" onClick={() => setCurrentPath('/')}>/</span>
           {breadcrumbSegs.map((seg, i) => (
             <span key={i}>
@@ -250,8 +435,6 @@ export default function FileBrowser() {
               {i < breadcrumbSegs.length - 1 && ' / '}
             </span>
           ))}
-          </div>
-          <button onClick={() => loadFiles()} title="刷新文件列表" style={{ padding: '2px 6px', fontSize: 11, background: 'transparent', border: '1px solid var(--glass-border)', borderRadius: 4, color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}><IconRefresh/> 刷新</button>
         </div>
 
         {/* New dir input */}
@@ -276,21 +459,27 @@ export default function FileBrowser() {
           </div>
         )}
 
-        {msg && (
+        {(downloading || uploading) && (
+          <div style={{ padding: '6px 8px', fontSize: 11, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="spinner" style={{ width: 12, height: 12, border: '2px solid var(--border)', borderTop: '2px solid var(--accent)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }}></span>
+            {downloading ? `正在打包下载: ${downloading}...` : (msg || '正在上传...')}
+          </div>
+        )}
+        {!downloading && !uploading && msg && (
           <div style={{ padding: '4px 8px', fontSize: 11, color: msg.includes('✅') ? 'var(--success)' : 'var(--danger)' }}>{msg}</div>
         )}
 
         {/* Directory listing */}
         <div style={{ flex: 1, overflow: 'auto' }}>
           {currentPath !== '/' && (
-            <div className="file-tree-item dir" onClick={goUp} onContextMenu={(e) => handleContextMenu(e, { path: currentPath.split('/').slice(0, -1).join('/') || '/', name: '..' })} style={{ paddingLeft: 8 }}>
+            <div className="file-tree-item dir" onClick={goUp} onContextMenu={(e) => handleContextMenu(e, { path: currentPath.split('/').slice(0, -1).join('/') || '/', name: '..', isDir: true })} style={{ paddingLeft: 8 }}>
               <IconFolder/> <span style={{ color: 'var(--text-muted)' }}>..</span>
             </div>
           )}
           {dirs.map(d => (
             <div key={d.path} style={{ display: 'flex', alignItems: 'center' }}>
               <div className="file-tree-item dir" onClick={() => handleFileClick({ type: 'dir', path: d.path, name: d.name })}
-                onContextMenu={(e) => handleContextMenu(e, { path: d.path, name: d.name })}
+                onContextMenu={(e) => handleContextMenu(e, { path: d.path, name: d.name, isDir: true })}
                 style={{ flex: 1, paddingLeft: 8 }}>
                 <IconFolder/> {d.name}
               </div>
@@ -302,7 +491,7 @@ export default function FileBrowser() {
             <div key={f.path} style={{ display: 'flex', alignItems: 'center' }}>
               <div className={`file-tree-item ${selectedFile?.path === f.path ? 'dir' : ''}`}
                 onClick={() => handleFileClick({ type: 'file', path: f.path, name: f.name })}
-                onContextMenu={(e) => handleContextMenu(e, { path: f.path, name: f.name })}
+                onContextMenu={(e) => handleContextMenu(e, { path: f.path, name: f.name, isDir: false })}
                 style={{ flex: 1, paddingLeft: 8 }}>
                 {selectedFile?.path === f.path ? <IconEdit/> : <IconFile/>} {f.name}
               </div>
@@ -356,7 +545,6 @@ export default function FileBrowser() {
           <div className="empty-state">选择左侧文件以查看内容</div>
         )}
       </div>
-      {showTransfer && <FileTransfer onClose={() => setShowTransfer(false)} />}
 
       {/* Right-click context menu */}
       {contextMenu && (
@@ -365,10 +553,55 @@ export default function FileBrowser() {
           <div className="context-menu-item" onClick={handleCopyPath}>
             <IconClipboard/> 复制绝对路径
           </div>
+          <div className="context-menu-item" onClick={handleRenameStart}>
+            <IconPencil/> 重命名
+          </div>
+          {contextMenu.isDir ? (
+            <>
+              <div className="context-menu-item" onClick={() => handleDownload('zip')}>
+                <IconDownload/> 打包下载 (.zip)
+              </div>
+              <div className="context-menu-item" onClick={() => handleDownload('tar.gz')}>
+                <IconDownload/> 打包下载 (.tar.gz)
+              </div>
+            </>
+          ) : (
+            <div className="context-menu-item" onClick={() => handleDownload()}>
+              <IconDownload/> 下载
+            </div>
+          )}
+          <div className="context-menu-sep"></div>
+          <div className="context-menu-item context-menu-item-danger" onClick={() => { handleDelete({ type: contextMenu.isDir ? 'dir' : 'file', path: contextMenu.path, name: contextMenu.name }); setContextMenu(null); }}>
+            <IconTrash/> 删除
+          </div>
           <div className="context-menu-path" style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 12px 6px', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {contextMenu.path}
           </div>
         </div>
+      )}
+
+      {/* Rename inline input */}
+      {renameTarget && createPortal(
+        <div className="confirm-backdrop" onClick={() => setRenameTarget(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()} style={{ minWidth: 360 }}>
+            <div className="confirm-dialog-icon"><IconPencil/></div>
+            <div className="confirm-dialog-title">重命名</div>
+            <div className="confirm-dialog-name" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>{renameTarget.path}</div>
+            <input
+              ref={renameRef}
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleRenameSubmit(); if (e.key === 'Escape') setRenameTarget(null); }}
+              style={{ width: '100%', padding: '8px 12px', fontSize: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }}
+              autoFocus
+            />
+            <div className="confirm-dialog-actions" style={{ marginTop: 16 }}>
+              <button className="cancel-btn" onClick={() => setRenameTarget(null)}>取消</button>
+              <button className="danger-btn" style={{ background: 'var(--accent)' }} onClick={handleRenameSubmit}>确认</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete confirmation dialog — rendered via Portal to avoid backdrop-filter stacking context */}
@@ -382,6 +615,24 @@ export default function FileBrowser() {
             <div className="confirm-dialog-actions">
               <button className="cancel-btn" onClick={() => setConfirmDelete(null)}>取消</button>
               <button className="danger-btn" onClick={handleConfirmDelete}>确认删除</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Upload confirmation dialog */}
+      {confirmUpload && createPortal(
+        <div className="confirm-backdrop" onClick={() => setConfirmUpload(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-dialog-icon"><IconUpload/></div>
+            <div className="confirm-dialog-title">确认上传</div>
+            <div className="confirm-dialog-name">{confirmUpload.folderName}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>包含 {confirmUpload.entries.length} 个文件</div>
+            <div className="confirm-dialog-warn">上传至: {currentPath}</div>
+            <div className="confirm-dialog-actions">
+              <button className="cancel-btn" onClick={() => setConfirmUpload(null)}>取消</button>
+              <button className="danger-btn" style={{ background: 'var(--accent)' }} onClick={handleConfirmUpload}>确认上传</button>
             </div>
           </div>
         </div>,

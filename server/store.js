@@ -6,11 +6,20 @@ const pendingApprovals = new Map();
 
 function getProjectDirName(cwd) {
   const normalized = path.resolve(cwd);
-  return normalized.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '$1').replace(/[^a-zA-Z0-9]/g, '-');
+  // Only replace path separators (/ \) and Windows drive colon with _
+  // Preserve hyphens, dots, spaces etc. from the original path
+  return normalized.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '$1').replace(/\//g, '_');
 }
 
 function getSessionFile(dirName, sessionId) {
   return path.join(CLAUDE_PROJECTS_DIR, dirName, `${sessionId}.jsonl`);
+}
+
+// Returns the real session data directory for a working directory
+// e.g. /data/temp/.claude/sessions/
+function getSessionWorkDir(cwd) {
+  const resolved = path.resolve(cwd || process.cwd());
+  return path.join(resolved, '.claude', 'sessions');
 }
 
 function getRuntimeSession(sessionId) {
@@ -124,7 +133,7 @@ function resetAllRuntimes() {
 
 module.exports = {
   runtimeSessions, pendingApprovals,
-  getProjectDirName, getSessionFile,
+  getProjectDirName, getSessionFile, getSessionWorkDir,
   getRuntimeSession, deleteRuntimeSession,
   getOrCreateRuntime, createPendingRuntime, assignSessionId,
   setPendingApproval, resolvePendingApproval,

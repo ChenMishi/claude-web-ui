@@ -33,6 +33,7 @@ export const IconChevronUp = () => <svg {...svgProps}><polyline points="18 15 12
 export const IconChevronDown = () => <svg {...svgProps}><polyline points="6 9 12 15 18 9"/></svg>;
 export const IconMenu = () => <svg {...svgProps}><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
 export const IconDownload = () => <svg {...svgProps}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+export const IconTrash = () => <svg {...svgProps}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
 export const IconUpload = () => <svg {...svgProps}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
 export const IconPackage = () => <svg {...svgProps}><path d="M16.5 9.4 7.55 4.24"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>;
 export const IconImage = () => <svg {...svgProps}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>;
@@ -81,7 +82,7 @@ const iconMap = {
   restart: IconRestart, clock: IconClock, check: IconCheck, x: IconX,
   alert: IconAlert, chevronRight: IconChevronRight, chevronLeft: IconChevronLeft,
   chevronUp: IconChevronUp, chevronDown: IconChevronDown, menu: IconMenu,
-  download: IconDownload, upload: IconUpload, package: IconPackage,
+  download: IconDownload, upload: IconUpload, package: IconPackage, trash: IconTrash,
   image: IconImage, bot: IconBot, lock: IconLock, globe: IconGlobe,
   dollar: IconDollar, tag: IconTag, save: IconSave, file: IconFile,
   edit: IconEdit, search: IconSearch, grep: IconGrep, question: IconQuestion,

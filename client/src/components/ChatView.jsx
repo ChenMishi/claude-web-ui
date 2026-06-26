@@ -8,6 +8,8 @@ import ChatStatusBar from './ChatStatusBar';
 import WelcomeScreen from './WelcomeScreen';
 import ExecutionPanel from './ExecutionPanel';
 import TaskPanel from './TaskPanel';
+import ArtifactDrawer from './ArtifactDrawer';
+import { IconPackage } from './icons';
 // (icons reverted to emoji for chat view)
 
 const PHASE_LABELS = {
@@ -97,6 +99,9 @@ export default function ChatView() {
   const [hasMore, setHasMore] = useState(true);
   const [activeSkill, setActiveSkill] = useState(null); // { name, displayName, icon }
   const [queuedMessages, setQueuedMessages] = useState([]); // 排队中的消息
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const currentProject = projects.find(p => p.id === currentProjectId);
+  const projectCwd = currentProject?.cwd || '';
   const pendingQueue = useRef([]); // 消息队列 ref，驱动自动发送
   const askRef = useRef(null);
   const chatMessagesRef = useRef(chatMessages);
@@ -553,11 +558,9 @@ export default function ChatView() {
                       finalizeStreaming();
                       stopTimer();
                       execDone({ tokens: parsed.tokens, cost: parsed.cost, currency: parsed.currency });
-                      // Append artifact summary if any files were created
-                      if (artifactFilesRef.current.size > 0) {
-                        const files = Array.from(artifactFilesRef.current.entries()).map(([path, name]) => ({ path, name }));
-                        artifactFilesRef.current.clear();
-                        bAppend({ role: 'artifacts', files, timestamp: Date.now() });
+                      // Append artifact summary from backend-collected files
+                      if (parsed.artifactFiles && parsed.artifactFiles.length > 0) {
+                        bAppend({ role: 'artifacts', files: parsed.artifactFiles, timestamp: Date.now() });
                       }
                       setTimeout(() => execReset(), 5000);
                       return; // stop pumping
@@ -827,7 +830,7 @@ export default function ChatView() {
       onToolConfirm: ({ tool, action, input }) => {
         setToolConfirm({ tool, action, input });
       },
-      onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency }) => {
+      onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency, artifactFiles }) => {
         streamSessionIdRef.current = null;
         isActiveStream.current = false;
         sendingRef.current = false;  // release send lock
@@ -837,11 +840,9 @@ export default function ChatView() {
         finalizeStreaming();  // 原子操作: 关闭所有 streaming + 保存缓存 + 设置 isStreaming=false
         stopTimer();
         execDone({ tokens: doneTokens, cost, currency });
-        // Append artifact summary if any files were created
-        if (artifactFilesRef.current.size > 0) {
-          const files = Array.from(artifactFilesRef.current.entries()).map(([path, name]) => ({ path, name }));
-          artifactFilesRef.current.clear();
-          bAppend({ role: 'artifacts', files, timestamp: Date.now() });
+        // Append artifact summary from backend-collected files
+        if (artifactFiles && artifactFiles.length > 0) {
+          bAppend({ role: 'artifacts', files: artifactFiles, timestamp: Date.now() });
         }
         setTimeout(() => execReset(), 5000);
 
@@ -929,6 +930,7 @@ export default function ChatView() {
       <div className="chat-content">
         <div className="chat-main">
           <div className="chat-glass">
+          <div className="chat-glass-inner">
           <div className="chat-container" ref={containerRef}>
           {hasMore && chatMessages.length > 0 && atTop && (
             <div className="load-more-row">
@@ -1004,8 +1006,9 @@ export default function ChatView() {
             </div>
           )}
         </div>
-        {/* Scroll-to-bottom button — 300ms delayed, won't flash */}
+        {/* Scroll-to-bottom button — floated above footer */}
         {hasMessages && showScrollBtn && (
+          <div className="scroll-to-bottom-wrap">
           <button
             className="scroll-to-bottom-btn"
             onClick={() => {
@@ -1016,8 +1019,23 @@ export default function ChatView() {
           >
             ↓ 查看最新消息
           </button>
+          </div>
         )}
         <ChatStatusBar />
+        {currentSessionId && (
+          <button
+            className="artifact-trigger-btn"
+            onClick={() => setDrawerOpen(v => !v)}
+            title="产物文件"
+          >
+            <IconPackage />
+            <span className="artifact-trigger-label">产物</span>
+          </button>
+        )}
+        {currentSessionId && (
+          <ArtifactDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} cwd={projectCwd} />
+        )}
+        </div>
         </div>
         </div>
         <div className="right-panels">

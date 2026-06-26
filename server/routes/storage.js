@@ -174,6 +174,13 @@ router.post('/storage/clean', requireAuth, requireRole('admin'), async (req, res
                 if (target === 'chat-records') {
                   if (fs.statSync(sessionPath).isFile() && session.endsWith('.jsonl')) {
                     const sz = fs.statSync(sessionPath).size;
+                    // If it's a symlink, also delete the real file
+                    try {
+                      if (fs.lstatSync(sessionPath).isSymbolicLink()) {
+                        const realPath = fs.realpathSync(sessionPath);
+                        try { fs.unlinkSync(realPath); } catch {}
+                      }
+                    } catch {}
                     fs.unlinkSync(sessionPath);
                     freed += sz;
                   }
