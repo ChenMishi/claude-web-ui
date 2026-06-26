@@ -210,7 +210,7 @@ export default function SettingsPanel() {
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">版本</span>
-                <span className="settings-info-value">v2.2.3</span>
+                <span className="settings-info-value">v2.2.4</span>
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">数据存储</span>

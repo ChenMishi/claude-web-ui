@@ -203,6 +203,17 @@ function extractBashFilePaths(command, resultContent, cwd) {
     paths.push(m[1]);
   }
 
+  // 12. Scan result content for relative paths with archive/doc/image extensions
+  //     Catches "Created output.zip", "打包完成: archive.tar.gz", "生成 report.xlsx" etc.
+  //     Exclude fullwidth colon/comma from filename capture to avoid greedy matching
+  const relativeExtRe = /(?:^|\s|[：:])['"]?([^\s"'`：]{1,200}\.(?:zip|tar|gz|tgz|bz2|xz|7z|rar|xlsx?|docx?|pptx?|pdf|csv|png|jpe?g|gif|webp|svg))['"]?(?:\s|$|[,，。.])/gmi;
+  for (const m of (resultContent || '').matchAll(relativeExtRe)) {
+    const p = m[1].replace(/^['"]|['"]$/g, '');
+    if (p && !p.startsWith('/') && !p.startsWith('-')) {
+      paths.push(p);
+    }
+  }
+
   // Resolve relative paths and deduplicate
   const os = require('os');
   const resolved = [...new Set(paths.map(p => {
@@ -236,13 +247,15 @@ function filterArtifactPaths(absPaths, cwd) {
     // 1. Must be inside project cwd (exclude /tmp, /var, system paths etc.)
     if (!p.startsWith(cwdAbs + path.sep) && p !== cwdAbs) return false;
 
-    // 2. No hidden file/directory anywhere in the path (relative to cwd)
+    // 2. No hidden files (exclude filenames starting with ., like .env, .DS_Store)
+    //    Directories starting with . are allowed (e.g. .claude-web-ui, .claude, .vscode)
+    const basename = path.basename(p);
+    if (basename.startsWith('.')) return false;
+
+    // 3. No files inside junk directories
     const rel = p.slice(cwdAbs.length);
     const segments = rel.split(path.sep).filter(Boolean);
-    if (segments.some(s => s.startsWith('.'))) return false;
-
-    // 3. No junk directories
-    if (segments.some(s => excludeDirs.has(s))) return false;
+    if (segments.length > 1 && segments.slice(0, -1).some(s => excludeDirs.has(s))) return false;
 
     // 4. No compiled/transient file extensions
     if (excludeExts.has(path.extname(p).toLowerCase())) return false;
@@ -442,7 +455,7 @@ function handleSDKMessage(message, runtime, isStreaming) {
 
   if (message.type === 'assistant') {
     if (isStreaming) {
-      // Store Bash commands for later path extraction and Write tool file paths
+      // Store Bash commands and Write/Edit tool file paths for artifact extraction
       if (!runtime.bashCommands) runtime.bashCommands = new Map();
       if (!runtime.writeFilePaths) runtime.writeFilePaths = new Map();
       const content = message.message?.content || [];
@@ -452,6 +465,9 @@ function handleSDKMessage(message, runtime, isStreaming) {
           console.log('[artifact] stored Bash cmd:', block.id, '→', (block.input?.command || '').slice(0, 120));
         }
         if (block.type === 'tool_use' && block.name === 'Write' && block.id && block.input?.file_path) {
+          runtime.writeFilePaths.set(block.id, block.input.file_path);
+        }
+        if (block.type === 'tool_use' && block.name === 'Edit' && block.id && block.input?.file_path) {
           runtime.writeFilePaths.set(block.id, block.input.file_path);
         }
       }
@@ -493,7 +509,7 @@ function handleSDKMessage(message, runtime, isStreaming) {
             }
             runtime.bashCommands.delete(block.tool_use_id);
           }
-          // Check Write tool file paths
+          // Check Write/Edit tool file paths
           const writePath = runtime.writeFilePaths?.get(block.tool_use_id);
           if (writePath && !block.is_error) {
             if (!extractedPaths[block.tool_use_id]) extractedPaths[block.tool_use_id] = [];

@@ -1,6 +1,6 @@
 {
   "name": "claude-web-ui",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "private": true,
   "scripts": {
     "start": "node server.js",
