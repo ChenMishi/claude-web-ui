@@ -91,7 +91,7 @@ export default function FileBrowser() {
 
   // Also load files via tree API (reuse project tree)
   const loadFiles = () => {
-    fetch(`/api/fs/dirs?path=${encodeURIComponent(currentPath)}`, {
+    fetch(`/api/fs/dirs?path=${encodeURIComponent(currentPath)}&all=1`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('claude-ui:accessToken')}` }
     })
     .then(r => r.json())
@@ -103,7 +103,7 @@ export default function FileBrowser() {
   };
 
   const loadFileList = () => {
-    fetch(`/api/fs/list?path=${encodeURIComponent(currentPath)}`, {
+    fetch(`/api/fs/list?path=${encodeURIComponent(currentPath)}&all=1`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('claude-ui:accessToken')}` }
     })
     .then(r => r.json())

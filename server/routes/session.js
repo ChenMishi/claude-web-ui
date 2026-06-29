@@ -90,7 +90,7 @@ function formatSize(bytes) {
 }
 
 // ── Extract file paths from Bash commands and their results ──
-function extractBashFilePaths(command, resultContent, cwd) {
+function extractBashFilePaths(command, resultContent, cwd, sessionStartTime) {
   const paths = [];
   if (!command || !cwd) return paths;
 
@@ -114,13 +114,10 @@ function extractBashFilePaths(command, resultContent, cwd) {
     if (!m[1].startsWith('-')) paths.push(m[1]);
   }
 
-  // 3. touch command
-  const touchM = command.match(/touch\s+(.+?)(?:\s*&&|\s*;|\s*\||\s*$)/);
-  if (touchM) {
-    touchM[1].split(/\s+/).forEach(p => {
-      if (p && !p.startsWith('-')) paths.push(p.replace(/^['"]|['"]$/g, ''));
-    });
-  }
+  // 3. touch command — NOT collected: touch only updates timestamps (or creates empty placeholder),
+  //    not a reliable artifact signal. If a file is later written with content, the Write tool
+  //    detection will catch it instead.
+  // (removed — was collecting false positives)
 
   // 4. mkdir -p
   for (const m of command.matchAll(/mkdir\s+(?:-[a-zA-Z]+\s+)*(\S+)/g)) {
@@ -198,6 +195,11 @@ function extractBashFilePaths(command, resultContent, cwd) {
 
   // 11. Scan result content for absolute paths with common file extensions
   //     Catches Python/openpyxl/docx/ImageMagick/ffmpeg/etc output
+  //     Skip read-only commands (ls, grep, cat, etc.) — their output lists existing files, not artifacts
+  const readOnlyCmdRe = /^(?:ls|grep|cat|head|tail|find|stat|file|wc|du|df|echo|printf|which|type|pwd|whoami|id|uname|hostname|free|uptime|ps|readlink|realpath|basename|dirname)\b/;
+  // Strip leading cd prefixes (e.g. "cd /x && ls" → "ls")
+  const strippedCmd = command.trim().replace(/^(?:cd\s+\S+\s*(?:&&|;)\s*)+/, '');
+  if (!readOnlyCmdRe.test(strippedCmd)) {
   const resultExtRe = /(\/(?:[^\s"'`]+\/)*[^\s"'`]+\.(?:png|jpe?g|gif|webp|bmp|svg|ico|pdf|docx?|xlsx?|pptx?|zip|tar|gz|tgz|bz2|xz|7z|rar|csv|tsv|txt|md|json|yaml|yml|xml|html?|css|py|js|ts|sh|sql|db|sqlite3?|pkl|h5|pt|onnx|npy|npz|env|cfg|ini|toml|lock|log))(?:\b|$)/gi;
   for (const m of (resultContent || '').matchAll(resultExtRe)) {
     paths.push(m[1]);
@@ -213,6 +215,7 @@ function extractBashFilePaths(command, resultContent, cwd) {
       paths.push(p);
     }
   }
+  } // end read-only command guard
 
   // Resolve relative paths and deduplicate
   const os = require('os');
@@ -223,9 +226,17 @@ function extractBashFilePaths(command, resultContent, cwd) {
     return path.join(effectiveCwd, p);
   }))];
 
-  // Only return actual files that exist (not directories)
+  // Only return actual files that exist AND were created/modified during this session
+  // (prevents collecting pre-existing project files mentioned in Bash output)
+  const threshold = (sessionStartTime || 0) - 5000; // 5s tolerance
   return resolved.filter(p => {
-    try { return fs.existsSync(p) && !fs.statSync(p).isDirectory(); } catch { return false; }
+    try {
+      if (!fs.existsSync(p)) return false;
+      const stat = fs.statSync(p);
+      if (stat.isDirectory()) return false;
+      if (sessionStartTime && stat.mtimeMs < threshold) return false;
+      return true;
+    } catch { return false; }
   });
 }
 
@@ -240,7 +251,7 @@ function filterArtifactPaths(absPaths, cwd) {
   ]);
   const excludeExts = new Set([
     '.pyc', '.pyo', '.o', '.obj', '.class', '.dll', '.so', '.dylib',
-    '.wasm', '.map', '.tsbuildinfo',
+    '.wasm', '.map', '.tsbuildinfo', '.log',
   ]);
 
   return absPaths.filter(p => {
@@ -391,15 +402,185 @@ function copyToToolResults(sessionId, cwd, filePaths) {
   return mapping;
 }
 
+// ── Artifact judgment: output extensions that are clearly generated files ──
+const OUTPUT_EXTS = new Set([
+  '.zip', '.tar', '.gz', '.tgz', '.bz2', '.xz', '.7z', '.rar',
+  '.xlsx', '.xls', '.docx', '.doc', '.pptx', '.ppt',
+  '.pdf', '.csv',
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico',
+]);
+
+// ── Source-code extensions: typically project source, not user-facing output ──
+const SOURCE_EXTS = new Set([
+  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
+  '.py', '.pyi', '.java', '.go', '.rs', '.rb', '.php',
+  '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hh',
+  '.cs', '.swift', '.kt', '.kts', '.scala',
+  '.vue', '.svelte', '.css', '.scss', '.less', '.sass',
+  '.sql', '.graphql', '.proto',
+]);
+
+function isOutputExtension(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (OUTPUT_EXTS.has(ext)) return true;
+  // Compound extensions: .tar.gz, .tar.bz2, .tar.xz
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith('.tar.gz') || lower.endsWith('.tar.bz2') || lower.endsWith('.tar.xz')) return true;
+  return false;
+}
+
+function isSourceExtension(filePath) {
+  return SOURCE_EXTS.has(path.extname(filePath).toLowerCase());
+}
+
+// ── Rule pre-filter for Write/Edit tools: classify files as collect / llm-pending / discard ──
+// Returns { collect: [...], llmPending: [...] }
+function prefilterWriteEdit(runtime) {
+  const pending = runtime.pendingWriteEditPaths || [];
+  if (pending.length === 0) return { collect: [], llmPending: [] };
+
+  // Build sets for S1 (user-mentioned) and S2 (attachment)
+  const userMentionedAbs = new Set();
+  try {
+    const userFiles = extractUserMentionedFiles(runtime);
+    for (const [absPath] of userFiles) {
+      userMentionedAbs.add(absPath);
+    }
+  } catch {}
+
+  const attachmentAbs = new Set(
+    (runtime.attachmentPaths || []).map(p => {
+      try { return path.resolve(runtime.cwd || '/', p); } catch { return p; }
+    })
+  );
+
+  const collect = [];
+  const llmPending = [];
+
+  for (const info of pending) {
+    const absPath = (() => {
+      try { return path.resolve(runtime.cwd || '/', info.path); } catch { return info.path; }
+    })();
+    const ext = path.extname(absPath).toLowerCase();
+    const isOutput = isOutputExtension(absPath);
+    const isSource = isSourceExtension(absPath);
+    const isUserMentioned = userMentionedAbs.has(absPath);
+    const isAttachment = attachmentAbs.has(absPath);
+    const isNew = !info.existedBefore;
+
+    if (info.toolName === 'Write') {
+      // S1: user mentioned → collect
+      // S2: was attachment → collect
+      // S4: output extension → collect
+      // S3 alone (new file, not mentioned, not output) → LLM decides
+      if (isUserMentioned || isAttachment || isOutput) {
+        collect.push(absPath);
+      } else {
+        // New source/unknown file without strong signal, or existing file → LLM decides
+        llmPending.push({ index: llmPending.length + collect.length, path: absPath, ...info });
+      }
+    } else if (info.toolName === 'Edit') {
+      // S4: output extension → collect
+      // S1/S2 + non-source → collect (user asked to modify a specific output file)
+      if (isOutput) {
+        collect.push(absPath);
+      } else if ((isUserMentioned || isAttachment) && !isSource) {
+        collect.push(absPath);
+      } else if (isUserMentioned && isSource) {
+        // User mentioned a source file → could be artifact (e.g. "modify the script I just created")
+        llmPending.push({ index: llmPending.length + collect.length, path: absPath, ...info });
+      } else {
+        // Edit on existing non-mentioned source file → discard (not artifact)
+        console.log('[artifact] Edit skip (existing source, not mentioned):', info.path);
+      }
+    }
+  }
+
+  return { collect, llmPending };
+}
+
+// ── LLM judgment for ambiguous files ──
+async function llmJudgeArtifacts(userPrompt, pendingFiles, cwd, model) {
+  if (!pendingFiles || pendingFiles.length === 0) return {};
+
+  const proxyBase = getProxyUrl();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    // Use the current session model directly
+    const judgeModel = model || 'claude-sonnet-4-6';
+
+    const fileList = pendingFiles.map(f => {
+      const relPath = (() => {
+        try { return path.relative(cwd, f.path); } catch { return f.path; }
+      })();
+      return `${f.index + 1}. path=${relPath}, tool=${f.toolName}, new=${!f.existedBefore}, ext=${path.extname(f.path)}`;
+    }).join('\n');
+
+    const systemPrompt = `你是一个文件分类助手。请判断以下文件哪些是用户会话的"产物"。
+
+判断标准：
+- **是产物(true)**：用户明确要求生成的脚本、文档、Office文件、图片、压缩包等；用户上传并要求修改/整理的文件；用户明确要求修改的之前生成的文件
+- **不是产物(false)**：项目原有的源代码文件（即使被模型自动修改了）；项目配置文件（除非用户明确要求修改或生成）
+
+用户原始需求：
+${(userPrompt || '(无)').slice(0, 500)}
+
+文件列表：
+${fileList}
+
+请只返回JSON格式，不要任何其他文字：
+{"files": {"0": true, "1": false, "2": true}}`;
+
+    const proxyRes = await fetch(`${proxyBase}/v1/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': 'proxy', 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: judgeModel,
+        max_tokens: 200,
+        messages: [{ role: 'user', content: systemPrompt }],
+        stream: false,
+        thinking: { type: 'disabled' },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!proxyRes.ok) {
+      console.log('[artifact] LLM judge HTTP error:', proxyRes.status);
+      return null;
+    }
+    const data = await proxyRes.json();
+    const textBlock = (data.content || []).find(c => c.type === 'text');
+    if (!textBlock?.text) {
+      console.log('[artifact] LLM judge: no text in response');
+      return null;
+    }
+
+    let text = textBlock.text.trim();
+    // Extract JSON from markdown code blocks if present
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) text = jsonMatch[0];
+    const result = JSON.parse(text);
+    console.log('[artifact] LLM judge result:', JSON.stringify(result.files));
+    return result.files || {};
+  } catch (err) {
+    console.log('[artifact] LLM judge error:', err.message);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── Finalize artifacts: collect all paths, copy to tool-results, return updated paths ──
-function finalizeArtifacts(runtime, extractedPaths, authUser) {
+async function finalizeArtifacts(runtime, extractedPaths, authUser) {
   const sessionId = runtime.sessionId;
   const cwd = runtime.cwd;
   if (!sessionId || !cwd) return extractedPaths;
 
   const allFiles = new Map(); // absPath → destName
 
-  // 1. Collect paths already extracted from Bash/Write tools
+  // 1. Collect paths from Bash tools (already filtered by extractBashFilePaths + filterArtifactPaths)
   for (const [, paths] of Object.entries(extractedPaths || {})) {
     for (const p of paths) {
       if (!allFiles.has(p)) {
@@ -412,7 +593,66 @@ function finalizeArtifacts(runtime, extractedPaths, authUser) {
     }
   }
 
-  // 2. Collect user-mentioned files from prompt
+  // 2. Process Write/Edit paths with rule pre-filter + optional LLM judgment
+  const prefilterResult = prefilterWriteEdit(runtime);
+  console.log('[artifact] prefilter: collect', prefilterResult.collect.length,
+    'llmPending', prefilterResult.llmPending.length);
+
+  // Collect rule-decided files
+  for (const absPath of prefilterResult.collect) {
+    if (!allFiles.has(absPath)) {
+      try {
+        if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
+          allFiles.set(absPath, path.basename(absPath));
+        }
+      } catch {}
+    }
+  }
+
+  // LLM judgment for ambiguous files (if enabled and files pending)
+  if (prefilterResult.llmPending.length > 0) {
+    let llmEnabled = true; // default enabled
+    try {
+      const configFile = path.join(path.resolve(__dirname, '..', '..'), 'init-config.json');
+      if (fs.existsSync(configFile)) {
+        const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+        if (cfg.aiArtifactJudge !== undefined) llmEnabled = cfg.aiArtifactJudge;
+      }
+    } catch {}
+
+    if (llmEnabled) {
+      console.log('[artifact] LLM judge: sending', prefilterResult.llmPending.length, 'files to model');
+      const llmResult = await llmJudgeArtifacts(
+        runtime.userPrompt || '',
+        prefilterResult.llmPending,
+        cwd,
+        runtime.model
+      );
+
+      if (llmResult) {
+        for (const f of prefilterResult.llmPending) {
+          const key = String(f.index);
+          if (llmResult[key] === true) {
+            if (!allFiles.has(f.path)) {
+              try {
+                if (fs.existsSync(f.path) && fs.statSync(f.path).isFile()) {
+                  allFiles.set(f.path, path.basename(f.path));
+                }
+              } catch {}
+            }
+          }
+        }
+      } else {
+        // LLM failed → discard ambiguous files (can't judge without LLM)
+        console.log('[artifact] LLM judge failed, discarding', prefilterResult.llmPending.length, 'ambiguous files');
+      }
+    } else {
+      // LLM disabled → discard ambiguous files (no judgment available)
+      console.log('[artifact] LLM judge disabled, discarding', prefilterResult.llmPending.length, 'ambiguous files');
+    }
+  }
+
+  // 3. Collect user-mentioned files from prompt (S1 — strong signal, always collect)
   const userFiles = extractUserMentionedFiles(runtime);
   for (const [p, name] of userFiles) {
     if (!allFiles.has(p)) allFiles.set(p, name);
@@ -422,22 +662,35 @@ function finalizeArtifacts(runtime, extractedPaths, authUser) {
 
   console.log('[artifact] finalizeArtifacts: collected', allFiles.size, 'files for session', sessionId);
 
-  // 3. Copy to tool-results directory (in cwd/.claude/sessions/)
+  // 4. Copy to tool-results directory (in cwd/.claude/sessions/)
   const mapping = copyToToolResults(sessionId, cwd, allFiles);
   console.log('[artifact] copied', Object.keys(mapping).length, 'files to tool-results');
 
-  // 4. Create symlinks in ~/.claude/projects/ for centralized management
+  // 5. Create symlinks in ~/.claude/projects/ for centralized management
   try { ensureProjectSymlinks(cwd, sessionId, authUser); } catch (e) {
     console.log('[artifact] symlink creation failed:', e.message);
   }
 
-  // 4. Update extractedPaths with tool-results paths
+  // 6. Update extractedPaths with tool-results paths
   const updatedPaths = {};
   for (const [toolId, paths] of Object.entries(extractedPaths || {})) {
     updatedPaths[toolId] = paths.map(p => mapping[p] || p).filter(p => {
       try { return fs.existsSync(p); } catch { return false; }
     });
   }
+  // Also include Write/Edit and user-mentioned files (these don't have tool_use_ids in extractedPaths)
+  const writeEditPaths = [];
+  const userMentionedPaths = [];
+  for (const [absPath] of allFiles) {
+    if (mapping[absPath] && !Object.values(extractedPaths || {}).some(arr => arr.includes(absPath))) {
+      writeEditPaths.push(mapping[absPath]);
+    }
+  }
+  for (const [absPath] of userFiles) {
+    if (mapping[absPath]) userMentionedPaths.push(mapping[absPath]);
+  }
+  if (writeEditPaths.length > 0) updatedPaths['write-edit'] = writeEditPaths;
+  if (userMentionedPaths.length > 0) updatedPaths['user-mentioned'] = userMentionedPaths;
 
   return updatedPaths;
 }
@@ -465,10 +718,12 @@ function handleSDKMessage(message, runtime, isStreaming) {
           console.log('[artifact] stored Bash cmd:', block.id, '→', (block.input?.command || '').slice(0, 120));
         }
         if (block.type === 'tool_use' && block.name === 'Write' && block.id && block.input?.file_path) {
-          runtime.writeFilePaths.set(block.id, block.input.file_path);
+          const absPath = path.resolve(runtime.cwd || '/', block.input.file_path);
+          runtime.writeFilePaths.set(block.id, { path: block.input.file_path, existedBefore: fs.existsSync(absPath), toolName: 'Write' });
         }
         if (block.type === 'tool_use' && block.name === 'Edit' && block.id && block.input?.file_path) {
-          runtime.writeFilePaths.set(block.id, block.input.file_path);
+          const absPath = path.resolve(runtime.cwd || '/', block.input.file_path);
+          runtime.writeFilePaths.set(block.id, { path: block.input.file_path, existedBefore: fs.existsSync(absPath), toolName: 'Edit' });
         }
       }
       // Log usage for debugging
@@ -498,7 +753,7 @@ function handleSDKMessage(message, runtime, isStreaming) {
           console.log('[artifact] tool_result:', block.tool_use_id, 'hasCmd:', !!cmd, 'is_error:', block.is_error, 'cwd:', runtime.cwd);
           if (cmd) {
             console.log('[artifact] extracting from cmd:', cmd.slice(0, 150));
-            const paths = extractBashFilePaths(cmd, typeof block.content === 'string' ? block.content : '', runtime.cwd);
+            const paths = extractBashFilePaths(cmd, typeof block.content === 'string' ? block.content : '', runtime.cwd, runtime.sessionStartTime);
             console.log('[artifact] extracted paths:', JSON.stringify(paths));
             if (paths.length > 0) {
               const filtered = filterArtifactPaths(paths, runtime.cwd);
@@ -509,11 +764,20 @@ function handleSDKMessage(message, runtime, isStreaming) {
             }
             runtime.bashCommands.delete(block.tool_use_id);
           }
-          // Check Write/Edit tool file paths
-          const writePath = runtime.writeFilePaths?.get(block.tool_use_id);
-          if (writePath && !block.is_error) {
-            if (!extractedPaths[block.tool_use_id]) extractedPaths[block.tool_use_id] = [];
-            extractedPaths[block.tool_use_id].push(path.resolve(runtime.cwd || '/', writePath));
+          // Check Write/Edit tool file paths — defer judgment to finalizeArtifacts (rule+LLM)
+          const writeInfo = runtime.writeFilePaths?.get(block.tool_use_id);
+          if (writeInfo && !block.is_error) {
+            const absPath = path.resolve(runtime.cwd || '/', writeInfo.path);
+            try {
+              if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
+                if (!runtime.pendingWriteEditPaths) runtime.pendingWriteEditPaths = [];
+                // Avoid duplicates
+                if (!runtime.pendingWriteEditPaths.some(f => f.path === absPath)) {
+                  runtime.pendingWriteEditPaths.push({ ...writeInfo, path: absPath });
+                  console.log('[artifact] Write/Edit pending:', writeInfo.toolName, writeInfo.path, 'existedBefore:', writeInfo.existedBefore);
+                }
+              }
+            } catch {}
             runtime.writeFilePaths.delete(block.tool_use_id);
           }
         }
@@ -1341,6 +1605,7 @@ router.post('/session/:id/message', async (req, res) => {
   runtime.attachmentPaths = (body.attachments || []).map(a => a.path).filter(Boolean);
   runtime.sessionStartTime = Date.now();
   runtime.allExtractedPaths = {};
+  runtime.pendingWriteEditPaths = [];
 
   // ── Attachments: prepend file info to prompt ──
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
@@ -1733,7 +1998,7 @@ router.post('/session/:id/message', async (req, res) => {
       // ── Finalize artifacts: collect all paths, copy to tool-results ──
       let artifactFiles = [];
       try {
-        const finalArtifacts = finalizeArtifacts(runtime, runtime.allExtractedPaths || {}, req.user);
+        const finalArtifacts = await finalizeArtifacts(runtime, runtime.allExtractedPaths || {}, req.user);
         // Build flat list of artifact files (now pointing to tool-results/) for frontend
         const seen = new Set();
         for (const [, paths] of Object.entries(finalArtifacts || {})) {

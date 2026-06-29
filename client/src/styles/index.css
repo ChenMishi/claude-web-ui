@@ -129,8 +129,6 @@ html {
 [data-theme="light"] .settings-card:hover,
 [data-theme="light"] .stats-card:hover,
 [data-theme="light"] .stats-chart-card:hover,
-[data-theme="light"] .task-panel:hover,
-[data-theme="light"] .exec-panel:hover,
 [data-theme="light"] .login-card:hover,
 [data-theme="light"] .skills-section:hover {
   transform: translateY(-2px);
@@ -139,8 +137,6 @@ html {
 
 [data-theme="dark"] .stats-card:hover,
 [data-theme="dark"] .stats-chart-card:hover,
-[data-theme="dark"] .task-panel:hover,
-[data-theme="dark"] .exec-panel:hover,
 [data-theme="dark"] .login-card:hover,
 [data-theme="dark"] .skills-section:hover {
   transform: translateY(-2px);
@@ -149,8 +145,6 @@ html {
 
 [data-theme="warm"] .stats-card:hover,
 [data-theme="warm"] .stats-chart-card:hover,
-[data-theme="warm"] .task-panel:hover,
-[data-theme="warm"] .exec-panel:hover,
 [data-theme="warm"] .login-card:hover,
 [data-theme="warm"] .skills-section:hover {
   transform: translateY(-2px);
@@ -943,6 +937,8 @@ html, body, #root {
   flex-direction: column;
   gap: 16px;
   transition: padding-bottom 0.25s ease;
+  scrollbar-color: var(--border) var(--bg-tertiary);
+  scrollbar-width: thin;
 }
 /* 状态栏显示时，消息区底部留出空间避免重叠 */
 .chat-glass:has(.chat-status-bar) .chat-container {
@@ -950,8 +946,11 @@ html, body, #root {
 }
 
 .chat-container::-webkit-scrollbar { width: 6px; }
-.chat-container::-webkit-scrollbar-track { background: transparent; }
+.chat-container::-webkit-scrollbar-track { background: var(--bg-secondary); }
 .chat-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+[data-theme="light"] .chat-container::-webkit-scrollbar-track,
+[data-theme="warm"] .chat-container::-webkit-scrollbar-track { background: transparent; }
 
 /* Welcome Screen */
 .welcome {
@@ -1059,7 +1058,7 @@ html, body, #root {
 
 .message-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   margin-bottom: 6px;
 }
@@ -1080,6 +1079,24 @@ html, body, #root {
 }
 
 .message.user .role-label { color: var(--user-label); }
+
+.message-avatar {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.message-avatar-placeholder {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600;
+  flex-shrink: 0;
+  line-height: 1;
+}
 
 /* Long user message collapse — inline */
 .message-collapsed-inline {
@@ -2843,6 +2860,22 @@ html, body, #root {
 .settings-row select:focus, .settings-row input:focus, .settings-row textarea:focus { border-color: var(--accent); }
 .settings-row textarea { min-height: 70px; resize: vertical; }
 
+/* Toggle switch */
+.settings-toggle-wrapper { display: flex; align-items: center; gap: 10px; }
+.settings-toggle {
+  position: relative; width: 40px; height: 22px; border-radius: 11px;
+  border: none; cursor: pointer; background: var(--border);
+  transition: background 0.2s; flex-shrink: 0;
+}
+.settings-toggle.active { background: var(--accent); }
+.settings-toggle-knob {
+  position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+  border-radius: 50%; background: #fff; transition: transform 0.2s;
+}
+.settings-toggle.active .settings-toggle-knob { transform: translateX(18px); }
+.settings-toggle-label { font-size: 13px; color: var(--text); min-width: 30px; }
+.settings-toggle-desc { font-size: 11px; color: var(--text-muted); }
+
 [data-theme="dark"] .settings-row select {
   color: #eee;
 }
@@ -4072,6 +4105,10 @@ html, body, #root {
   color: #ef4444;
   border-color: #ef4444;
 }
+.artifact-btn-clear:not(:disabled):hover {
+  color: var(--text-muted);
+  border-color: var(--text-muted);
+}
 
 /* Icon */
 .chat-status-icon {
@@ -4373,6 +4410,8 @@ html, body, #root {
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
+  scrollbar-color: var(--border) var(--bg-tertiary);
+  scrollbar-width: thin;
 }
 
 .exec-step {

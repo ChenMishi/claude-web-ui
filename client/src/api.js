@@ -87,8 +87,8 @@ export async function fetchJSON(url, opts = {}) {
 
 // Projects
 export const getProjects = () => fetchJSON('/project');
-export const getDirs = (path) => fetchJSON(`/fs/dirs?path=${encodeURIComponent(path)}`);
-export const listDir = (p) => fetchJSON(`/fs/list?path=${encodeURIComponent(p || '/')}`);
+export const getDirs = (path) => fetchJSON(`/fs/dirs?path=${encodeURIComponent(path)}&all=1`);
+export const listDir = (p) => fetchJSON(`/fs/list?path=${encodeURIComponent(p || '/')}&all=1`);
 export const mkdir = (path, name) => fetchJSON('/fs/mkdir', { method: 'POST', body: JSON.stringify({ path, name }) });
 export const linkProject = (cwd) => fetchJSON('/project/link', { method: 'POST', body: JSON.stringify({ cwd }) });
 export const unlinkProject = (id) => fetchJSON(`/project/${id}`, { method: 'DELETE' });
@@ -119,12 +119,17 @@ export const getInitStatus = () => fetchJSON('/init/status');
 export const saveInitConfig = (data) => fetchJSON('/init/config', { method: 'POST', body: JSON.stringify(data) });
 export const testProxy = (data) => fetchJSON('/init/test-proxy', { method: 'POST', body: JSON.stringify(data) });
 export const checkClaudeUpdate = () => fetchJSON('/init/check-claude-update', { method: 'POST' });
+export const checkSdkUpdate = () => fetchJSON('/init/check-sdk-update', { method: 'POST' });
 export const getProviderConfig = () => fetchJSON('/init/provider-config');
 export const saveProviderConfig = (data) => fetchJSON('/init/provider-config', { method: 'POST', body: JSON.stringify(data) });
 
 export const getPricing = () => fetchJSON('/init/pricing');
 export const savePricing = (models) => fetchJSON('/init/pricing', { method: 'POST', body: JSON.stringify({ models }) });
 export const fetchModels = (baseUrl, token) => fetchJSON('/init/fetch-models', { method: 'POST', body: JSON.stringify({ baseUrl, token }) });
+
+// Settings
+export const getSettings = () => fetchJSON('/init/settings');
+export const saveSettings = (data) => fetchJSON('/init/settings', { method: 'POST', body: JSON.stringify(data) });
 
 // ── XHR helper with 401 refresh + retry ──
 

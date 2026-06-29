@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getUsers, createUser, deleteUser, getPricing, savePricing } from '../api';
+import { getUsers, createUser, deleteUser, getPricing, savePricing, getSettings, saveSettings } from '../api';
 import VersionCard from './VersionCard';
 import ClaudeCodeCard from './ClaudeCodeCard';
+import AgentSdkCard from './AgentSdkCard';
 import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
 import StatsPanel from './StatsPanel';
@@ -59,6 +60,17 @@ export default function SettingsPanel() {
     } catch (err) {
       setPricingSaveMsg(`❌ 保存失败: ${err.message}`);
     }
+  };
+
+  // AI artifact judge toggle
+  const [aiArtifactJudge, setAiArtifactJudge] = useState(true);
+  useEffect(() => {
+    getSettings().then(d => { if (d.aiArtifactJudge !== undefined) setAiArtifactJudge(d.aiArtifactJudge); }).catch(() => {});
+  }, []);
+  const handleAiArtifactJudgeToggle = async () => {
+    const next = !aiArtifactJudge;
+    setAiArtifactJudge(next);
+    try { await saveSettings({ aiArtifactJudge: next }); } catch {}
   };
 
   const handleCreateUser = async () => {
@@ -126,6 +138,27 @@ export default function SettingsPanel() {
                 <label>System Prompt</label>
                 <textarea value={systemPrompt} onChange={e => setSetting('systemPrompt', e.target.value)}
                   placeholder="自定义 system prompt（留空使用默认）" />
+              </div>
+              <div className="settings-row">
+                <label>AI 智能产物判断</label>
+                <div className="settings-toggle-wrapper">
+                  <button
+                    className={`settings-toggle ${aiArtifactJudge ? 'active' : ''}`}
+                    onClick={handleAiArtifactJudgeToggle}
+                    role="switch"
+                    aria-checked={aiArtifactJudge}
+                  >
+                    <span className="settings-toggle-knob" />
+                  </button>
+                  <span className="settings-toggle-label">
+                    {aiArtifactJudge ? '启用' : '关闭'}
+                  </span>
+                  <span className="settings-toggle-desc">
+                    {aiArtifactJudge
+                      ? '会话结束时自动调用模型判断 Write/Edit 生成的文件是否为产物'
+                      : '仅用规则判断（新文件收集，已存在文件忽略）'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -210,7 +243,7 @@ export default function SettingsPanel() {
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">版本</span>
-                <span className="settings-info-value">v2.2.4</span>
+                <span className="settings-info-value">v2.2.5</span>
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">数据存储</span>
@@ -257,6 +290,7 @@ export default function SettingsPanel() {
       ) : settingsTab === 'upgrade' ? (
         <>
           <VersionCard triggerCheck={upgradeCheckTrigger} />
+          <AgentSdkCard triggerCheck={upgradeCheckTrigger} />
           <ClaudeCodeCard triggerCheck={upgradeCheckTrigger} />
         </>
       ) : settingsTab === 'stats' ? (

@@ -1,7 +1,9 @@
 #!/bin/bash
 # ============================================================
-# Claude Web UI — 版本号自增脚本 (x.y.z → x.y.z+1)
-# 用法: ./bump.sh
+# Claude Web UI — 版本号变更脚本
+# 用法:
+#   ./bump.sh             自动自增 PATCH (x.y.z → x.y.z+1)
+#   ./bump.sh 2.3.0       同步到指定版本号
 # ============================================================
 set -e
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -12,9 +14,21 @@ if [ ! -f "$VERSION_FILE" ]; then
 fi
 
 OLD=$(cat "$VERSION_FILE")
-IFS='.' read -r MAJOR MINOR PATCH <<< "$OLD"
-PATCH=$((PATCH + 1))
-NEW="$MAJOR.$MINOR.$PATCH"
+
+if [ -n "$1" ]; then
+    # 指定版本号模式
+    NEW="$1"
+    if ! echo "$NEW" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        echo "错误: 版本号格式不正确，应为 x.y.z (例: 2.3.0)"
+        exit 1
+    fi
+else
+    # 自增 PATCH 模式
+    IFS='.' read -r MAJOR MINOR PATCH <<< "$OLD"
+    PATCH=$((PATCH + 1))
+    NEW="$MAJOR.$MINOR.$PATCH"
+fi
+
 echo "$NEW" > "$VERSION_FILE"
 
 # Update all version references

@@ -21,6 +21,16 @@ function formatTime(ms) {
 export default function ArtifactDrawer({ open, onClose, cwd }) {
   const { currentSessionId } = useApp();
   const drawerRef = useRef(null);
+  const closingByDoClose = useRef(false);
+  // Persist cleared names in sessionStorage so they survive page refresh
+  const clearedNamesRef = useRef(
+    (() => {
+      try {
+        const stored = sessionStorage.getItem('artifact-cleared-' + (currentSessionId || ''));
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+      } catch { return new Set(); }
+    })()
+  );
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,7 +38,6 @@ export default function ArtifactDrawer({ open, onClose, cwd }) {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null); // { count } or null
   const [closing, setClosing] = useState(false);
-  const closingByDoClose = useRef(false);
 
   // Wrap onClose with closing animation (for X button, click-outside)
   const doClose = useCallback(() => {
@@ -46,7 +55,12 @@ export default function ArtifactDrawer({ open, onClose, cwd }) {
     setError('');
     try {
       const data = await getSessionArtifacts(currentSessionId, cwd);
-      setFiles(data.files || []);
+      const allFiles = data.files || [];
+      // Filter out names user has cleared — new files (not in cleared set) show automatically
+      const visible = clearedNamesRef.current.size > 0
+        ? allFiles.filter(f => !clearedNamesRef.current.has(f.name))
+        : allFiles;
+      setFiles(visible);
       setSelected({});
     } catch (e) {
       setError('加载失败: ' + e.message);
@@ -84,6 +98,8 @@ export default function ArtifactDrawer({ open, onClose, cwd }) {
     if (!currentSessionId) {
       setFiles([]);
       setSelected({});
+      clearedNamesRef.current = new Set();
+      try { sessionStorage.removeItem('artifact-cleared-' + (currentSessionId || '')); } catch {}
       skipCloseAnimRef.current = true;
       onClose();
     }
@@ -145,6 +161,19 @@ export default function ArtifactDrawer({ open, onClose, cwd }) {
         console.error('下载失败:', name, e);
       }
     }
+  };
+
+  const handleClear = () => {
+    files.forEach(f => clearedNamesRef.current.add(f.name));
+    // Persist to sessionStorage so cleared state survives page refresh
+    try {
+      sessionStorage.setItem(
+        'artifact-cleared-' + (currentSessionId || ''),
+        JSON.stringify([...clearedNamesRef.current])
+      );
+    } catch {}
+    setFiles([]);
+    setSelected({});
   };
 
   const handleDelete = () => {
@@ -235,6 +264,14 @@ export default function ArtifactDrawer({ open, onClose, cwd }) {
               title="删除选中文件"
             >
               <IconTrash /> 删除 ({selCount})
+            </button>
+            <button
+              className="artifact-btn artifact-btn-clear"
+              disabled={files.length === 0}
+              onClick={handleClear}
+              title="清空产物列表（不删除实际文件）"
+            >
+              <IconX /> 清空
             </button>
           </div>
         </div>

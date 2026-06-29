@@ -1029,7 +1029,7 @@ export default function ChatView() {
             title="产物文件"
           >
             <IconPackage />
-            <span className="artifact-trigger-label">产物</span>
+            <span className="artifact-trigger-label">当前会话产物合集</span>
           </button>
         )}
         {currentSessionId && (

@@ -117,7 +117,8 @@ router.get('/fs/dirs', (req, res) => {
   let entries = [];
   try {
     entries = fs.readdirSync(dirPath, { withFileTypes: true })
-      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .filter(e => e.isDirectory())
+      .filter(e => req.query.all ? true : !e.name.startsWith('.'))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(e => ({ name: e.name, path: path.join(dirPath, e.name) }));
   } catch {}

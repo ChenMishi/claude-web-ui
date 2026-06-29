@@ -203,7 +203,7 @@ export default memo(function ChatMessage({ message }) {
   const { role, content, error, toolCall, toolResult, timestamp, streaming } = message;
   const attachments = message.attachments;
   const [lightbox, setLightbox] = useState(null);
-  const { displayMode } = useApp();
+  const { displayMode, user } = useApp();
 
   // User message collapse for long messages (>10 lines)
   const [userExpanded, setUserExpanded] = useState(false);
@@ -303,6 +303,17 @@ export default memo(function ChatMessage({ message }) {
   return (
     <div className={`message ${role}`}>
       <div className="message-header">
+        {role === 'user' ? (
+          user?.avatar ? (
+            <img src={user.avatar} alt="" className="message-avatar" />
+          ) : (
+            <div className="message-avatar-placeholder">
+              {(user?.username || 'U').slice(0, 1).toUpperCase()}
+            </div>
+          )
+        ) : (
+          <img src="/claude-logo.png" alt="" className="message-avatar message-avatar-claude" />
+        )}
         <span className="role-label">{labels[role] || role}</span>
         {timestamp && <span className="message-time">{formatTime(timestamp)}</span>}
       </div>

@@ -667,6 +667,69 @@ print('MODEL_OK:' + str(len(caption) > 0))
   });
 });
 
+// Check Agent SDK update
+router.post('/init/check-sdk-update', (req, res) => {
+  try {
+    const current = getSDKVersion();
+    const latest = execSync('npm view @anthropic-ai/claude-agent-sdk version', { encoding: 'utf8', timeout: 15000 }).trim();
+    res.json({ current, latest, hasUpdate: current && latest && current !== latest && current !== '?' });
+  } catch (err) {
+    logInit('Error checking SDK update', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upgrade Agent SDK
+router.post('/init/upgrade-sdk', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  const send = (event, data) => {
+    if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  send('progress', { pct: 5, text: '正在升级 Agent SDK...' });
+
+  const proc = spawn('npm', ['install', '@anthropic-ai/claude-agent-sdk@latest',
+    '--prefer-online', '--registry', 'https://registry.npmmirror.com'], { cwd: PROJECT_DIR, env: process.env });
+
+  let lastPct = 5;
+  proc.stdout.on('data', (d) => {
+    lastPct = Math.min(lastPct + 15, 90);
+    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
+  });
+  proc.stderr.on('data', (d) => {
+    lastPct = Math.min(lastPct + 10, 85);
+    send('progress', { pct: lastPct, text: d.toString().trim().slice(0, 80) });
+  });
+  proc.on('close', (code) => {
+    if (code === 0) {
+      send('progress', { pct: 95, text: 'SDK 包已更新，正在 rebuild 原生模块...' });
+      const rebuild = spawn('npm', ['rebuild', '@anthropic-ai/claude-agent-sdk',
+        '--registry', 'https://registry.npmmirror.com'], { cwd: PROJECT_DIR, env: process.env });
+      rebuild.stdout.on('data', (d) => {
+        send('progress', { pct: 98, text: d.toString().trim().slice(0, 80) });
+      });
+      rebuild.stderr.on('data', (d) => {
+        send('progress', { pct: 98, text: d.toString().trim().slice(0, 80) });
+      });
+      rebuild.on('close', (rc) => {
+        const newVer = getSDKVersion();
+        send('done', { success: rc === 0, pct: 100, text: rc === 0 ? `SDK 升级完成 v${newVer}` : `rebuild 失败 (exit ${rc})` });
+        res.end();
+      });
+      rebuild.on('error', (e) => {
+        send('done', { success: false, pct: 95, text: `rebuild 异常: ${e.message}` });
+        res.end();
+      });
+    } else {
+      send('done', { success: false, pct: lastPct, text: `安装失败 (exit ${code})` });
+      res.end();
+    }
+  });
+  proc.on('error', (e) => { send('error', { message: e.message }); res.end(); });
+});
+
 // Check Claude Code update
 router.post('/init/check-claude-update', (req, res) => {
   try {
@@ -880,6 +943,25 @@ router.post('/init/pricing', (req, res) => {
   }
   writePricing({ models });
   logProxy('Pricing config saved');
+  res.json({ ok: true });
+});
+
+// ── General settings (stored in init-config.json) ──
+
+router.get('/init/settings', (_req, res) => {
+  const config = readConfig();
+  res.json({
+    aiArtifactJudge: config.aiArtifactJudge !== undefined ? config.aiArtifactJudge : true,
+  });
+});
+
+router.post('/init/settings', (req, res) => {
+  const config = readConfig();
+  const { aiArtifactJudge } = req.body || {};
+  if (aiArtifactJudge !== undefined) {
+    config.aiArtifactJudge = !!aiArtifactJudge;
+  }
+  writeConfig(config);
   res.json({ ok: true });
 });
 

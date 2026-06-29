@@ -210,7 +210,7 @@ export default function Sidebar() {
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${sidebarMinimal ? 'minimal' : ''} ${sidebarUpCollapsed ? 'up-collapsed' : ''} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
         <h2>{sidebarMinimal ? 'AI' : 'AI IntelliWork Hub'}</h2>
-        {!sidebarMinimal && <div className="sidebar-version">v2.2.4</div>}
+        {!sidebarMinimal && <div className="sidebar-version">v2.2.5</div>}
       </div>
 
       {!sidebarMinimal && (

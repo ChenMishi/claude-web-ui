@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { authHeaders, getInitStatus, saveInitConfig, testProxy, checkClaudeUpdate,
+import { authHeaders, getInitStatus, saveInitConfig, testProxy, checkClaudeUpdate, checkSdkUpdate,
          getProviderConfig, saveProviderConfig, fetchModels } from '../api';
 import { useApp } from '../context/AppContext';
 import { IconSettings, IconClipboard, IconPackage, IconBot, IconImage, IconRefresh, IconGlobe, IconSave, IconPin } from './icons';
@@ -16,6 +16,10 @@ export default function InitPanel() {
   const [claudeUpdateInfo, setClaudeUpdateInfo] = useState(null);
   const [installingSDK, setInstallingSDK] = useState(false);
   const [sdkInstallLog, setSdkInstallLog] = useState('');
+  const [checkingSdkUpdate, setCheckingSdkUpdate] = useState(false);
+  const [sdkUpdateInfo, setSdkUpdateInfo] = useState(null);
+  const [upgradingSDK, setUpgradingSDK] = useState(false);
+  const [upgradeSdkLog, setUpgradeSdkLog] = useState('');
   const [claudeInstallLog, setClaudeInstallLog] = useState('');
   const [claudeInstallPct, setClaudeInstallPct] = useState(0);
   const [installingVision, setInstallingVision] = useState(false);
@@ -142,6 +146,35 @@ export default function InitPanel() {
       }
     } catch {}
     setInstallingSDK(false);
+    setTimeout(() => loadStatus(), 1000);
+  }, [loadStatus]);
+
+  const handleCheckSdkUpdate = useCallback(async () => {
+    setCheckingSdkUpdate(true); setSdkUpdateInfo(null);
+    try { const res = await checkSdkUpdate(); setSdkUpdateInfo(res); } catch {}
+    setCheckingSdkUpdate(false);
+  }, []);
+
+  const handleUpgradeSDK = useCallback(async () => {
+    setUpgradingSDK(true); setUpgradeSdkLog('');
+    try {
+      const res = await fetch(`${BASE}/init/upgrade-sdk`, {
+        method: 'POST', headers: authHeaders({ Accept: 'text/event-stream' }),
+      });
+      const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try { const d = JSON.parse(line.slice(6)); if (d.text) setUpgradeSdkLog(prev => prev + d.text); } catch {}
+            }
+          }
+        }
+      }
+    } catch {}
+    setUpgradingSDK(false);
     setTimeout(() => loadStatus(), 1000);
   }, [loadStatus]);
 
@@ -361,12 +394,27 @@ export default function InitPanel() {
             <div className="init-info-item"><span className="init-info-label">状态</span><span className="init-info-value">{status.sdkInstalled ? `已安装 (v${status.sdkVersion})` : '未安装 — 发消息会报错'}</span></div>
             <div className="init-info-item"><span className="init-info-label">路径</span><span className="init-info-value mono">{status.sdkPath || '—'}</span></div>
           </div>
-          {!status.sdkInstalled && (
+          {!status.sdkInstalled ? (
             <div className="init-deploy-area">
               <button className="init-btn init-btn-install" onClick={handleInstallSDK} disabled={installingSDK}>
                 {installingSDK ? '安装中...' : '安装 SDK'}
               </button>
               {sdkInstallLog && <div className="init-install-log"><div className="init-install-scroll"><pre>{sdkInstallLog}</pre></div></div>}
+            </div>
+          ) : (
+            <div className="init-deploy-area" style={{ marginTop: 10 }}>
+              <button className="init-btn init-btn-test" onClick={handleCheckSdkUpdate} disabled={checkingSdkUpdate} style={{ marginRight: 8 }}>
+                {checkingSdkUpdate ? '检查中...' : '检查更新'}
+              </button>
+              {sdkUpdateInfo && sdkUpdateInfo.hasUpdate && (
+                <button className="init-btn init-btn-install" onClick={handleUpgradeSDK} disabled={upgradingSDK}>
+                  {upgradingSDK ? '升级中...' : `升级到 v${sdkUpdateInfo.latest}`}
+                </button>
+              )}
+              {sdkUpdateInfo && !sdkUpdateInfo.hasUpdate && sdkUpdateInfo.current && (
+                <span style={{ fontSize: 12, color: 'var(--success)' }}>已是最新 v{sdkUpdateInfo.current}</span>
+              )}
+              {upgradeSdkLog && <div className="init-install-log"><div className="init-install-scroll"><pre>{upgradeSdkLog}</pre></div></div>}
             </div>
           )}
         </div>

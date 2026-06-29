@@ -42,7 +42,7 @@ export default function FileTransfer({ onClose }) {
   const loadServer = useCallback(async () => {
     setServerLoading(true);
     try {
-      const r = await fetch(`/api/fs/list?path=${encodeURIComponent(serverPath)}`, {
+      const r = await fetch(`/api/fs/list?path=${encodeURIComponent(serverPath)}&all=1`, {
         headers: { 'Authorization': `Bearer ${TOKEN()}` }
       });
       const d = await r.json();
