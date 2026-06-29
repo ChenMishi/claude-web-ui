@@ -90,11 +90,13 @@ router.get('/storage/info', requireAuth, requireRole('admin'), (req, res) => {
     }
 
     // 2. Other cache items
+    // NOTE: "sessions" (~/.claude/sessions/) is intentionally excluded
+    // because it can contain active session data when project cwd == HOME.
+    // Deleting it would destroy all .jsonl and .meta.json files for those sessions.
     const cacheItems = [
       { key: 'telemetry', label: '遥测事件', path: path.join(HOME, '.claude', 'telemetry') },
       { key: 'file-history', label: '文件历史', path: path.join(HOME, '.claude', 'file-history') },
       { key: 'shell-snapshots', label: 'Shell 快照', path: path.join(HOME, '.claude', 'shell-snapshots') },
-      { key: 'sessions', label: '过期会话', path: path.join(HOME, '.claude', 'sessions') },
       { key: 'plans', label: '计划文件', path: path.join(HOME, '.claude', 'plans') },
       { key: 'logs', label: '运行日志', path: LOG_DIR },
       { key: 'uploads', label: '上传临时文件', path: path.join(HOME, '.claude-web-ui', 'uploads') },
@@ -144,7 +146,6 @@ router.post('/storage/clean', requireAuth, requireRole('admin'), async (req, res
     'telemetry': path.join(HOME, '.claude', 'telemetry'),
     'file-history': path.join(HOME, '.claude', 'file-history'),
     'shell-snapshots': path.join(HOME, '.claude', 'shell-snapshots'),
-    'sessions': path.join(HOME, '.claude', 'sessions'),
     'plans': path.join(HOME, '.claude', 'plans'),
     'logs': LOG_DIR,
     'uploads': path.join(HOME, '.claude-web-ui', 'uploads'),

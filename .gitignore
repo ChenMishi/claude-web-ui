@@ -34,12 +34,17 @@ uploads/
 /demo-*.py
 /demo-*.sh
 /check_*.py
+/check_*.sh
 /test.sql
 /test*.zip
 /test*.tar*
 /*.sample.*
 /gen_*.py
+/hello_*
 /*.docx
+/*.xlsx
+/*.xls
+/*.zip
 
 # Python 虚拟环境及本地模型缓存
 venv/

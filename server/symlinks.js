@@ -36,10 +36,11 @@ function ensureProjectSymlinks(cwd, sessionId, authUser) {
   // Since -root may be a symlink to _root (from migration), check both conventions
   // so we migrate real files regardless of which name the SDK chose.
   const altDirName = dirName.replace(/_/g, '-');
+  let altUserDir = null, altGlobalDir = null;
   if (altDirName !== dirName) {
-    const altUserDir = path.join(projectsDir, altDirName);
+    altUserDir = path.join(projectsDir, altDirName);
     if (!sourceDirs.includes(altUserDir)) sourceDirs.push(altUserDir);
-    const altGlobalDir = path.join(CLAUDE_PROJECTS_DIR, altDirName);
+    altGlobalDir = path.join(CLAUDE_PROJECTS_DIR, altDirName);
     if (!sourceDirs.includes(altGlobalDir)) sourceDirs.push(altGlobalDir);
   }
 
@@ -119,6 +120,44 @@ function ensureProjectSymlinks(cwd, sessionId, authUser) {
 
     // Create symlink from projects dir → work dir
     createRelSymlink(realDir, projectsDirLink);
+  }
+
+  // ── Ensure - convention dirs are symlinks to _ convention dirs ──
+  // SDK binary uses - as path separator (e.g. -data-temp), web UI uses _.
+  // The startup migration handles existing dirs, but new project dirs created
+  // mid-session need this to be set up on-the-fly. Without this, the SDK's
+  // resume lookup in -dir/ will miss sessions whose files were moved to work dir.
+  //
+  // Also ensure the - convention dirs have symlinks for the .jsonl/.meta.json
+  // files, in case the directory symlink didn't exist when the file was written.
+  if (altDirName !== dirName) {
+    for (const altDir of [altUserDir, altGlobalDir].filter(Boolean)) {
+      if (!altDir) continue;
+      // Convert alt dir to a symlink if it's a real directory
+      try {
+        if (fs.existsSync(altDir) && !fs.lstatSync(altDir).isSymbolicLink()) {
+          // Merge any remaining files into the _ convention dir, then replace with symlink
+          for (const entry of fs.readdirSync(altDir, { withFileTypes: true })) {
+            const src = path.join(altDir, entry.name);
+            const dst = path.join(linkDir, entry.name);
+            try {
+              if (!fs.existsSync(dst)) fs.renameSync(src, dst);
+              else if (entry.isFile()) { try { fs.unlinkSync(src); } catch {} }
+            } catch {}
+          }
+          try { fs.rmdirSync(altDir); } catch {}
+        }
+      } catch {}
+      // Create or recreate the alt dir as a symlink to the _ convention dir
+      try {
+        if (!fs.existsSync(altDir)) {
+          createRelSymlink(linkDir, altDir);
+        } else if (!fs.lstatSync(altDir).isSymbolicLink()) {
+          try { fs.rmSync(altDir, { recursive: true, force: true }); } catch {}
+          createRelSymlink(linkDir, altDir);
+        }
+      } catch {}
+    }
   }
 }
 

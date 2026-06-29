@@ -294,6 +294,10 @@ function collectSessionsFromDir(dirPath, cwd, excludeIds) {
   return files.map(f => {
     const sessionId = f.replace('.jsonl', '');
     const filePath = path.join(dirPath, f);
+    // Skip broken symlinks (session data was deleted — e.g. by storage cleaning)
+    try {
+      if (fs.lstatSync(filePath).isSymbolicLink() && !fs.existsSync(filePath)) return null;
+    } catch { return null; }
     let title = null;
     const metaPath = path.join(dirPath, `${sessionId}.meta.json`);
     if (fs.existsSync(metaPath)) {
@@ -304,7 +308,7 @@ function collectSessionsFromDir(dirPath, cwd, excludeIds) {
     let lastModified = 0;
     try { lastModified = fs.statSync(filePath).mtimeMs; } catch {}
     return { id: sessionId, title, cwd, lastModified };
-  });
+  }).filter(Boolean);
 }
 
 // List sessions for a project
