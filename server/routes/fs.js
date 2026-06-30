@@ -397,14 +397,21 @@ router.post('/fs/chat-upload', requireAuth, (req, res, next) => {
       let extractedPath = null;
       const officeExts = ['.docx', '.xlsx', '.pptx'];
       const archiveExts = ['.zip', '.tar', '.gz', '.tgz', '.7z', '.rar'];
+      const MAX_EXTRACTED = 100000; // 100KB cap to avoid 413 PayloadTooLarge when sending to session
       if (officeExts.includes(ext.toLowerCase())) {
         extractedText = extractOfficeText(targetPath, ext.toLowerCase());
+        if (extractedText && extractedText.length > MAX_EXTRACTED) {
+          extractedText = extractedText.slice(0, MAX_EXTRACTED) + '\n\n…（内容过长，已截断）';
+        }
       } else if (archiveExts.includes(ext.toLowerCase()) || fileName.toLowerCase().endsWith('.tar.gz')) {
         const effectiveExt = fileName.toLowerCase().endsWith('.tar.gz') ? '.tar.gz'
           : fileName.toLowerCase().endsWith('.tgz') ? '.tgz' : ext.toLowerCase();
         const result = extractArchive(targetPath, effectiveExt);
         if (result) {
           extractedText = `压缩包内容（${result.fileCount} 个文件，${result.dirCount} 个目录）：\n${result.fileTree}`;
+          if (extractedText.length > MAX_EXTRACTED) {
+            extractedText = extractedText.slice(0, MAX_EXTRACTED) + '\n…（内容过长，已截断）';
+          }
           extractedPath = result.extractDir;
         }
       }

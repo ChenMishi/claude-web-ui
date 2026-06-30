@@ -49,7 +49,7 @@ function createApp() {
     credentials: true,
   }));
 
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '50mb' }));
 
   // Auth middleware
   const { authModeCheck, requireAuth, requireRole } = require('./middleware/auth');
