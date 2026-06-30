@@ -254,7 +254,11 @@ export default function ChatView() {
 
       lastScrollTopRef.current = el.scrollTop;
 
-      setAtTop(el.scrollTop < 20);
+      // Only show load-more when scrolled to exact top AND content overflows.
+      // scrollTop < 20 causes oscillation: on short conversations the load-more
+      // button appearing adds ~40px creating scrollable area, hiding the button,
+      // removing height, showing button again — an infinite re-render loop.
+      setAtTop(el.scrollTop === 0 && el.scrollHeight > el.clientHeight);
       atBottomRef.current = dist < 80;
 
       if (dist >= 80) {

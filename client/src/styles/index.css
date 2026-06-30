@@ -928,9 +928,10 @@ html, body, #root {
 .chat-container {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: scroll;        /* always render scrollbar — prevents width oscillation */
   overflow-x: hidden;
   overflow-anchor: none;
+  scrollbar-gutter: stable;  /* reserve scrollbar space to prevent reflow */
   padding: 20px;
   padding-bottom: 20px;
   display: flex;
@@ -1368,7 +1369,7 @@ html, body, #root {
 /* ── Attachment previews & drop zone ── */
 .attach-btn {
   position: absolute;
-  top: 50%;
+  top: calc(50% - 4px);
   left: 14px;
   transform: translateY(-50%);
   display: flex;
@@ -1719,6 +1720,54 @@ html, body, #root {
   gap: 10px;
   align-items: center;
   flex-shrink: 0;
+}
+
+/* ── 技能 chip（覆盖在 textarea 内 / 命令位置） ── */
+.skill-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.skill-input-wrap textarea {
+  width: 100%;
+}
+.skill-chip-input {
+  position: absolute;
+  left: 44px;
+  top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  z-index: 2;
+  pointer-events: auto;
+  line-height: 1.4;
+}
+.skill-chip-input .skill-chip-icon {
+  font-size: 11px;
+}
+.skill-chip-input .skill-chip-name {
+  font-weight: 500;
+}
+.skill-chip-input .skill-chip-remove {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  margin-left: 2px;
+}
+.skill-chip-input .skill-chip-remove:hover {
+  color: #fff;
 }
 
 .input-row-inner {

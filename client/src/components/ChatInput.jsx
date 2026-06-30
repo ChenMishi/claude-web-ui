@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { abortSession, listSkills, uploadChatAttachment } from '../api';
 import { getFileIcon } from '../utils/fileIcons';
@@ -225,6 +225,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     availableModels, model, permissionLevel, projects, currentModel, switchCurrentModel, displayMode } = useApp();
   const inputRef = useRef(null);
   const cmdListRef = useRef(null);
+  const skillChipRef = useRef(null);
   const [showCommands, setShowCommands] = useState(false);
   const [filteredCmds, setFilteredCmds] = useState([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -268,7 +269,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     return () => document.removeEventListener('mousedown', handler);
   }, [showSkills, showModelDropdown, showPermDropdown, showDisplayDropdown]);
 
-  // 技能激活/取消时同步输入框前缀
+  // 技能切换时：仅当旧前缀在 textarea 中才替换为新前缀
   const prevSkillRef = useRef(null);
   useEffect(() => {
     const prev = prevSkillRef.current;
@@ -276,18 +277,21 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     const el = inputRef.current;
     if (!el) return;
 
-    if (activeSkill) {
-      // 激活技能：移除旧前缀（如果有），添加新前缀
-      let val = el.value;
-      if (prev && val.startsWith('/' + prev)) {
-        val = val.slice(prev.length + 1).replace(/^ /, '');
-      }
+    if (activeSkill && prev && prev !== activeSkill.name && el.value.startsWith('/' + prev)) {
+      // old skill prefix present in textarea → replace with new
+      let val = el.value.slice(prev.length + 1).replace(/^ /, '');
       el.value = '/' + activeSkill.name + ' ' + val;
-    } else if (prev) {
-      // 取消技能：移除旧前缀
-      if (el.value.startsWith('/' + prev)) {
-        el.value = el.value.slice(prev.length + 1).replace(/^ /, '');
-      }
+    }
+  }, [activeSkill]);
+
+  // 测量 skill chip 宽度，设置 textarea padding-left 为 chip 留空间
+  useEffect(() => {
+    const el = inputRef.current;
+    const chip = skillChipRef.current;
+    if (el && chip) {
+      el.style.paddingLeft = (44 + chip.offsetWidth + 10) + 'px';
+    } else if (el) {
+      el.style.paddingLeft = '';
     }
   }, [activeSkill]);
 
@@ -410,11 +414,10 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     const uploadedAttachments = attachments
       .filter(a => a.metadata)
       .map(a => a.metadata);
-    onSend(text, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
+    // Send with skill prefix (chip replaces visible prefix in input)
+    const sendText = activeSkill ? '/' + activeSkill.name + ' ' + text : text;
+    onSend(sendText, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
     inputRef.current.value = '';
-    if (activeSkill) {
-      inputRef.current.value = '/' + activeSkill.name + ' ';
-    }
     inputRef.current.style.height = 'auto';
     setShowCommands(false);
     clearAttachments();
@@ -478,11 +481,17 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
       case 'perm-auto': setSetting('permissionLevel', 'auto'); inputRef.current.value = ''; break;
       case 'perm-dangerous': setSetting('permissionLevel', 'confirm-dangerous'); inputRef.current.value = ''; break;
       case 'perm-all': setSetting('permissionLevel', 'confirm-all'); inputRef.current.value = ''; break;
+      case 'skill':
+        if (cmd.skill) {
+          onSkillChange({ name: cmd.skill.name, displayName: cmd.skill.displayName, icon: cmd.skill.icon || '🧩' });
+        }
+        inputRef.current.value = '';
+        break;
       default: break;
     }
     setShowCommands(false);
     inputRef.current?.focus();
-  }, [selectProject, setView, setMessages, setSetting, currentProjectId, handleSend]);
+  }, [selectProject, setView, setMessages, setSetting, currentProjectId, handleSend, onSkillChange]);
 
   const handleKeyDown = (e) => {
     if (showCommands) {
@@ -522,10 +531,19 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
 
       const val = el.value;
       const cursorPos = el.selectionStart || 0;
+
       // Show commands only when "/" is the first character
       if (val.startsWith('/') && val.indexOf('\n') === -1) {
         const search = val.toLowerCase();
-        const filtered = COMMANDS.filter(c => c.cmd.toLowerCase().includes(search));
+        // Merge system commands and skills
+        const skillCmds = skills.map(s => ({
+          cmd: '/' + s.name,
+          desc: s.description || s.displayName,
+          action: 'skill',
+          skill: s,
+        }));
+        const all = [...COMMANDS, ...skillCmds];
+        const filtered = all.filter(c => c.cmd.toLowerCase().includes(search));
         setFilteredCmds(filtered);
         setShowCommands(filtered.length > 0);
         setSelectedIdx(0);
@@ -625,15 +643,28 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           onChange={handleFileChange}
           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml,.html,.md,.py,.js,.ts,.css,.zip,.tar,.gz,.tgz,.7z,.rar"
         />
-        <textarea
-          ref={inputRef}
-          rows="1"
-          placeholder={isStreaming ? '输入消息可排队或插入...(Enter 发送)' : '输入消息... (Shift+Enter 换行) 输入 / 查看快捷指令'}
-          onKeyDown={handleKeyDown}
-          onInput={handleInput}
-          onPaste={handlePaste}
-          disabled={false}
-        />
+        <div className="skill-input-wrap">
+          {activeSkill && (
+            <span className="skill-chip-input" title="点击 × 移除技能" ref={skillChipRef}>
+              <span className="skill-chip-icon">{activeSkill.icon || '🧩'}</span>
+              <span className="skill-chip-name">{activeSkill.displayName || activeSkill.name}</span>
+              <button
+                className="skill-chip-remove"
+                onClick={() => onSkillChange(null)}
+                title="移除技能"
+              >×</button>
+            </span>
+          )}
+          <textarea
+            ref={inputRef}
+            rows="1"
+            placeholder={isStreaming ? '输入消息可排队或插入...(Enter 发送)' : '输入消息... (Shift+Enter 换行) 输入 / 查看快捷指令'}
+            onKeyDown={handleKeyDown}
+            onInput={handleInput}
+            onPaste={handlePaste}
+            disabled={false}
+          />
+        </div>
         {/* Selectors row below textarea */}
         {isStreaming && (
           <button className="stop-btn" onClick={handleStop}>
