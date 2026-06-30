@@ -362,7 +362,15 @@ router.post('/fs/chat-upload', requireAuth, (req, res, next) => {
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
-      const fileName = file.originalname;
+      let fileName = file.originalname;
+      // multer/busboy 可能把 UTF-8 中文文件名错误解码为 Latin-1，表现为乱码
+      // 检测高字节字符并重新用 UTF-8 解码
+      if (/[\x80-\xff]/.test(fileName)) {
+        try {
+          const reEncoded = Buffer.from(fileName, 'latin1').toString('utf8');
+          if (/[一-鿿]/.test(reEncoded)) fileName = reEncoded;
+        } catch {}
+      }
       const ext = path.extname(fileName);
       const baseName = path.basename(fileName, ext).replace(/[\/\\\x00-\x1f\x7f]/g, '_');
       const safeName = `chat_${Date.now()}_${baseName}${ext}`;
