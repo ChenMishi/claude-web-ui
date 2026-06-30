@@ -364,7 +364,7 @@ router.post('/fs/chat-upload', requireAuth, (req, res, next) => {
       }
       const fileName = file.originalname;
       const ext = path.extname(fileName);
-      const baseName = path.basename(fileName, ext).replace(/[^a-zA-Z0-9_\-一-鿿]/g, '_');
+      const baseName = path.basename(fileName, ext).replace(/[\/\\\x00-\x1f\x7f]/g, '_');
       const safeName = `chat_${Date.now()}_${baseName}${ext}`;
       const targetPath = path.join(targetDir, safeName);
       fs.writeFileSync(targetPath, file.buffer);
