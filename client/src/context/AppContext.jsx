@@ -122,7 +122,6 @@ function reducer(state, action) {
         cache2[action.payload] = cache2.__pending__;
         delete cache2.__pending__;
       }
-      // 迁移 streamSessionIdRef='new' 暂存的消息到正式 sessionId
       const orphanedMsgs = cache2['new'] || [];
       if (orphanedMsgs.length > 0) {
         cache2[action.payload] = [...(cache2[action.payload] || []), ...orphanedMsgs];
@@ -132,7 +131,10 @@ function reducer(state, action) {
       const merged = orphanedMsgs.length > 0
         ? [...state.chatMessages, ...orphanedMsgs]
         : state.chatMessages;
-      next = { ...state, currentSessionId: action.payload, chatMessages: merged, messageCache: cache2 };
+      // 新建会话 'new' → 真实 ID，同步更新 busySessions
+      const bs3 = new Set(state.busySessions);
+      if (bs3.has('new')) { bs3.delete('new'); bs3.add(action.payload); }
+      next = { ...state, currentSessionId: action.payload, chatMessages: merged, messageCache: cache2, busySessions: bs3 };
       break;
     }
     case 'SET_MESSAGES': {

@@ -86,6 +86,7 @@ export default function ChatView() {
   const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
   const abortSessionRef = useRef(null);  // which session the abortRef belongs to
   const allAbortsRef = useRef(new Map()); // sessionId → AbortController, 管理所有并发会话的流
+  const newSessionIdRef = useRef(null); // 新建会话的临时 ID → 真实 ID 映射
   const isActiveStream = useRef(false);  // true during active SSE stream, guards cleanup abort
   const isStreamingRef = useRef(null);   // tracks the sessionId that is currently streaming, null if idle
   const sendingRef = useRef(false);        // send lock — prevents concurrent handleSend calls
@@ -212,6 +213,13 @@ export default function ChatView() {
     } catch { setHasMore(false); }
     setLoadingMore(false);
   }, [currentSessionId, loadingMore, setMessages]);
+
+  // 进入无缓存会话时自动加载第一页
+  useEffect(() => {
+    if (currentSessionId && chatMessages.length === 0 && hasMore && !loadingMore) {
+      handleLoadMore();
+    }
+  }, [currentSessionId]); // eslint-disable-line
 
   // ── Scroll behavior ──
   //
@@ -764,9 +772,13 @@ export default function ChatView() {
         lbAppend({ role: 'thinking', content: thinkingText, streaming: true, timestamp: Date.now() });
       },
       onSession: ({ sessionId }) => {
-        // Receive sessionId from server as early as the system message
         if (sessionId && !currentSessionId) {
           streamSessionIdRef.current = sessionId;
+          newSessionIdRef.current = sessionId;  // 记录真实 ID，供 onDone 使用
+          if (allAbortsRef.current.has('new')) {
+            allAbortsRef.current.set(sessionId, allAbortsRef.current.get('new'));
+            allAbortsRef.current.delete('new');
+          }
           setSessionId(sessionId);
           getProjects().then(setProjects).catch(() => {});
           if (currentProjectId) {
@@ -868,8 +880,9 @@ export default function ChatView() {
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency, artifactFiles }) => {
         streamSessionIdRef.current = null;
         isActiveStream.current = false;
-        allAbortsRef.current.delete(mySessionId);
-        streamEnd(mySessionId);
+        const realSid = mySessionId === 'new' ? (newSessionIdRef.current || mySessionId) : mySessionId;
+        allAbortsRef.current.delete(realSid);
+        streamEnd(realSid);
         lbExecUpdate('done', '');
         sendingRef.current = false;
 
@@ -918,8 +931,9 @@ export default function ChatView() {
       onError: (err) => {
         streamSessionIdRef.current = null;
         isActiveStream.current = false;
-        allAbortsRef.current.delete(mySessionId);
-        streamEnd(mySessionId);
+        const realSid = mySessionId === 'new' ? (newSessionIdRef.current || mySessionId) : mySessionId;
+        allAbortsRef.current.delete(realSid);
+        streamEnd(realSid);
         lbExecUpdate('done', '');
         sendingRef.current = false;  // release send lock
         // Ignore errors from previous (aborted) executions
@@ -983,7 +997,7 @@ export default function ChatView() {
           <div className="chat-glass">
           <div className="chat-glass-inner">
           <div className="chat-container" ref={containerRef}>
-          {hasMore && chatMessages.length > 0 && atTop && (
+          {hasMore && (atTop || chatMessages.length === 0) && (
             <div className="load-more-row">
               <button className="load-more-btn" onClick={handleLoadMore} disabled={loadingMore}>
                 {loadingMore ? '加载中...' : '加载更早的消息'}

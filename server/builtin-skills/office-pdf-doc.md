@@ -149,6 +149,34 @@ with pdfplumber.open('file.pdf') as pdf:
 
 ---
 
+---
+
+## 二-A、生成 CSV 文件（关键：UTF-8 BOM）
+
+### 核心原则
+- **必须用 `encoding='utf-8-sig'`**，不能用 `encoding='utf-8'`
+- Windows Excel 打开无 BOM 的 CSV 时默认用 GBK 编码，中文会乱码
+- `utf-8-sig` 在文件头加 BOM（`\xEF\xBB\xBF`），Excel 据此识别 UTF-8
+
+### 标准写法
+```python
+import csv
+with open('output.csv', 'w', newline='', encoding='utf-8-sig') as f:
+    writer = csv.writer(f)
+    writer.writerow(['列1', '列2', '列3'])
+    writer.writerows(data)
+```
+
+### 已有文件补 BOM
+```bash
+python3 -c "
+with open('file.csv','rb') as f: c=f.read()
+with open('file.csv','wb') as f: f.write(b'\xef\xbb\xbf'+c)
+"
+```
+
+---
+
 ## 二、生成 Excel 文件（openpyxl）— 最重要
 
 ### 2.1 核心原则

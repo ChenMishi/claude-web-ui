@@ -20,6 +20,14 @@
 - 前端修改后需执行 `cd client && npm run build` 构建到 `public/` 目录
 - **版本号变更必须使用 `./bump.sh` 脚本**，不要手动修改版本号。脚本会自动同步所有文件（VERSION、package.json、前端组件、health.js）并构建前端
 
+## 文件生成规范
+- **生成含中文的 CSV 文件时，必须添加 UTF-8 BOM**（`\xEF\xBB\xBF`），否则 Windows Excel 会用 GBK 打开导致中文乱码
+  - Write 工具写入后，用 Bash 执行 `python3` 在文件头补 BOM：
+    ```python
+    with open('文件路径.csv', 'rb') as f: content = f.read()
+    with open('文件路径.csv', 'wb') as f: f.write(b'\xef\xbb\xbf' + content)
+    ```
+
 ## 提交规范
 - 使用中文 commit message
 - 备注只写关键的更新、升级或 bug 修复，用简短要点概括，不罗列所有细节
