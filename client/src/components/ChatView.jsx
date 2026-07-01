@@ -681,8 +681,8 @@ export default function ChatView() {
     // 防重入锁 — 防止同一个 handleSend 被并发调用
     if (sendingRef.current) return;
 
-    // 同一会话正在执行 → 排队；不同会话 → 允许并行
-    if (isStreamingRef.current === currentSessionId) {
+    // 同一会话正在执行 → 排队；不同会话/null → 允许
+    if (currentSessionId && isStreamingRef.current === currentSessionId) {
       const item = { text: text.trim(), timestamp: Date.now() };
       if (fromQueueRef.current) {
         pendingQueue.current.unshift(item);
@@ -888,6 +888,10 @@ export default function ChatView() {
           lbAppend({ role: 'artifacts', files: artifactFiles, timestamp: Date.now() });
         }
         setTimeout(() => execReset(), 5000);
+
+        if (currentProjectId) {
+          getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
+        }
 
         if (newId && !currentSessionId) {
           setSessionId(newId);
