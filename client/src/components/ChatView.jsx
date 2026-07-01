@@ -74,7 +74,7 @@ export default function ChatView() {
     setProjects, setSessions, permissionLevel,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, bindTaskId, updateTask, setMainTask, updateMainTask, execStatus,
-    currentModel, finishAllStreaming, finalizeStreaming,
+    currentModel, finishAllStreaming, finalizeStreaming, streamStart, streamEnd, setSessionExecStatus,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -82,17 +82,26 @@ export default function ChatView() {
   const hasThinking = useRef(false);
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
+  const execIdMapRef = useRef(new Map()); // sessionId → myExecId, 每个会话独立防重入
   const abortRef = useRef(null);  // AbortController for SSE stream, aborted on session switch
+  const abortSessionRef = useRef(null);  // which session the abortRef belongs to
+  const allAbortsRef = useRef(new Map()); // sessionId → AbortController, 管理所有并发会话的流
   const isActiveStream = useRef(false);  // true during active SSE stream, guards cleanup abort
-  const isStreamingRef = useRef(false);   // tracks latest isStreaming, avoids stale closure issues
+  const isStreamingRef = useRef(null);   // tracks the sessionId that is currently streaming, null if idle
   const sendingRef = useRef(false);        // send lock — prevents concurrent handleSend calls
   const fromQueueRef = useRef(false);       // true when handleSend is called by onDone queue consumer (not user-initiated)
   const throttleRef = useRef(null);  // setTimeout id for bUpdate throttling during responding phase
   const toolNameMap = useRef(new Map());  // tool_use_id → tool name, for result display
   const filePathMap = useRef(new Map());  // tool_use_id → file_path, populated in onToolUse, read in onToolResult (avoids React state race)
   const streamSessionIdRef = useRef(null);  // sessionId of active stream; used by bAppend/bUpdate/setMessages to route messages to correct cache
-  // Sync ref with state so stale handleSend closures always see the latest isStreaming
-  isStreamingRef.current = isStreaming;
+  // 仅在 isStreaming 变化时更新 ref，避免切会话时被 currentSessionId 覆盖
+  const prevStreaming = useRef(false);
+  if (isStreaming && !prevStreaming.current) {
+    isStreamingRef.current = currentSessionId;  // 记录是哪个会话开始的流式
+  } else if (!isStreaming && prevStreaming.current) {
+    isStreamingRef.current = null;  // 流式结束，清零
+  }
+  prevStreaming.current = isStreaming;
   const [askUser, setAskUser] = useState(null);
   const [toolConfirm, setToolConfirm] = useState(null); // { tool, action, input } — separate from askUser
   const [loadingMore, setLoadingMore] = useState(false);
@@ -400,14 +409,10 @@ export default function ChatView() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
-  // Abort SSE stream when switching to a different session
+  // 切会话时保留旧会话的 SSE 连接在后台运行
+  // 不 abort — 让旧会话自然完成，onDone 会触发 streamEnd 正确清理计数
   useEffect(() => {
     return () => {
-      // 如果当前正在执行流（例如新会话从 onAssistant 中 setSessionId 触发），
-      // 不中止流 — abortRef 指向的是同一个执行流自己的 AbortController
-      if (isActiveStream.current) return;
-      abortRef.current?.abort();
-      // 切换会话时清空排队消息和节流定时器
       if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
       pendingQueue.current = [];
       setQueuedMessages([]);
@@ -647,6 +652,9 @@ export default function ChatView() {
 
   const handleStop = useCallback((execStatus) => {
     sendingRef.current = false;  // release send lock
+    allAbortsRef.current.get(currentSessionId)?.abort();
+    allAbortsRef.current.delete(currentSessionId);
+    streamEnd(currentSessionId);
     ++execIdRef.current;  // bump so stale SSE errors are ignored
     stopTimer();
     clearPendingQueue();  // 清空排队消息
@@ -670,10 +678,12 @@ export default function ChatView() {
   const handleSend = useCallback((text, attachments) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
-    // 发送锁 — 防止并发 handleSend（例如 onDone 重复触发导致队列被批量消费）
-    if (sendingRef.current || isStreamingRef.current) {
+    // 防重入锁 — 防止同一个 handleSend 被并发调用
+    if (sendingRef.current) return;
+
+    // 同一会话正在执行 → 排队；不同会话 → 允许并行
+    if (isStreamingRef.current === currentSessionId) {
       const item = { text: text.trim(), timestamp: Date.now() };
-      // 队列消费者（onDone shift 后调用）：放回队首保持顺序；用户主动发送：追加队尾
       if (fromQueueRef.current) {
         pendingQueue.current.unshift(item);
       } else {
@@ -684,8 +694,15 @@ export default function ChatView() {
     }
     sendingRef.current = true;
 
+    // Capture session context early (must be before execIdMapRef.set)
+    const project = projects.find(p => p.id === currentProjectId);
+    const cwd = project?.cwd || '/root';
+    const sessionId = currentSessionId || 'new';
+    const mySessionId = sessionId;
+
     // Bump execution ID so stale SSE errors from previous run are ignored
     const myExecId = ++execIdRef.current;
+    execIdMapRef.current.set(mySessionId, myExecId);
     setStreaming(true);
     execStart();
 
@@ -699,6 +716,15 @@ export default function ChatView() {
 
     setMainTask(promptText.length > 30 ? promptText.slice(0, 30) + '…' : promptText);
     startTimer();
+
+    streamSessionIdRef.current = mySessionId;
+    const lbAppend = (msg) => appendMessage(msg, mySessionId);
+    const lbUpdate = (content) => updateLastMessage(content, mySessionId);
+    const lbExecUpdate = (phase, detail) => setSessionExecStatus(mySessionId, phase, detail);
+    // 仅当前会话更新全局 execStatus（ExecutionBar 等）
+    const lbExecPhase = (payload) => { if (mySessionId === currentSessionId) execPhase(payload); };
+    const lbExecTokens = (payload) => { if (mySessionId === currentSessionId) execTokens(payload); };
+
     // Build user message content — attachment metadata rendered separately in ChatMessage
     let userContent = promptText || <>📎 发送了附件</>;
     bAppend({ role: 'user', content: userContent, attachments: attachments || null, timestamp: Date.now() });
@@ -707,20 +733,22 @@ export default function ChatView() {
     hasThinking.current = false;
     textAccum.current = '';
 
-    const project = projects.find(p => p.id === currentProjectId);
-    const cwd = project?.cwd || '/root';
-    const sessionId = currentSessionId || 'new';
-    const mySessionId = sessionId;  // captured for callback guards against session switch
-    streamSessionIdRef.current = mySessionId;  // route bAppend/bUpdate/setMessages to correct cache
-
     // Abort any previous stream and create a new AbortController for this send
-    abortRef.current?.abort();
+    // 同会话重发：中止旧流；不同会话：旧流在 allAbortsRef 中继续后台运行
+    const oldAbort = allAbortsRef.current.get(mySessionId);
+    if (oldAbort) {
+      oldAbort.abort();
+      streamEnd(mySessionId);
+    }
     const abort = new AbortController();
+    allAbortsRef.current.set(mySessionId, abort);
     abortRef.current = abort;
+    abortSessionRef.current = mySessionId;
 
     artifactFilesRef.current.clear();
     filePathMap.current.clear();
     isActiveStream.current = true;
+    streamStart(sessionId);
     runAgent({
       sessionId,
       cwd,
@@ -729,10 +757,11 @@ export default function ChatView() {
       attachments: attachments || undefined,
       options: { model: currentModel || model, systemPrompt: systemPrompt || undefined, permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
       onThinking: ({ text: thinkingText, usage }) => {
-        execPhase({ phase: 'thinking', detail: thinkingText });
-        if (usage) execTokens(toTokens(usage));
+        lbExecPhase({ phase: 'thinking', detail: thinkingText });
+        lbExecUpdate('thinking', thinkingText);
+        if (usage) lbExecTokens(toTokens(usage));
         hasAssistantText.current = false;  // 防止跨消息状态污染
-        bAppend({ role: 'thinking', content: thinkingText, streaming: true, timestamp: Date.now() });
+        lbAppend({ role: 'thinking', content: thinkingText, streaming: true, timestamp: Date.now() });
       },
       onSession: ({ sessionId }) => {
         // Receive sessionId from server as early as the system message
@@ -759,20 +788,21 @@ export default function ChatView() {
         if (!hasAssistantText.current) {
           hasAssistantText.current = true;
           textAccum.current = content;
-          bAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
+          lbAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
         } else {
           textAccum.current += content;
           // 节流：100ms 内最多触发一次 React re-render，避免 MarkdownRenderer 每帧重解析全文
           if (!throttleRef.current) {
-            bUpdate(textAccum.current);
+            lbUpdate(textAccum.current);
             throttleRef.current = setTimeout(() => {
               throttleRef.current = null;
-              bUpdate(textAccum.current);  // flush 最终累积状态
+              lbUpdate(textAccum.current);  // flush 最终累积状态
             }, 150);
           }
         }
-        execPhase({ phase: 'responding', detail: '' });
-        if (usage) execTokens(toTokens(usage));
+        lbExecPhase({ phase: 'responding', detail: '' });
+        lbExecUpdate('responding', '');
+        if (usage) lbExecTokens(toTokens(usage));
       },
       onToolUse: ({ tool, input, tool_use_id, usage }) => {
         hasAssistantText.current = false;
@@ -788,9 +818,10 @@ export default function ChatView() {
           updateTask(input?.taskId || '', input?.status || 'pending');
         }
         const desc = input?.description || input?.command || input?.file_path || '';
-        execPhase({ phase: 'running', detail: `${tool}:${desc}` });
-        if (usage) execTokens(toTokens(usage));
-        bAppend({ role: 'tool', toolCall: { name: tool, input, tool_use_id }, streaming: true });
+        lbExecPhase({ phase: 'running', detail: `${tool}:${desc}` });
+        lbExecUpdate('running', `${tool}:${desc}`);
+        if (usage) lbExecTokens(toTokens(usage));
+        lbAppend({ role: 'tool', toolCall: { name: tool, input, tool_use_id }, streaming: true });
       },
       onToolResult: ({ tool_use_id, content, is_error, extractedPaths }) => {
         // 从 TaskCreate 的 result 中解析 SDK 分配的真实 taskId（如 "Task #49"）
@@ -826,7 +857,7 @@ export default function ChatView() {
             return;
           }
         }
-        bAppend({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error, toolName } });
+        lbAppend({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error, toolName } });
       },
       onAskUser: ({ questions }) => {
         setAskUser({ questions });
@@ -837,16 +868,24 @@ export default function ChatView() {
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency, artifactFiles }) => {
         streamSessionIdRef.current = null;
         isActiveStream.current = false;
-        sendingRef.current = false;  // release send lock
-        // Ignore done events from previous (aborted) executions
-        if (execIdRef.current !== myExecId) return;
+        allAbortsRef.current.delete(mySessionId);
+        streamEnd(mySessionId);
+        lbExecUpdate('done', '');
+        sendingRef.current = false;
+
+        // 同会话重发时忽略旧的 done 事件
+        if (execIdMapRef.current.get(mySessionId) !== myExecId) return;
         if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
+
+        // 仅最后一个完成的会话更新全局 UI（避免 flickering）
+        if (allAbortsRef.current.size > 0) return;
+
         finalizeStreaming();  // 原子操作: 关闭所有 streaming + 保存缓存 + 设置 isStreaming=false
         stopTimer();
         execDone({ tokens: doneTokens, cost, currency });
         // Append artifact summary from backend-collected files
         if (artifactFiles && artifactFiles.length > 0) {
-          bAppend({ role: 'artifacts', files: artifactFiles, timestamp: Date.now() });
+          lbAppend({ role: 'artifacts', files: artifactFiles, timestamp: Date.now() });
         }
         setTimeout(() => execReset(), 5000);
 
@@ -875,9 +914,12 @@ export default function ChatView() {
       onError: (err) => {
         streamSessionIdRef.current = null;
         isActiveStream.current = false;
+        allAbortsRef.current.delete(mySessionId);
+        streamEnd(mySessionId);
+        lbExecUpdate('done', '');
         sendingRef.current = false;  // release send lock
         // Ignore errors from previous (aborted) executions
-        if (execIdRef.current !== myExecId) return;
+        if (execIdMapRef.current.get(mySessionId) !== myExecId) return;
         // AskUserQuestion abort is expected — don't show error
         if (askRef.current) return;
         if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
@@ -886,9 +928,10 @@ export default function ChatView() {
         stopTimer();
         execPhase({ phase: 'done', detail: err.message });
         setTimeout(() => execReset(), 5000);
-        bAppend({ role: 'system', content: `错误: ${err.message}` });
+        lbAppend({ role: 'system', content: `错误: ${err.message}` });
       },
     });
+    sendingRef.current = false;  // 释放发送锁，允许其他会话并发发送
   }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, addTask, bindTaskId, updateTask, setMainTask, updateMainTask]);
   handleSendRef.current = handleSend;
 

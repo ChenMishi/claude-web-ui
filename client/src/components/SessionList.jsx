@@ -7,7 +7,7 @@ export default function SessionList() {
   const {
     sessions, currentSessionId, selectSession, isStreaming,
     currentProjectId, setMessages, setStreaming,
-    setSessions, setProjects,
+    setSessions, setProjects, busySessions,
   } = useApp();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -90,7 +90,7 @@ export default function SessionList() {
               <div className="session-item-title">{s.title}</div>
               <div className="session-item-meta">
                 <span>{formatDate(s.lastModified)}</span>
-                <span>{s.status === 'busy' ? '● 运行中' : ''}</span>
+                {busySessions?.has(s.id) && <span className="session-busy-dot" title="执行中" />}
               </div>
               <div className="session-item-actions">
                 <button onClick={(e) => handleRenameStart(e, s.id, s.title)}>✏</button>

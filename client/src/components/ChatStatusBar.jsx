@@ -12,11 +12,27 @@ const TOOL_VERBS = {
 };
 
 export default function ChatStatusBar() {
-  const { execStatus, currentSessionId } = useApp();
-  const { phase, detail } = execStatus;
-  const [visible, setVisible] = useState(false);
-  const executionSessionRef = useRef(null);
-  const prevPhaseRef = useRef(phase);
+  const { sessionExecStatus, currentSessionId } = useApp();
+  const status = sessionExecStatus[currentSessionId];
+  const phase = status?.phase;
+  const detail = status?.detail;
+  const [doneVisible, setDoneVisible] = useState(false);
+  const doneTimerRef = useRef(null);
+
+  // 完成后 5 秒自动消失，与 ExecutionBar 同步
+  useEffect(() => {
+    if (phase === 'done') {
+      setDoneVisible(true);
+      doneTimerRef.current = setTimeout(() => setDoneVisible(false), 5000);
+    } else {
+      setDoneVisible(false);
+      if (doneTimerRef.current) { clearTimeout(doneTimerRef.current); doneTimerRef.current = null; }
+    }
+    return () => { if (doneTimerRef.current) clearTimeout(doneTimerRef.current); };
+  }, [phase]);
+
+  if (!phase || phase === 'idle') return null;
+  if (phase === 'done' && !doneVisible) return null;
 
   let icon, label;
   let isDone = false;
@@ -29,7 +45,7 @@ export default function ChatStatusBar() {
     icon = '⏱️';
     label = detail || '思考中';
   } else if (phase === 'running') {
-    const idx = detail.indexOf(':');
+    const idx = (detail || '').indexOf(':');
     const toolName = idx > 0 ? detail.slice(0, idx) : detail;
     const desc = idx > 0 ? detail.slice(idx + 1) : '';
     icon = TOOL_SYMBOLS[toolName] || '#';
@@ -40,25 +56,7 @@ export default function ChatStatusBar() {
     label = '生成回复';
   }
 
-  useEffect(() => {
-    const prevPhase = prevPhaseRef.current;
-    prevPhaseRef.current = phase;
-
-    if (phase === 'idle') {
-      setVisible(false);
-      executionSessionRef.current = null;
-      return;
-    }
-
-    if (prevPhase === 'idle') {
-      executionSessionRef.current = currentSessionId;
-    }
-    setVisible(true);
-  }, [phase]);
-
-  const isExecutionSession = executionSessionRef.current === currentSessionId;
-
-  if (!visible || !icon || !label || !isExecutionSession) return null;
+  if (!icon || !label) return null;
 
   return (
     <div className={`chat-status-bar ${isDone ? 'is-done' : ''}`}>

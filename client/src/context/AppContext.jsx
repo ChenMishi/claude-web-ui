@@ -44,6 +44,9 @@ const initialState = {
   chatMessages: initSessionId && initMessageCache[initSessionId] ? textOnly(initMessageCache[initSessionId]) : [],
   messageCache: initMessageCache,
   isStreaming: false,
+  activeStreams: 0,     // 并行执行的会话数
+  busySessions: new Set(), // 正在执行中的会话 ID 集合
+  sessionExecStatus: {},   // 每个会话的执行状态 { sessionId: { phase, detail } }
   sidebarOpen: true,
   updateAvailable: false,  // always reset on page load
   activeView: 'chat',
@@ -212,6 +215,23 @@ function reducer(state, action) {
     }
     case 'SET_STREAMING':
       next = { ...state, isStreaming: action.payload }; break;
+    case 'STREAM_START': {
+      const s = action.payload;
+      const bs = new Set(state.busySessions);
+      bs.add(s);
+      next = { ...state, activeStreams: state.activeStreams + 1, busySessions: bs };
+      break;
+    }
+    case 'STREAM_END': {
+      const s = action.payload;
+      const bs = new Set(state.busySessions);
+      bs.delete(s);
+      next = { ...state, activeStreams: Math.max(0, state.activeStreams - 1), busySessions: bs };
+      break;
+    }
+    case 'SESSION_EXEC_UPDATE':
+      next = { ...state, sessionExecStatus: { ...state.sessionExecStatus, [action.payload.sid]: action.payload.status } };
+      break;
     case 'SET_VIEW':
       next = { ...state, activeView: action.payload }; break;
     case 'TOGGLE_SIDEBAR':
@@ -332,6 +352,9 @@ export function AppContextProvider({ children }) {
   const appendMessage = useCallback((msg, targetSessionId) => dispatch({ type: 'APPEND_MESSAGE', payload: msg, targetSessionId }), []);
   const updateLastMessage = useCallback((content, targetSessionId) => dispatch({ type: 'UPDATE_LAST_MESSAGE', payload: content, targetSessionId }), []);
   const setStreaming = useCallback((v) => dispatch({ type: 'SET_STREAMING', payload: v }), []);
+  const streamStart = useCallback((sessionId) => dispatch({ type: 'STREAM_START', payload: sessionId }), []);
+  const streamEnd = useCallback((sessionId) => dispatch({ type: 'STREAM_END', payload: sessionId }), []);
+  const setSessionExecStatus = useCallback((sid, phase, detail) => dispatch({ type: 'SESSION_EXEC_UPDATE', payload: { sid, status: { phase, detail } } }), []);
   const setView = useCallback((v) => dispatch({ type: 'SET_VIEW', payload: v }), []);
   const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), []);
   const setUpdateAvailable = useCallback((v) => dispatch({ type: 'SET_UPDATE', payload: v }), []);
@@ -466,6 +489,7 @@ export function AppContextProvider({ children }) {
     setUser, logout,
     setProjects, selectProject, setSessions, selectSession, setSessionId,
     setMessages, appendMessage, updateLastMessage, setStreaming,
+    streamStart, streamEnd, setSessionExecStatus,
     setView, toggleSidebar, setSetting,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, bindTaskId, updateTask, clearTasks, setMainTask, updateMainTask,

@@ -30,12 +30,15 @@ const TOOL_STATUS = {
 };
 
 export default function ExecutionBar() {
-  const { execStatus } = useApp();
+  const { execStatus, activeStreams } = useApp();
   const { phase, detail, elapsed, tokens, cost, currency } = execStatus;
 
   if (phase === 'idle') return null;
 
-  const done = phase === 'done';
+  const done = phase === 'done' && activeStreams === 0;  // 最后一个会话完成后才显示已完成
+  const multi = activeStreams > 1 || (activeStreams === 1 && phase === 'done');
+  // 多会话：>1个会话直接显示；1个会话但phase=done说明其他会话还在跑
+  const multiLabel = multi ? `${activeStreams}会话执行中` : '';
 
   // Determine icon + animation class + label
   let icon, animCls, label;
@@ -43,6 +46,10 @@ export default function ExecutionBar() {
     icon = <IconDoubleCheck />;
     animCls = 'done-icon';
     label = PHASE_LABEL.done;
+  } else if (multi) {
+    icon = '⚡';
+    animCls = 'pulse';
+    label = multiLabel;
   } else if (phase === 'running') {
     const toolName = (detail || '').split(':')[0];
     const tool = TOOL_STATUS[toolName];

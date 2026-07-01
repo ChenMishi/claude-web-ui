@@ -13,6 +13,7 @@ export default function ClaudeCodeCard({ triggerCheck }) {
   const [upgradeLog, setUpgradeLog] = useState('');
   const [upgradeDone, setUpgradeDone] = useState(false);
   const [upgradeError, setUpgradeError] = useState(null);
+  const [installDone, setInstallDone] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
 
@@ -57,7 +58,7 @@ export default function ClaudeCodeCard({ triggerCheck }) {
         }
       }
     } catch {}
-    setInstalling(false);
+    setInstalling(false); setInstallDone(true);
     setTimeout(() => loadStatus(), 1000);
   }, [loadStatus]);
 
@@ -123,7 +124,9 @@ export default function ClaudeCodeCard({ triggerCheck }) {
                 <div style={{ height: '100%', width: `${installPct}%`, background: 'linear-gradient(90deg, var(--accent), #82b1ff)', borderRadius: 3, transition: 'width 0.3s' }} />
               </div>
             )}
-            {installLog && <div className="init-install-log"><div className="init-install-scroll"><pre>{installLog}</pre></div></div>}
+            {installDone && !installing && (
+              <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 8 }}>✅ Claude Code 安装完成</div>
+            )}
           </div>
         ) : (
           <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -142,7 +145,11 @@ export default function ClaudeCodeCard({ triggerCheck }) {
             )}
           </div>
         )}
-        {upgradeLog && <div className="init-install-log" style={{ marginTop: 8 }}><div className="init-install-scroll"><pre>{upgradeLog}</pre></div></div>}
+        {upgrading && (
+          <div style={{ height: 4, background: 'var(--bg-primary)', borderRadius: 2, overflow: 'hidden', marginTop: 8 }}>
+            <div style={{ height: '100%', width: '60%', background: 'linear-gradient(90deg, var(--accent), #82b1ff, var(--accent))', borderRadius: 2, animation: 'sdProgressPulse 1.5s ease-in-out infinite' }} />
+          </div>
+        )}
         {upgradeDone && !upgrading && (
           <div style={{ fontSize: 12, color: 'var(--success)', marginTop: 8 }}>✅ Claude Code 升级完成</div>
         )}
