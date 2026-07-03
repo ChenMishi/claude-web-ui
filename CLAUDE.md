@@ -39,6 +39,48 @@
 - 使用中文 commit message
 - 备注只写关键的更新、升级或 bug 修复，用简短要点概括，不罗列所有细节
 
+## 踩坑记录（关键经验教训）
+
+### 1. 前端弹窗事件冲突
+- **问题**: 自定义确认弹窗的按钮点不动、点确定无反应
+- **原因**: `document.addEventListener('mousedown')` 在 React onClick 之前触发，弹窗被误关
+- **解决**: 确认弹窗放在组件顶层（不嵌套在 `{show && ...}` 内），用 Portal 渲染到 body，配合 `e.stopPropagation()` + `getBoundingClientRect()` 定位。SessionList 的删除确认弹窗是正确范例
+
+### 2. React 状态更新时序
+- **问题**: 中止任务后立即发消息变排队；多会话并行的执行状态/呼吸灯残留
+- **原因**: `useState` 更新是异步的，`handleSend` 调 `busySessions.has()` 时读到旧值
+- **解决**: 关键状态用 `useRef` 做同步镜像，`busyRef.current.delete()` 立即生效。`SET_STREAMING(false)` 加 `activeStreams > 0` 守卫
+
+### 3. 多会话并行的全局状态
+- **问题**: 中止一个会话后所有呼吸灯熄灭、执行状态条消失
+- **原因**: `finalizeStreaming()`/`execReset()` 是全局的，没判断是否还有其他会话在跑
+- **解决**: 加 `allAbortsRef.current.size === 0` 守卫，只有最后一个会话结束才做全局清理
+
+### 4. 函数式 setState 陷阱
+- **问题**: `setScheduledTasks(prev => prev.filter(...))` 导致白屏
+- **原因**: AppContext reducer `SET_SCHEDULED_TASKS` 直接把函数当值存了，没调它
+- **解决**: reducer 里 `typeof payload === 'function' ? payload(state.xxx) : payload`
+
+### 5. CLI 工具跨目录兼容
+- **问题**: `require('jsonwebtoken')` 在 Claude 的任意工作目录下不可用，JWT 生成失败
+- **原因**: Node 的 `require` 只在项目目录（有 node_modules）下有效，Claude 会话 cwd 是任意的
+- **解决**: 跨目录运行的工具脚本用 Python（`pyjwt`）+ 绝对路径或 `~` 展开，不依赖 Node 的 `require`
+
+### 6. MEMORY.md vs CLAUDE.md 的作用域
+- **问题**: 定时任务创建规则在新会话/新机器上不生效
+- **原因**: CLAUDE.md 只在项目目录下加载；MEMORY.md 是全局用户级但不随 git 分发
+- **解决**: server 启动时自动从项目 `MEMORY.md` → `~/.claude/projects/-root/memory/MEMORY.md`，遍历所有 `/home/*/.claude/` 用户。规则文笔需极端强硬：`🚨 STOP: 禁止 XX 工具`、`唯一正确流程`、`绝对禁止`
+
+### 7. CronCreate vs Web UI 定时任务
+- **问题**: Claude 偏好用 CronCreate（CLI cron）而非 Web UI API
+- **原因**: 两套系统独立：CLI cron 写 `<cwd>/.claude/scheduled_tasks.json`，Web UI 读 `~/.claude-web-ui/scheduled_tasks.json`
+- **解决**: MEMORY.md 顶层 `🚨 STOP: 禁止使用 CronCreate 工具`，TimerDropdown 的 GET API 同时桥接 CLI 文件（从项目目录名反推 cwd）
+
+### 8. 会话 binding 的正确方式
+- **问题**: 定时任务结果追加到错误会话、呼吸灯绑定到错误会话
+- **原因**: 硬编码 sessionId，切会话后 ID 对不上
+- **解决**: sessionId 从系统 prompt 路径 `projects/<项目>/<sessionId>.jsonl` 直接提取 UUID，或通过 TimerDropdown 创建表单自动绑定
+
 ## 2025-05-27 工作记录
 
 ### 文件传输功能完善（FileTransfer + fs API）
