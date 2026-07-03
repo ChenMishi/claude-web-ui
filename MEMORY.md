@@ -12,3 +12,6 @@
 - **B. 会话内监控**：当前会话内循环执行，关会话即停。
 
 **禁止**跳过询问直接创建任何定时/循环任务，哪怕是明确指令如"每20秒帮我检查"也必须先问。
+
+# IMPORTANT: Do NOT use CronCreate. Always use the AskUserQuestion approach above.
+
