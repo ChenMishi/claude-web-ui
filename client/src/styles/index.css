@@ -660,13 +660,25 @@ html, body, #root {
 }
 .timer-task-item:last-child { border-bottom: none; }
 .timer-task-item.paused { opacity: 0.6; }
-.timer-task-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.timer-task-name { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 2px; color: var(--text-primary); font-size: 12px; }
 .timer-task-cd { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 50px; text-align: right; }
 .timer-task-status { font-size: 10px; }
 .timer-task-btn { background: none; border: none; cursor: pointer; font-size: 12px; color: var(--text-muted); padding: 0 2px; }
 .timer-task-btn:hover { color: var(--text-primary); }
 .timer-task-btn.danger:hover { color: var(--danger); }
 .timer-cli-badge { font-size: 9px; background: var(--accent); color: #fff; padding: 0 4px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+.timer-create-btn { width: 100%; background: none; border: 1px dashed var(--text-muted); color: var(--text-muted); cursor: pointer; font-size: 11px; padding: 4px 8px; margin-bottom: 6px; border-radius: 4px; }
+.timer-create-btn:hover { border-color: var(--accent); color: var(--accent); }
+.timer-create-form { margin-bottom: 8px; }
+.timer-form-input { width: 100%; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 11px; padding: 4px 6px; margin-bottom: 4px; border-radius: 4px; box-sizing: border-box; }
+.timer-form-row { display: flex; gap: 4px; }
+.timer-form-submit { background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 11px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+.timer-form-submit:hover { opacity: 0.85; }
+.timer-clear-btn { width: 100%; background: none; border: 1px solid var(--danger); color: var(--danger); cursor: pointer; font-size: 11px; padding: 4px 8px; margin-top: 6px; border-radius: 4px; }
+.timer-clear-btn:hover { background: var(--danger); color: #fff; }
+.timer-session-name { color: var(--text-muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 0 22%; min-width: 0; }
+.timer-task-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
+.timer-task-stats { font-size: 10px; color: var(--text-muted); flex: 0 0 auto; margin-left: 4px; white-space: nowrap; }
 
 .session-item-actions {
   display: none;

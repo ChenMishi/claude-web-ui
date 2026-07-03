@@ -17,29 +17,39 @@ function appendResult(task, output) {
     // Find the session JSONL file
     const projectsDir = path.join(require('os').homedir(), '.claude', 'projects');
     if (!fs.existsSync(projectsDir)) return;
+    const sessionsDir = path.join(require('os').homedir(), '.claude', 'sessions');
+    let realPath = null;
+
     for (const proj of fs.readdirSync(projectsDir)) {
       const projPath = path.join(projectsDir, proj);
       if (!fs.statSync(projPath).isDirectory()) continue;
       const jsonlPath = path.join(projPath, `${task.sessionId}.jsonl`);
       if (!fs.existsSync(jsonlPath)) continue;
-
-      const record = JSON.stringify({
-        type: 'assistant',
-        message: {
-          role: 'assistant',
-          content: [{ type: 'text', text: `[定时任务: ${task.name}]\n${output}` }],
-        },
-      });
-      // Resolve symlink to write to real file
-      let realPath = jsonlPath;
       try {
         if (fs.lstatSync(jsonlPath).isSymbolicLink()) {
           realPath = fs.realpathSync(jsonlPath);
+        } else {
+          realPath = jsonlPath;
         }
-      } catch {}
-      fs.appendFileSync(realPath, record + '\n', 'utf8');
-      return true;
+      } catch { realPath = jsonlPath; }
+      break;
     }
+
+    // Fallback: create or use the sessions directory directly
+    if (!realPath) {
+      try { fs.mkdirSync(sessionsDir, { recursive: true }); } catch {}
+      realPath = path.join(sessionsDir, `${task.sessionId}.jsonl`);
+    }
+
+    const record = JSON.stringify({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: `[定时任务: ${task.name}]\n${output}` }],
+      },
+    });
+    fs.appendFileSync(realPath, record + '\n', 'utf8');
+    return true;
   } catch (err) {
     console.error(`[scheduler] appendResult error:`, err.message);
   }
@@ -76,6 +86,7 @@ function executeTask(task) {
     if (t) {
       t.lastOutput = output.slice(0, 500);
       t.nextRun = Date.now() + t.interval;
+      t.outputVersion = (t.outputVersion || 0) + 1;  // bump version for frontend to detect change
       appendResult(t, output.slice(0, 5000));
       // Track that this session has new results
       if (!t.updatedSessions) t.updatedSessions = [];

@@ -115,7 +115,14 @@ export default function ChatView() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const currentProject = projects.find(p => p.id === currentProjectId);
   const projectCwd = currentProject?.cwd || '';
-  const pendingQueue = useRef([]); // 消息队列 ref，驱动自动发送
+  const pendingQueues = useRef(new Map()); // sessionId → [{text, timestamp}]
+  // Helper to get current session's queue
+  const getQueue = () => {
+    if (!currentSessionId) return [];
+    let q = pendingQueues.current.get(currentSessionId);
+    if (!q) { q = []; pendingQueues.current.set(currentSessionId, q); }
+    return q;
+  };
   const askRef = useRef(null);
   const chatMessagesRef = useRef(chatMessages);
   chatMessagesRef.current = chatMessages;
@@ -423,10 +430,15 @@ export default function ChatView() {
   // 切会话时保留旧会话的 SSE 连接在后台运行
   // 不 abort — 让旧会话自然完成，onDone 会触发 streamEnd 正确清理计数
   useEffect(() => {
+    // Load queue for current session (preserved across switches)
+    const q = pendingQueues.current.get(currentSessionId) || [];
+    setQueuedMessages([...q]);
+    // Reset exec status if new session isn't busy
+    if (currentSessionId && !busyRef.current.has(currentSessionId) && !isStreaming) {
+      execReset();
+    }
     return () => {
       if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
-      pendingQueue.current = [];
-      setQueuedMessages([]);
     };
   }, [currentSessionId]);
 
@@ -667,19 +679,19 @@ export default function ChatView() {
 
   // 清空排队消息
   const clearPendingQueue = useCallback(() => {
-    pendingQueue.current = [];
+    getQueue().length = 0;
     setQueuedMessages([]);
-  }, []);
+  }, [currentSessionId]);
 
   // Ref to handleSend — avoids TDZ because handlePrioritize is declared before handleSend
   const handleSendRef = useRef(null);
 
   // 优先插入排队消息：中断当前任务，立即发送该消息
   const handlePrioritize = useCallback(async (idx) => {
-    const item = pendingQueue.current[idx];
+    const item = getQueue()[idx];
     if (!item) return;
-    pendingQueue.current.splice(idx, 1);
-    setQueuedMessages([...pendingQueue.current]);
+    getQueue().splice(idx, 1);
+    setQueuedMessages([...getQueue()]);
     sendingRef.current = false;
     busyRef.current.delete(currentSessionId);  // unbusy current session
     const newExecId = ++execIdRef.current;
@@ -733,11 +745,11 @@ export default function ChatView() {
     if (currentSessionId && busyRef.current.has(currentSessionId)) {
       const item = { text: text.trim(), timestamp: Date.now() };
       if (fromQueueRef.current) {
-        pendingQueue.current.unshift(item);
+        getQueue().unshift(item);
       } else {
-        pendingQueue.current.push(item);
+        getQueue().push(item);
       }
-      setQueuedMessages([...pendingQueue.current]);
+      setQueuedMessages([...getQueue()]);
       return;
     }
     sendingRef.current = true;
@@ -955,9 +967,9 @@ export default function ChatView() {
         }
 
         // 检查排队消息，自动发送下一条
-        const next = pendingQueue.current.shift();
+        const next = getQueue().shift();
         if (next) {
-          setQueuedMessages([...pendingQueue.current]);
+          setQueuedMessages([...getQueue()]);
           fromQueueRef.current = true;
           setTimeout(() => {
             handleSend(next.text);
@@ -1150,7 +1162,7 @@ export default function ChatView() {
       </div>
       <div className="input-row">
         <div className="input-row-spacer">
-          <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} queuedMessages={queuedMessages} onRemoveQueued={(idx) => { pendingQueue.current.splice(idx, 1); setQueuedMessages([...pendingQueue.current]); }} onPrioritize={handlePrioritize} />
+          <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} queuedMessages={queuedMessages} onRemoveQueued={(idx) => { getQueue().splice(idx, 1); setQueuedMessages([...getQueue()]); }} onPrioritize={handlePrioritize} />
         </div>
       </div>
     </div>

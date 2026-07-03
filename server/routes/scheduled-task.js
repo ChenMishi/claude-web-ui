@@ -42,7 +42,7 @@ router.get('/scheduled-tasks', requireAuth, (_req, res) => {
     lastOutput: t.lastOutput, command: t.command,
     createdAt: t.createdAt, updatedSessions: t.updatedSessions || [],
     runCount: t.runCount || 0, maxRuns: t.maxRuns || null,
-    source: 'webui',
+    outputVersion: t.outputVersion || 0, source: 'webui',
   }));
 
   // Also include CLI cron tasks (from ~/.claude/scheduled_tasks.json)
@@ -100,7 +100,7 @@ router.patch('/scheduled-tasks/:id', requireAuth, (req, res) => {
   const tasks = getTasks();
   const idx = tasks.findIndex(t => t.id === req.params.id);
   if (idx < 0) return res.status(404).json({ error: 'Task not found' });
-  const allowed = ['status', 'name', 'interval'];
+  const allowed = ['status', 'name', 'interval', 'runCount'];
   for (const key of allowed) {
     if (req.body[key] !== undefined) tasks[idx][key] = req.body[key];
   }
