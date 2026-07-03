@@ -7,7 +7,8 @@ export default function SessionList() {
   const {
     sessions, currentSessionId, selectSession, isStreaming,
     currentProjectId, setMessages, setStreaming,
-    setSessions, setProjects, busySessions,
+    setSessions, setProjects, busySessions, pendingTaskSessions,
+    markTaskSessionRead,
   } = useApp();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -15,6 +16,7 @@ export default function SessionList() {
 
   const handleSelect = (id) => {
     selectSession(id, isStreaming);
+    if (pendingTaskSessions?.has(id)) markTaskSessionRead(id);
   };
 
   const handleDelClick = (e, id) => {
@@ -91,6 +93,7 @@ export default function SessionList() {
               <div className="session-item-meta">
                 <span>{formatDate(s.lastModified)}</span>
                 {busySessions?.has(s.id) && <span className="session-busy-dot" title="执行中" />}
+                {!busySessions?.has(s.id) && pendingTaskSessions?.has(s.id) && <span className="session-task-dot" title="有新的定时任务结果" />}
               </div>
               <div className="session-item-actions">
                 <button onClick={(e) => handleRenameStart(e, s.id, s.title)}>✏</button>

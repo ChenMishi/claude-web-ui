@@ -584,13 +584,14 @@ function sweepNewOutputFiles(cwd, sessionStartTime) {
   const threshold = sessionStartTime - 5000; // 5s tolerance
 
   // Output extensions that are clearly generated/user-facing files
+  // Excludes source code extensions (.js, .json, .py, .md, .txt, .html, .xml, .svg)
+  // that are too often project files, not user-facing artifacts
   const OUTPUT_EXT_SWEEP = new Set([
     '.csv', '.tsv', '.xlsx', '.xls', '.docx', '.pptx', '.pdf',
     '.zip', '.tar', '.gz', '.tgz', '.bz2', '.xz', '.7z',
-    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp',
-    '.json', '.xml', '.html', '.md', '.txt',
+    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp',
   ]);
-  const SKIP_DIRS = new Set(['node_modules', '.git', '__pycache__', 'dist', 'build', '.cache', '.claude', 'venv', '.vision_cache']);
+  const SKIP_DIRS = new Set(['node_modules', '.git', '__pycache__', 'dist', 'build', '.cache', '.claude', '.claude-web-ui', 'venv', '.vision_cache']);
 
   function scan(dir, depth) {
     if (depth > 4) return;

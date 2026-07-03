@@ -94,6 +94,7 @@ function createApp() {
   app.use('/api', require('./routes/stats'));
 app.use('/api', require('./routes/backup'));
 app.use('/api', require('./routes/storage'));
+app.use('/api', require('./routes/scheduled-task').router);
 
   // Swagger docs
   try {
@@ -292,6 +293,9 @@ function startServer(opts = {}) {
 
   // Reset any stale runtime states from previous server instance
   try { require('./store').resetAllRuntimes(); } catch {}
+
+  // Start scheduled task scheduler
+  try { require('./scheduler').start(); } catch (err) { console.log('[scheduler] start failed:', err.message); }
 
   // Migrate old SDK convention project directories (- separator) to web UI convention (_ separator).
 // SDK binary replaced all non-alphanumeric chars with -, web UI only replaces / with _.

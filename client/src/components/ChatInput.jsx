@@ -4,6 +4,7 @@ import { abortSession, listSkills, uploadChatAttachment } from '../api';
 import { getFileIcon } from '../utils/fileIcons';
 import ExecutionBar from './ExecutionBar';
 
+import TimerDropdown from './TimerDropdown';
 const COMMANDS = [
   { cmd: '/help', desc: '查看所有可用命令', action: 'help' },
   { cmd: '/new', desc: '新建一个空白对话', action: 'new' },
@@ -801,6 +802,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
             </div>
           )}
           </div>
+          <TimerDropdown />
         </div>
       </div>
     </div>

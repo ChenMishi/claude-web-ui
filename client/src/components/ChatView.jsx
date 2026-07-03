@@ -75,6 +75,7 @@ export default function ChatView() {
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, bindTaskId, updateTask, setMainTask, updateMainTask, execStatus,
     currentModel, finishAllStreaming, finalizeStreaming, streamStart, streamEnd, setSessionExecStatus,
+    busySessions, taskOutputTick,
   } = useApp();
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
@@ -613,6 +614,39 @@ export default function ChatView() {
     return () => { cancelled = true; };
   }, [currentSessionId]);
 
+  // Task output notification → fetch new messages from JSONL
+  const taskChatRef = useRef({ tick: 0, lastContent: '' });
+  useEffect(() => {
+    if (taskOutputTick === 0) return;
+    if (taskChatRef.current.tick === taskOutputTick) return;
+    taskChatRef.current.tick = taskOutputTick;
+    if (isStreaming || loadingMore || !currentSessionId) return;
+
+    // Fetch the latest messages and deduplicate — only append truly new ones
+    getSessionMessages(currentSessionId, 0).then(msgs => {
+      if (!msgs || msgs.length === 0) return;
+      const existing = new Set(chatMessagesRef.current.map(m => m.content));
+      const newMsgs = [];
+      for (const m of msgs) {
+        const content = m.message?.content;
+        let text = '';
+        if (typeof content === 'string' && content.trim()) {
+          text = content;
+        } else if (Array.isArray(content)) {
+          const textBlocks = content.filter(c => c.type === 'text');
+          text = textBlocks.map(c => c.text).join('');
+        }
+        if (text && !existing.has(text)) {
+          newMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: text, timestamp: m.timestamp ? new Date(m.timestamp).getTime() : null });
+        }
+      }
+      if (newMsgs.length > 0) {
+        for (const msg of newMsgs) appendMessage(msg);
+        taskChatRef.current.lastContent = newMsgs[newMsgs.length - 1].content;
+      }
+    }).catch(() => {});
+  }, [taskOutputTick]); // eslint-disable-line
+
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => execTick(), 1000);
@@ -689,8 +723,8 @@ export default function ChatView() {
     // 防重入锁 — 防止同一个 handleSend 被并发调用
     if (sendingRef.current) return;
 
-    // 同一会话正在执行 → 排队；不同会话/null → 允许
-    if (currentSessionId && isStreamingRef.current === currentSessionId) {
+    // 当前会话正在执行 → 排队
+    if (currentSessionId && busySessions?.has(currentSessionId)) {
       const item = { text: text.trim(), timestamp: Date.now() };
       if (fromQueueRef.current) {
         pendingQueue.current.unshift(item);

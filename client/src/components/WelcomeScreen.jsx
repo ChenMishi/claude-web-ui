@@ -1,7 +1,7 @@
 import { useApp } from '../context/AppContext';
 
 export default function WelcomeScreen() {
-  const { model, currentModel, systemPrompt, setSetting, currentProjectId, availableModels } = useApp();
+  const { currentModel, systemPrompt, setSetting, availableModels, switchCurrentModel, currentProjectId } = useApp();
 
   return (
     <div className="welcome">
@@ -13,7 +13,7 @@ export default function WelcomeScreen() {
       </p>
       <div className="welcome-config">
         <label>Model</label>
-        <select value={currentModel || model} onChange={e => setSetting('model', e.target.value)}>
+        <select value={currentModel} onChange={e => switchCurrentModel(e.target.value)}>
           {availableModels.length > 0 ? (
             availableModels.map(m => <option key={m} value={m}>{m}</option>)
           ) : (

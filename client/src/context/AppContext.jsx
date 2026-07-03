@@ -47,6 +47,9 @@ const initialState = {
   activeStreams: 0,     // 并行执行的会话数
   busySessions: new Set(), // 正在执行中的会话 ID 集合
   sessionExecStatus: {},   // 每个会话的执行状态 { sessionId: { phase, detail } }
+  scheduledTasks: [],      // 定时任务列表
+  pendingTaskSessions: new Set(), // 有未读定时任务结果的会话 ID（黄色呼吸灯）
+  taskOutputTick: 0,       // 递增计数器，定时任务有新输出时触发聊天刷新
   sidebarOpen: true,
   updateAvailable: false,  // always reset on page load
   activeView: 'chat',
@@ -110,7 +113,10 @@ function reducer(state, action) {
       }
       // 流式期间切回正在执行的会话：恢复完整消息（含 tool/thinking），不经过 textOnly
       const isStreamingTarget = state.isStreaming && action.isStreamingSession;
-      const restored = isStreamingTarget ? (cache[sid] || []) : textOnly(cache[sid] || []);
+      const raw = cache[sid] || [];
+      const restored = (isStreamingTarget ? raw : textOnly(raw)).map(m =>
+        m.streaming ? { ...m, streaming: false } : m
+      );
       saveCache(cache);
       next = { ...state, currentSessionId: sid, chatMessages: restored, messageCache: cache };
       break;
@@ -234,6 +240,24 @@ function reducer(state, action) {
     case 'SESSION_EXEC_UPDATE':
       next = { ...state, sessionExecStatus: { ...state.sessionExecStatus, [action.payload.sid]: action.payload.status } };
       break;
+    case 'SET_SCHEDULED_TASKS':
+      next = { ...state, scheduledTasks: typeof action.payload === 'function' ? action.payload(state.scheduledTasks) : action.payload };
+      break;
+    case 'MARK_TASK_SESSION_READ': {
+      const pts = new Set(state.pendingTaskSessions);
+      pts.delete(action.payload);
+      next = { ...state, pendingTaskSessions: pts };
+      break;
+    }
+    case 'ADD_PENDING_TASK_SESSION': {
+      const pts2 = new Set(state.pendingTaskSessions);
+      pts2.add(action.payload);
+      next = { ...state, pendingTaskSessions: pts2 };
+      break;
+    }
+    case 'NOTIFY_TASK_OUTPUT':
+      next = { ...state, taskOutputTick: state.taskOutputTick + 1 };
+      break;
     case 'SET_VIEW':
       next = { ...state, activeView: action.payload }; break;
     case 'TOGGLE_SIDEBAR':
@@ -252,6 +276,7 @@ function reducer(state, action) {
     case 'EXEC_PHASE':
       next = { ...state, execStatus: { ...state.execStatus, ...action.payload } }; break;
     case 'EXEC_TICK':
+      if (state.execStatus.startTime === 0) return state; // guard: don't tick when idle
       next = { ...state, execStatus: { ...state.execStatus, elapsed: Math.floor((Date.now() - state.execStatus.startTime) / 1000) } }; break;
     case 'EXEC_TOKENS': {
       const cur = state.execStatus.tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
@@ -265,7 +290,7 @@ function reducer(state, action) {
       break;
     }
     case 'EXEC_DONE':
-      next = { ...state, mainTask: state.mainTask ? { ...state.mainTask, status: 'completed' } : null, execStatus: { ...state.execStatus, phase: 'done', tokens: action.payload.tokens, cost: action.payload.cost, currency: action.payload.currency, elapsed: Math.floor((Date.now() - state.execStatus.startTime) / 1000) } }; break;
+      next = { ...state, mainTask: state.mainTask ? { ...state.mainTask, status: 'completed' } : null, execStatus: { ...state.execStatus, phase: 'done', tokens: action.payload.tokens, cost: action.payload.cost, currency: action.payload.currency, elapsed: state.execStatus.startTime > 0 ? Math.floor((Date.now() - state.execStatus.startTime) / 1000) : state.execStatus.elapsed } }; break;
     case 'EXEC_RESET':
       next = { ...state, execStatus: initialState.execStatus }; break;
     case 'TASK_CREATE': {
@@ -357,6 +382,10 @@ export function AppContextProvider({ children }) {
   const streamStart = useCallback((sessionId) => dispatch({ type: 'STREAM_START', payload: sessionId }), []);
   const streamEnd = useCallback((sessionId) => dispatch({ type: 'STREAM_END', payload: sessionId }), []);
   const setSessionExecStatus = useCallback((sid, phase, detail) => dispatch({ type: 'SESSION_EXEC_UPDATE', payload: { sid, status: { phase, detail } } }), []);
+  const setScheduledTasks = useCallback((tasks) => dispatch({ type: 'SET_SCHEDULED_TASKS', payload: tasks }), []);
+  const markTaskSessionRead = useCallback((sid) => dispatch({ type: 'MARK_TASK_SESSION_READ', payload: sid }), []);
+  const addPendingTaskSession = useCallback((sid) => dispatch({ type: 'ADD_PENDING_TASK_SESSION', payload: sid }), []);
+  const notifyTaskOutput = useCallback(() => dispatch({ type: 'NOTIFY_TASK_OUTPUT' }), []);
   const setView = useCallback((v) => dispatch({ type: 'SET_VIEW', payload: v }), []);
   const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), []);
   const setUpdateAvailable = useCallback((v) => dispatch({ type: 'SET_UPDATE', payload: v }), []);
@@ -492,6 +521,7 @@ export function AppContextProvider({ children }) {
     setProjects, selectProject, setSessions, selectSession, setSessionId,
     setMessages, appendMessage, updateLastMessage, setStreaming,
     streamStart, streamEnd, setSessionExecStatus,
+    setScheduledTasks, markTaskSessionRead, addPendingTaskSession, notifyTaskOutput,
     setView, toggleSidebar, setSetting,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, bindTaskId, updateTask, clearTasks, setMainTask, updateMainTask,
