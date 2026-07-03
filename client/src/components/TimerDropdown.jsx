@@ -45,7 +45,7 @@ export default function TimerDropdown() {
               const prevVer = lastOutputRef.current[task.id] || 0;
               if ((task.outputVersion || 0) > prevVer) {
                 lastOutputRef.current[task.id] = task.outputVersion;
-                appendMessage({ role: 'assistant', content: `[定时任务: ${task.name}]\n${task.lastOutput}`, timestamp: Date.now() });
+                appendMessage({ role: 'assistant', content: `⏰ [定时任务: ${task.name}]\n${task.lastOutput}`, timestamp: Date.now() });
               }
             }
           }

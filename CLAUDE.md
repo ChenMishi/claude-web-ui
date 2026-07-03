@@ -25,6 +25,7 @@
   - **A. 定时任务（持久化）**：通过 `POST /api/scheduled-tasks` 创建，出现在 TimerDropdown 面板，关掉会话也继续跑，支持暂停/恢复/maxRuns自动停止/结果回显到聊天
   - **B. 会话内监控**：在当前会话里循环执行，关会话就停，适合临时观察
   - JWT 密钥位置：`/root/.claude-web-ui/.jwt-secret`，Payload：`{ userId, username: "admin", role: "admin" }`
+  - **这条规则在服务启动时自动同步到全局 MEMORY.md**，升级后重启即生效，无需手动操作。
 
 ## 文件生成规范
 - **生成含中文的 CSV 文件时，必须添加 UTF-8 BOM**（`\xEF\xBB\xBF`），否则 Windows Excel 会用 GBK 打开导致中文乱码

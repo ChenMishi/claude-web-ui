@@ -297,6 +297,26 @@ function startServer(opts = {}) {
   // Start scheduled task scheduler
   try { require('./scheduler').start(); } catch (err) { console.log('[scheduler] start failed:', err.message); }
 
+  // Sync Claude global memory rules (auto-installs on every startup)
+  try {
+    const src = path.join(__dirname, '..', 'MEMORY.md');
+    const destDir = path.join(os.homedir(), '.claude', 'projects', '-root', 'memory');
+    const dest = path.join(destDir, 'MEMORY.md');
+    if (fs.existsSync(src)) {
+      fs.mkdirSync(destDir, { recursive: true });
+      const srcContent = fs.readFileSync(src, 'utf8');
+      let needWrite = true;
+      if (fs.existsSync(dest)) {
+        const destContent = fs.readFileSync(dest, 'utf8');
+        if (destContent === srcContent) needWrite = false;
+      }
+      if (needWrite) {
+        fs.writeFileSync(dest, srcContent, 'utf8');
+        console.log('[MEMORY] Global memory rules synced');
+      }
+    }
+  } catch (e) { console.log('[MEMORY] sync failed:', e.message); }
+
   // Migrate old SDK convention project directories (- separator) to web UI convention (_ separator).
 // SDK binary replaced all non-alphanumeric chars with -, web UI only replaces / with _.
 // Must use .cwd file + getProjectDirName(cwd) for precision, because simple -→_ can't

@@ -45,7 +45,7 @@ function appendResult(task, output) {
       type: 'assistant',
       message: {
         role: 'assistant',
-        content: [{ type: 'text', text: `[定时任务: ${task.name}]\n${output}` }],
+        content: [{ type: 'text', text: `⏰ [定时任务: ${task.name}]\n${output}` }],
       },
     });
     fs.appendFileSync(realPath, record + '\n', 'utf8');
