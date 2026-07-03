@@ -17,34 +17,19 @@ function loadCliTasks() {
   const result = [];
   const paths = [path.join(CLAUDE_HOME, 'scheduled_tasks.json')];
 
-  // Search project directories for their .claude/scheduled_tasks.json
+  // Derive project cwds from directory names: "-" replaces "/"
+  // e.g. "-data-testdir" → "/data/testdir"
   const projectsDir = path.join(CLAUDE_HOME, 'projects');
   try {
     if (fs.existsSync(projectsDir)) {
       for (const proj of fs.readdirSync(projectsDir)) {
+        if (proj.startsWith('.')) continue;
         const projPath = path.join(projectsDir, proj);
         if (!fs.statSync(projPath).isDirectory()) continue;
-        // Resolve symlinks to find the real session directory
-        try {
-          for (const f of fs.readdirSync(projPath)) {
-            if (!f.endsWith('.jsonl')) continue;
-            const jsonlPath = path.join(projPath, f);
-            let realPath = jsonlPath;
-            try {
-              if (fs.lstatSync(jsonlPath).isSymbolicLink()) {
-                realPath = fs.realpathSync(jsonlPath);
-              }
-            } catch {}
-            // Go up from sessions dir to find .claude/scheduled_tasks.json
-            const sessionsDir = path.dirname(realPath);
-            const claudeDir = path.dirname(sessionsDir);
-            if (path.basename(sessionsDir) === 'sessions' && path.basename(claudeDir) === '.claude') {
-              const cliFile = path.join(claudeDir, 'scheduled_tasks.json');
-              if (!paths.includes(cliFile)) paths.push(cliFile);
-            }
-            break; // one file per project is enough
-          }
-        } catch {}
+        // Derive cwd from project name
+        const cwd = '/' + proj.replace(/^-/, '').replace(/-/g, '/');
+        const cliFile = path.join(cwd, '.claude', 'scheduled_tasks.json');
+        if (!paths.includes(cliFile)) paths.push(cliFile);
       }
     }
   } catch {}
@@ -69,23 +54,12 @@ function loadCliTaskPaths() {
   try {
     if (fs.existsSync(projectsDir)) {
       for (const proj of fs.readdirSync(projectsDir)) {
+        if (proj.startsWith('.')) continue;
         const projPath = path.join(projectsDir, proj);
         if (!fs.statSync(projPath).isDirectory()) continue;
-        try {
-          for (const f of fs.readdirSync(projPath)) {
-            if (!f.endsWith('.jsonl')) continue;
-            const jsonlPath = path.join(projPath, f);
-            let realPath = jsonlPath;
-            try { if (fs.lstatSync(jsonlPath).isSymbolicLink()) realPath = fs.realpathSync(jsonlPath); } catch {}
-            const sessionsDir = path.dirname(realPath);
-            const claudeDir = path.dirname(sessionsDir);
-            if (path.basename(sessionsDir) === 'sessions' && path.basename(claudeDir) === '.claude') {
-              const cliFile = path.join(claudeDir, 'scheduled_tasks.json');
-              if (!paths.includes(cliFile)) paths.push(cliFile);
-            }
-            break;
-          }
-        } catch {}
+        const cwd = '/' + proj.replace(/^-/, '').replace(/-/g, '/');
+        const cliFile = path.join(cwd, '.claude', 'scheduled_tasks.json');
+        if (!paths.includes(cliFile)) paths.push(cliFile);
       }
     }
   } catch {}
