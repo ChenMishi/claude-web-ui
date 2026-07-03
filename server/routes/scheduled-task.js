@@ -146,7 +146,6 @@ router.get('/scheduled-tasks', requireAuth, (_req, res) => {
           source: 'cli',
         });
       }
-    }
   } catch {}
 
   res.json({ tasks });
