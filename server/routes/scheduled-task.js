@@ -17,8 +17,8 @@ function loadCliTasks() {
   const result = [];
   const paths = [path.join(CLAUDE_HOME, 'scheduled_tasks.json')];
 
-  // Derive project cwds from directory names: "-" replaces "/"
-  // e.g. "-data-testdir" → "/data/testdir"
+  // Derive project cwds from directory names: "-" or "_" replaces "/"
+  // e.g. "-data-testdir" or "_data_testdir" → "/data/testdir"
   const projectsDir = path.join(CLAUDE_HOME, 'projects');
   try {
     if (fs.existsSync(projectsDir)) {
@@ -26,13 +26,17 @@ function loadCliTasks() {
         if (proj.startsWith('.')) continue;
         const projPath = path.join(projectsDir, proj);
         if (!fs.statSync(projPath).isDirectory()) continue;
-        // Derive cwd from project name
-        const cwd = '/' + proj.replace(/^-/, '').replace(/-/g, '/');
+        // Derive cwd from project name (handle both - and _ separators)
+        const clean = proj.replace(/^[-_]/, '');
+        const cwd = '/' + clean.replace(/[-_]/g, '/');
         const cliFile = path.join(cwd, '.claude', 'scheduled_tasks.json');
         if (!paths.includes(cliFile)) paths.push(cliFile);
       }
     }
   } catch {}
+
+  // Log searched paths for debugging
+  console.log('[cli-bridge] Searching CLI tasks in:', paths.join(', '));
 
   for (const p of paths) {
     try {
@@ -57,7 +61,7 @@ function loadCliTaskPaths() {
         if (proj.startsWith('.')) continue;
         const projPath = path.join(projectsDir, proj);
         if (!fs.statSync(projPath).isDirectory()) continue;
-        const cwd = '/' + proj.replace(/^-/, '').replace(/-/g, '/');
+        const cwd = '/' + proj.replace(/^[-_]/, '').replace(/[-_]/g, '/');
         const cliFile = path.join(cwd, '.claude', 'scheduled_tasks.json');
         if (!paths.includes(cliFile)) paths.push(cliFile);
       }
