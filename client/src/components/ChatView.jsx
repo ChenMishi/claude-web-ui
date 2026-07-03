@@ -77,6 +77,8 @@ export default function ChatView() {
     currentModel, finishAllStreaming, finalizeStreaming, streamStart, streamEnd, setSessionExecStatus,
     busySessions, taskOutputTick,
   } = useApp();
+  const busyRef = useRef(busySessions);
+  busyRef.current = busySessions;
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
   const textAccum = useRef('');
@@ -676,32 +678,38 @@ export default function ChatView() {
   const handlePrioritize = useCallback(async (idx) => {
     const item = pendingQueue.current[idx];
     if (!item) return;
-    // 从队列中移除该项
     pendingQueue.current.splice(idx, 1);
     setQueuedMessages([...pendingQueue.current]);
-    // 释放发送锁 + 中断当前执行
     sendingRef.current = false;
-    ++execIdRef.current;
+    busyRef.current.delete(currentSessionId);  // unbusy current session
+    const newExecId = ++execIdRef.current;
+    execIdMapRef.current.set(currentSessionId, newExecId);  // block old SSE onDone
     stopTimer();
     if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
     if (currentSessionId) {
       try { await abortSession(currentSessionId); } catch {}
     }
+    streamEnd(currentSessionId);
     finalizeStreaming();
-    // 等待后端中断完成后再发送插队消息
     setTimeout(() => handleSendRef.current?.(item.text), 500);
   }, [currentSessionId]);
 
   const handleStop = useCallback((execStatus) => {
     sendingRef.current = false;  // release send lock
+    busyRef.current.delete(currentSessionId);  // immediately unbusy for handleSend
     allAbortsRef.current.get(currentSessionId)?.abort();
     allAbortsRef.current.delete(currentSessionId);
     streamEnd(currentSessionId);
     ++execIdRef.current;  // bump so stale SSE errors are ignored
-    stopTimer();
     clearPendingQueue();  // 清空排队消息
     if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
-    finalizeStreaming();  // 原子操作: 关闭所有 streaming + 保存缓存
+
+    // Only finalize/reset if no other sessions are still running
+    if (allAbortsRef.current.size === 0) {
+      stopTimer();
+      finalizeStreaming();
+      execReset();
+    }
 
     // Append artifact summary if any files were created before stopping
     if (artifactFilesRef.current.size > 0) {
@@ -713,8 +721,6 @@ export default function ChatView() {
     // Append a summary system message
     const summary = buildAbortSummary(execStatus);
     bAppend({ role: 'system', content: summary, timestamp: Date.now() });
-
-    execReset();
   }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset, clearPendingQueue, finalizeStreaming]);
 
   const handleSend = useCallback((text, attachments) => {
@@ -724,7 +730,7 @@ export default function ChatView() {
     if (sendingRef.current) return;
 
     // 当前会话正在执行 → 排队
-    if (currentSessionId && busySessions?.has(currentSessionId)) {
+    if (currentSessionId && busyRef.current.has(currentSessionId)) {
       const item = { text: text.trim(), timestamp: Date.now() };
       if (fromQueueRef.current) {
         pendingQueue.current.unshift(item);

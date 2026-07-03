@@ -115,16 +115,21 @@ export default function TimerDropdown() {
                   <span className="timer-task-name" title={task.name}>
                     {task.name}
                     {task.maxRuns ? ` (${task.runCount || 0}/${task.maxRuns})` : ''}
+                    {task.source === 'cli' && <span className="timer-cli-badge">CLI</span>}
                   </span>
-                  <span className="timer-task-cd">{fmtCd(task.nextRun)}</span>
+                  <span className="timer-task-cd">{task.source === 'cli' ? (task.cron || '—') : fmtCd(task.nextRun)}</span>
                   <span className="timer-task-status">{task.status === 'active' ? '▶' : '⏸'}</span>
-                  <button className="timer-task-btn" onClick={() => {
-                    const ns = task.status === 'active' ? 'paused' : 'active';
-                    fetch(`/api/scheduled-tasks/${task.id}`, { method: 'PATCH', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status: ns }) })
-                      .then(r => { if (!r.ok) throw new Error(r.status); })
-                      .then(() => setScheduledTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: ns } : t)))
-                      .catch(err => alert(`操作失败 (${err.message})`));
-                  }}>{task.status === 'active' ? '⏸' : '▶'}</button>
+                  {task.source === 'cli' ? (
+                    <span className="timer-task-btn" style={{ opacity: 0.3, cursor: 'default' }} title="CLI 任务不支持暂停">⏸</span>
+                  ) : (
+                    <button className="timer-task-btn" onClick={() => {
+                      const ns = task.status === 'active' ? 'paused' : 'active';
+                      fetch(`/api/scheduled-tasks/${task.id}`, { method: 'PATCH', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status: ns }) })
+                        .then(r => { if (!r.ok) throw new Error(r.status); })
+                        .then(() => setScheduledTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: ns } : t)))
+                        .catch(err => alert(`操作失败 (${err.message})`));
+                    }}>{task.status === 'active' ? '⏸' : '▶'}</button>
+                  )}
                   <button className="timer-task-btn danger" onClick={(e) => handleDelClick(e, task)}>✕</button>
                 </div>
               ))

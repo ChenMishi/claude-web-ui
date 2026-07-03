@@ -222,6 +222,7 @@ function reducer(state, action) {
       break;
     }
     case 'SET_STREAMING':
+      if (!action.payload && state.activeStreams > 0) return state; // ignore stale false from aborted stream
       next = { ...state, isStreaming: action.payload }; break;
     case 'STREAM_START': {
       const s = action.payload;
