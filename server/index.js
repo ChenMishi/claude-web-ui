@@ -297,22 +297,36 @@ function startServer(opts = {}) {
   // Start scheduled task scheduler
   try { require('./scheduler').start(); } catch (err) { console.log('[scheduler] start failed:', err.message); }
 
-  // Sync Claude global memory rules (auto-installs on every startup)
+  // Sync Claude global memory rules to ALL users (auto-installs on every startup)
   try {
     const src = path.join(__dirname, '..', 'MEMORY.md');
-    const destDir = path.join(os.homedir(), '.claude', 'projects', '-root', 'memory');
-    const dest = path.join(destDir, 'MEMORY.md');
     if (fs.existsSync(src)) {
-      fs.mkdirSync(destDir, { recursive: true });
       const srcContent = fs.readFileSync(src, 'utf8');
-      let needWrite = true;
-      if (fs.existsSync(dest)) {
-        const destContent = fs.readFileSync(dest, 'utf8');
-        if (destContent === srcContent) needWrite = false;
-      }
-      if (needWrite) {
-        fs.writeFileSync(dest, srcContent, 'utf8');
-        console.log('[MEMORY] Global memory rules synced');
+      const homes = [os.homedir()];
+      // Also scan /home for other users
+      try {
+        for (const d of fs.readdirSync('/home')) {
+          const h = path.join('/home', d);
+          if (fs.existsSync(path.join(h, '.claude'))) homes.push(h);
+        }
+      } catch {}
+      for (const home of homes) {
+        const destDir = path.join(home, '.claude', 'projects', '-root', 'memory');
+        const dest = path.join(destDir, 'MEMORY.md');
+        let needWrite = true;
+        try {
+          if (fs.existsSync(dest)) {
+            const destContent = fs.readFileSync(dest, 'utf8');
+            if (destContent === srcContent) needWrite = false;
+          }
+        } catch {}
+        if (needWrite) {
+          try {
+            fs.mkdirSync(destDir, { recursive: true });
+            fs.writeFileSync(dest, srcContent, 'utf8');
+            console.log('[MEMORY] Synced for', home);
+          } catch {}
+        }
       }
     }
   } catch (e) { console.log('[MEMORY] sync failed:', e.message); }
