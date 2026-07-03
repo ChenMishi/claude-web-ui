@@ -8,7 +8,89 @@ const os = require('os');
 const { requireAuth } = require('../middleware/auth');
 
 const TASKS_FILE = path.join(os.homedir(), '.claude-web-ui', 'scheduled-tasks.json');
+const CLAUDE_HOME = path.join(os.homedir(), '.claude');
 const MAX_TASKS = 10;
+
+// Collect CLI cron tasks from ~/.claude/ and all project working directories
+function loadCliTasks() {
+  const seen = new Set();
+  const result = [];
+  const paths = [path.join(CLAUDE_HOME, 'scheduled_tasks.json')];
+
+  // Search project directories for their .claude/scheduled_tasks.json
+  const projectsDir = path.join(CLAUDE_HOME, 'projects');
+  try {
+    if (fs.existsSync(projectsDir)) {
+      for (const proj of fs.readdirSync(projectsDir)) {
+        const projPath = path.join(projectsDir, proj);
+        if (!fs.statSync(projPath).isDirectory()) continue;
+        // Resolve symlinks to find the real session directory
+        try {
+          for (const f of fs.readdirSync(projPath)) {
+            if (!f.endsWith('.jsonl')) continue;
+            const jsonlPath = path.join(projPath, f);
+            let realPath = jsonlPath;
+            try {
+              if (fs.lstatSync(jsonlPath).isSymbolicLink()) {
+                realPath = fs.realpathSync(jsonlPath);
+              }
+            } catch {}
+            // Go up from sessions dir to find .claude/scheduled_tasks.json
+            const sessionsDir = path.dirname(realPath);
+            const claudeDir = path.dirname(sessionsDir);
+            if (path.basename(sessionsDir) === 'sessions' && path.basename(claudeDir) === '.claude') {
+              const cliFile = path.join(claudeDir, 'scheduled_tasks.json');
+              if (!paths.includes(cliFile)) paths.push(cliFile);
+            }
+            break; // one file per project is enough
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+
+  for (const p of paths) {
+    try {
+      if (!fs.existsSync(p)) continue;
+      const data = JSON.parse(fs.readFileSync(p, 'utf8'));
+      for (const ct of (data.tasks || [])) {
+        if (seen.has(ct.id)) continue;
+        seen.add(ct.id);
+        result.push(ct);
+      }
+    } catch {}
+  }
+  return result;
+}
+// Same as loadCliTasks but returns file paths instead of task objects
+function loadCliTaskPaths() {
+  const paths = [path.join(CLAUDE_HOME, 'scheduled_tasks.json')];
+  const projectsDir = path.join(CLAUDE_HOME, 'projects');
+  try {
+    if (fs.existsSync(projectsDir)) {
+      for (const proj of fs.readdirSync(projectsDir)) {
+        const projPath = path.join(projectsDir, proj);
+        if (!fs.statSync(projPath).isDirectory()) continue;
+        try {
+          for (const f of fs.readdirSync(projPath)) {
+            if (!f.endsWith('.jsonl')) continue;
+            const jsonlPath = path.join(projPath, f);
+            let realPath = jsonlPath;
+            try { if (fs.lstatSync(jsonlPath).isSymbolicLink()) realPath = fs.realpathSync(jsonlPath); } catch {}
+            const sessionsDir = path.dirname(realPath);
+            const claudeDir = path.dirname(sessionsDir);
+            if (path.basename(sessionsDir) === 'sessions' && path.basename(claudeDir) === '.claude') {
+              const cliFile = path.join(claudeDir, 'scheduled_tasks.json');
+              if (!paths.includes(cliFile)) paths.push(cliFile);
+            }
+            break;
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+  return paths;
+}
 
 function loadTasks() {
   try {
@@ -45,13 +127,10 @@ router.get('/scheduled-tasks', requireAuth, (_req, res) => {
     outputVersion: t.outputVersion || 0, source: 'webui',
   }));
 
-  // Also include CLI cron tasks (from ~/.claude/scheduled_tasks.json)
+  // Also include CLI cron tasks from all known locations
   try {
-    const cliFile = path.join(os.homedir(), '.claude', 'scheduled_tasks.json');
-    if (fs.existsSync(cliFile)) {
-      const cliData = JSON.parse(fs.readFileSync(cliFile, 'utf8'));
-      for (const ct of (cliData.tasks || [])) {
-        tasks.push({
+    for (const ct of loadCliTasks()) {
+      tasks.push({
           id: 'cli-' + ct.id,
           name: 'CLI: ' + (ct.prompt || '').slice(0, 40) + (ct.prompt && ct.prompt.length > 40 ? '…' : ''),
           sessionId: ct.createdBySessionId || null,
@@ -116,19 +195,21 @@ router.patch('/scheduled-tasks/:id', requireAuth, (req, res) => {
 router.delete('/scheduled-tasks/:id', requireAuth, (req, res) => {
   const id = req.params.id;
 
-  // CLI cron task — delete from ~/.claude/scheduled_tasks.json
+  // CLI cron task — delete from all known locations
   if (id.startsWith('cli-')) {
     const cliId = id.slice(4);
-    const cliFile = path.join(os.homedir(), '.claude', 'scheduled_tasks.json');
-    try {
-      if (fs.existsSync(cliFile)) {
-        const data = JSON.parse(fs.readFileSync(cliFile, 'utf8'));
+    const cliPaths = loadCliTaskPaths();
+    for (const cliPath of cliPaths) {
+      try {
+        if (!fs.existsSync(cliPath)) continue;
+        const data = JSON.parse(fs.readFileSync(cliPath, 'utf8'));
+        const before = data.tasks.length;
         data.tasks = (data.tasks || []).filter(t => t.id !== cliId);
-        fs.writeFileSync(cliFile, JSON.stringify(data, null, 2), 'utf8');
-        return res.json({ ok: true });
-      }
-    } catch (e) {
-      return res.status(500).json({ error: e.message });
+        if (data.tasks.length !== before) {
+          fs.writeFileSync(cliPath, JSON.stringify(data, null, 2), 'utf8');
+          return res.json({ ok: true });
+        }
+      } catch {}
     }
     return res.status(404).json({ error: 'CLI task not found' });
   }
