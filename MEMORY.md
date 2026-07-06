@@ -12,8 +12,12 @@
     import jwt, json, subprocess, sys
     secret = open(os.path.expanduser('~/.claude-web-ui/.jwt-secret')).read().strip()
     token = jwt.encode({'userId':'7f92a69b-46bb-4dd8-91f5-c5fdec7c8497','username':'admin','role':'admin'}, secret, algorithm='HS256')
-    # sessionId 从系统 prompt 的 projects/<项目>/<sessionId>.jsonl 路径提取 UUID
-    body = {'name':'任务名','sessionId':'<从系统prompt提取的UUID>','command':'shell命令','interval':20000,'maxRuns':None}
+    # sessionId 用 ls -t 取最近修改的会话 JSONL（按时间排序，最新的就是当前会话）
+    import os, glob
+    files = sorted(glob.glob(os.path.expanduser('~/.claude/projects/-root/*.jsonl')), key=os.path.getmtime, reverse=True)
+    sid = os.path.basename(files[0]).replace('.jsonl', '') if files else None
+    if not sid: raise Exception('找不到当前会话 ID')
+    body = {'name':'任务名','sessionId':sid,'command':'shell命令','interval':20000,'maxRuns':None}
     r = subprocess.run(['curl','-s','-X','POST','http://localhost:3000/api/scheduled-tasks','-H','Content-Type: application/json','-H',f'Authorization: Bearer {token}','-d',json.dumps(body)], capture_output=True, text=True)
     print(r.stdout)
     ```
