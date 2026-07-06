@@ -294,6 +294,14 @@ function startServer(opts = {}) {
   // Reset any stale runtime states from previous server instance
   try { require('./store').resetAllRuntimes(); } catch {}
 
+  // Ensure pyjwt is available for scheduled task creation
+  try {
+    require('child_process').exec('python3 -c "import jwt" 2>/dev/null || pip install pyjwt', (err) => {
+      if (err) console.log('[pyjwt] install failed:', err.message);
+      else console.log('[pyjwt] ready');
+    });
+  } catch {}
+
   // Start scheduled task scheduler
   try { require('./scheduler').start(); } catch (err) { console.log('[scheduler] start failed:', err.message); }
 

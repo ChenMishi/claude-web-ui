@@ -197,7 +197,7 @@ function extractBashFilePaths(command, resultContent, cwd, sessionStartTime) {
   //     Catches Python/openpyxl/docx/ImageMagick/ffmpeg/etc output
   //     Scan BOTH result AND command — Python to_excel() doesn't print paths
   //     Skip read-only commands (ls, grep, cat, etc.) — their output lists existing files, not artifacts
-  const readOnlyCmdRe = /^(?:ls|grep|cat|head|tail|find|stat|file|wc|du|df|echo|printf|which|type|pwd|whoami|id|uname|hostname|free|uptime|ps|readlink|realpath|basename|dirname)\b/;
+  const readOnlyCmdRe = /^(?:ls|grep|cat|head|tail|find|stat|file|wc|du|df|echo|printf|which|type|pwd|whoami|id|uname|hostname|free|uptime|ps|readlink|realpath|basename|dirname|node|git|npm|npx|cp|mv|chmod|chown|mkdir|rmdir|touch)\b/;
   const strippedCmd = command.trim().replace(/^(?:cd\s+\S+\s*(?:&&|;)\s*)+/, '');
   if (!readOnlyCmdRe.test(strippedCmd)) {
   const resultExtRe = /(\/(?:[^\s"'`]+\/)*[^\s"'`]+\.(?:png|jpe?g|gif|webp|bmp|svg|ico|pdf|docx?|xlsx?|pptx?|zip|tar|gz|tgz|bz2|xz|7z|rar|csv|tsv|txt|md|json|yaml|yml|xml|html?|css|py|js|ts|sh|sql|db|sqlite3?|pkl|h5|pt|onnx|npy|npz|env|cfg|ini|toml|lock|log))(?:\b|$)/gi;
@@ -1034,13 +1034,18 @@ function buildSDKOptions(runtime, body, authUser) {
     }
   }
 
-  // Inject global memory rules into system prompt (guaranteed for all sessions)
+  // Inject global memory rules + current session info into system prompt
   try {
     const memPath = path.join(os.homedir(), '.claude', 'projects', '-root', 'memory', 'MEMORY.md');
     if (fs.existsSync(memPath)) {
       const memContent = fs.readFileSync(memPath, 'utf8');
+      // Inject current session project and ID so MEMORY.md code can extract them reliably
+      const sessionInfo = findSessionFile(runtime.sessionId, authUser);
+      const projDir = sessionInfo ? path.basename(sessionInfo.entryDir || '') : '';
+      const projName = (projDir === '_root' || projDir === '-root' || !projDir) ? '-root' : projDir;
+      const sessionHint = `[SESSION_INFO: projectDir=${projName}, sessionId=${runtime.sessionId}]`;
       const userPrompt = agentOptions.systemPrompt || '';
-      agentOptions.systemPrompt = memContent + '\n\n' + (userPrompt || '');
+      agentOptions.systemPrompt = memContent + '\n' + sessionHint + '\n\n' + (userPrompt || '');
     }
   } catch {}
 
@@ -1065,6 +1070,9 @@ function buildSDKOptions(runtime, body, authUser) {
       ...process.env,
       ANTHROPIC_BASE_URL: proxyUrl,
       ANTHROPIC_API_KEY: 'proxy',
+      CLAUDE_SESSION_ID: runtime.sessionId,
+      CLAUDE_USER_ID: authUser?.userId || '',
+      CLAUDE_WEBUI_PORT: String(require('../config').PORT || 3000),
       ...(agentOptions.env || {}),
     },
     ...agentOptions.thinking !== undefined ? { thinking: agentOptions.thinking } : {},
