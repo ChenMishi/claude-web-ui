@@ -297,19 +297,29 @@ function startServer(opts = {}) {
   // Start scheduled task scheduler
   try { require('./scheduler').start(); } catch (err) { console.log('[scheduler] start failed:', err.message); }
 
-  // Sync Claude global memory rules to ALL users (auto-installs on every startup)
+  // Sync Claude global memory rules to ALL human users (auto-installs on every startup)
   try {
     const src = path.join(__dirname, '..', 'MEMORY.md');
     if (fs.existsSync(src)) {
       const srcContent = fs.readFileSync(src, 'utf8');
-      const homes = [os.homedir()];
-      // Also scan /home for other users
+      const homes = new Set();
+      // Scan all human users via getent
       try {
-        for (const d of fs.readdirSync('/home')) {
-          const h = path.join('/home', d);
-          if (fs.existsSync(path.join(h, '.claude'))) homes.push(h);
+        const { execSync } = require('child_process');
+        const passwd = execSync('getent passwd 2>/dev/null || cat /etc/passwd', { encoding: 'utf8' });
+        for (const line of passwd.split('\n')) {
+          const parts = line.split(':');
+          if (parts.length < 6) continue;
+          const uid = parseInt(parts[2]);
+          const home = parts[5];
+          // root + human users (uid >= 1000, max 60000)
+          if (home && home !== '/' && (uid === 0 || (uid >= 1000 && uid < 60000))) {
+            homes.add(home);
+          }
         }
       } catch {}
+      // Always include current process owner
+      homes.add(os.homedir());
       for (const home of homes) {
         const destDir = path.join(home, '.claude', 'projects', '-root', 'memory');
         const dest = path.join(destDir, 'MEMORY.md');
