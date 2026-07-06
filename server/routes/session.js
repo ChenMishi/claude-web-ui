@@ -1033,6 +1033,16 @@ function buildSDKOptions(runtime, body, authUser) {
     }
   }
 
+  // Inject global memory rules into system prompt (guaranteed for all sessions)
+  try {
+    const memPath = path.join(os.homedir(), '.claude', 'projects', '-root', 'memory', 'MEMORY.md');
+    if (fs.existsSync(memPath)) {
+      const memContent = fs.readFileSync(memPath, 'utf8');
+      const userPrompt = agentOptions.systemPrompt || '';
+      agentOptions.systemPrompt = memContent + '\n\n' + (userPrompt || '');
+    }
+  } catch {}
+
   const proxyUrl = getProxyUrl();
 
   const options = {
