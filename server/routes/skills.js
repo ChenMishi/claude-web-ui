@@ -169,6 +169,41 @@ router.get('/skills/:name', (req, res) => {
   }
 });
 
+// GET /api/skills/:name/export — download skill as .md file
+router.get('/skills/:name/export', (req, res) => {
+  try {
+    const projectDir = req.query.projectDir || null;
+    const skill = getSkill(req.params.name, req.user, projectDir);
+    if (!skill) {
+      return res.status(404).json({ error: `技能 "${req.params.name}" 不存在` });
+    }
+    // Reconstruct markdown: YAML frontmatter + body
+    const meta = {
+      name: skill.name,
+      displayName: skill.displayName || skill.name,
+      description: skill.description || '',
+      icon: skill.icon || '🔧',
+      category: skill.category || '其他',
+      version: skill.version || '1.0.0',
+      author: skill.author || '',
+      allowedTools: skill.allowedTools || [],
+      deniedTools: skill.deniedTools || [],
+      model: skill.model || null,
+      permissionMode: skill.permissionMode || null,
+    };
+    const yaml = Object.entries(meta)
+      .filter(([_, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0))
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? JSON.stringify(v) : JSON.stringify(v)}`)
+      .join('\n');
+    const md = `---\n${yaml}\n---\n\n${skill.body || ''}`;
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(skill.name)}.md"`);
+    res.send(md);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /**
  * POST /api/skills
  * Create a new skill.

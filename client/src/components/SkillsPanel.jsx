@@ -68,6 +68,10 @@ export default function SkillsPanel() {
     setEditorOpen(true);
   };
 
+  const handleExport = (skill) => {
+    window.open(`/api/skills/${encodeURIComponent(skill.name)}/export`, '_blank');
+  };
+
   const handleCreate = () => {
     setEditingSkill(null);
     setEditorOpen(true);
@@ -148,6 +152,7 @@ export default function SkillsPanel() {
                     </div>
                   </div>
                   <div className="skills-card-actions">
+                    <button className="skills-card-btn skills-card-btn-export" onClick={() => handleExport(s)} title="导出 Markdown">📥</button>
                     <button className="skills-card-btn skills-card-btn-edit" onClick={() => handleEdit(s)} title="编辑">⚙</button>
                     {s.editable && (
                       <button className="skills-card-btn skills-card-btn-del" onClick={(e) => handleDelete(e, s.name)} title="删除">✕</button>
