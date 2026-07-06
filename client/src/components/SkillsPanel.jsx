@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { listSkills, deleteSkillApi, listMarketplaceSkills, installMarketplaceSkill } from '../api';
+import { listSkills, deleteSkillApi, listMarketplaceSkills, installMarketplaceSkill, authHeaders } from '../api';
 import SkillEditor from './SkillEditor';
 import SkillDetailModal from './SkillDetailModal';
 import { IconPuzzle, IconPackage, IconSettings, IconSearch } from './icons';
@@ -68,8 +68,14 @@ export default function SkillsPanel() {
     setEditorOpen(true);
   };
 
-  const handleExport = (skill) => {
-    window.open(`/api/skills/${encodeURIComponent(skill.name)}/export`, '_blank');
+  const handleExport = async (skill) => {
+    const r = await fetch(`/api/skills/${encodeURIComponent(skill.name)}/export`, { headers: authHeaders({}) });
+    if (!r.ok) { alert('导出失败'); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${skill.name}.md`; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleCreate = () => {
