@@ -186,10 +186,16 @@ function deleteSkill(name, user, projectDir) {
   }
 
   try {
-    fs.unlinkSync(skill.filePath);
-    // Also remove from Claude Code skills directory
-    const claudePath = path.join(CLAUDE_SKILLS_DIR, `${name}.md`);
-    try { if (fs.existsSync(claudePath)) fs.unlinkSync(claudePath); } catch {}
+    // Delete from ALL known locations to prevent duplicates
+    const paths = [
+      path.join(SHARED_SKILLS_DIR, `${name}.md`),
+      path.join(CLAUDE_SKILLS_DIR, `${name}.md`),
+      path.join(getUserSkillsDir(user), `${name}.md`),
+    ];
+    if (projectDir) paths.push(path.join(projectDir, '.claude', 'skills', `${name}.md`));
+    for (const p of paths) {
+      try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch {}
+    }
     return { ok: true };
   } catch (err) {
     return { ok: false, errors: [err.message] };
