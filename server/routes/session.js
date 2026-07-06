@@ -193,15 +193,16 @@ function extractBashFilePaths(command, resultContent, cwd, sessionStartTime) {
     paths.push(m[1]);
   }
 
-  // 11. Scan result content for absolute paths with common file extensions
+  // 11. Scan result content AND command for absolute paths with common file extensions
   //     Catches Python/openpyxl/docx/ImageMagick/ffmpeg/etc output
+  //     Scan BOTH result AND command — Python to_excel() doesn't print paths
   //     Skip read-only commands (ls, grep, cat, etc.) — their output lists existing files, not artifacts
   const readOnlyCmdRe = /^(?:ls|grep|cat|head|tail|find|stat|file|wc|du|df|echo|printf|which|type|pwd|whoami|id|uname|hostname|free|uptime|ps|readlink|realpath|basename|dirname)\b/;
-  // Strip leading cd prefixes (e.g. "cd /x && ls" → "ls")
   const strippedCmd = command.trim().replace(/^(?:cd\s+\S+\s*(?:&&|;)\s*)+/, '');
   if (!readOnlyCmdRe.test(strippedCmd)) {
   const resultExtRe = /(\/(?:[^\s"'`]+\/)*[^\s"'`]+\.(?:png|jpe?g|gif|webp|bmp|svg|ico|pdf|docx?|xlsx?|pptx?|zip|tar|gz|tgz|bz2|xz|7z|rar|csv|tsv|txt|md|json|yaml|yml|xml|html?|css|py|js|ts|sh|sql|db|sqlite3?|pkl|h5|pt|onnx|npy|npz|env|cfg|ini|toml|lock|log))(?:\b|$)/gi;
-  for (const m of (resultContent || '').matchAll(resultExtRe)) {
+  const scanText = (resultContent || '') + '\n' + (command || '');
+  for (const m of scanText.matchAll(resultExtRe)) {
     paths.push(m[1]);
   }
 
