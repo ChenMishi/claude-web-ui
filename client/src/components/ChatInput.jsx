@@ -46,7 +46,7 @@ function formatSizeLocal(bytes) {
 export function InputSelectsCard({ activeSkill, onSkillChange }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
     setView, currentProjectId, projects,
-    availableModels, currentModel, switchCurrentModel, displayMode } = useApp();
+    availableModels, currentModel, switchCurrentModel, displayMode, modelGroups } = useApp();
   const skillsRef = useRef(null);
   const skillsContainerRef = useRef(null);
   const modelDropdownRef = useRef(null);
@@ -97,16 +97,32 @@ export function InputSelectsCard({ activeSkill, onSkillChange }) {
               style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{currentModel || model}</span></button>
             {showModelDropdown && (
               <div className="input-dropdown-panel">
-                {(availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
-                  <div
-                    key={m}
-                    className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
-                    onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
-                  >
-                    {m}
-                    {(currentModel || model) === m && <span className="check">✓</span>}
-                  </div>
-                ))}
+                {Object.keys(modelGroups).length > 0 ? (
+                  Object.entries(modelGroups).map(([id, g]) => [
+                    <div key={`h-${id}`} className="input-dropdown-group-header">----{g.name}----</div>,
+                    ...(g.models || []).map(m => (
+                      <div
+                        key={m}
+                        className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
+                        onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
+                      >
+                        <span className="input-dropdown-item-text">{m}</span>
+                        {(currentModel || model) === m && <span className="check">✓</span>}
+                      </div>
+                    ))
+                  ]).flat()
+                ) : (
+                  (availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
+                    <div
+                      key={m}
+                      className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
+                      onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
+                    >
+                      {m}
+                      {(currentModel || model) === m && <span className="check">✓</span>}
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -223,7 +239,7 @@ export function InputSelectsCard({ activeSkill, onSkillChange }) {
 export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, queuedMessages, onRemoveQueued, onPrioritize }) {
   const { isStreaming, currentSessionId, execStatus, setSetting,
     setView, setMessages, currentProjectId, selectProject, theme, chatMessages,
-    availableModels, model, permissionLevel, projects, currentModel, switchCurrentModel, displayMode } = useApp();
+    availableModels, model, permissionLevel, projects, currentModel, switchCurrentModel, displayMode, modelGroups } = useApp();
   const inputRef = useRef(null);
   const cmdListRef = useRef(null);
   const skillChipRef = useRef(null);
@@ -687,16 +703,32 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
               style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{currentModel || model}</span></button>
             {showModelDropdown && (
               <div className="input-dropdown-panel">
-                {(availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
-                  <div
-                    key={m}
-                    className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
-                    onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
-                  >
-                    {m}
-                    {(currentModel || model) === m && <span className="check">✓</span>}
-                  </div>
-                ))}
+                {Object.keys(modelGroups).length > 0 ? (
+                  Object.entries(modelGroups).map(([id, g]) => [
+                    <div key={`h-${id}`} className="input-dropdown-group-header">----{g.name}----</div>,
+                    ...(g.models || []).map(m => (
+                      <div
+                        key={m}
+                        className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
+                        onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
+                      >
+                        <span className="input-dropdown-item-text">{m}</span>
+                        {(currentModel || model) === m && <span className="check">✓</span>}
+                      </div>
+                    ))
+                  ]).flat()
+                ) : (
+                  (availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
+                    <div
+                      key={m}
+                      className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
+                      onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
+                    >
+                      {m}
+                      {(currentModel || model) === m && <span className="check">✓</span>}
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>

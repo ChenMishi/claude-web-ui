@@ -125,7 +125,7 @@ export const saveProviderConfig = (data) => fetchJSON('/init/provider-config', {
 
 export const getPricing = () => fetchJSON('/init/pricing');
 export const savePricing = (models) => fetchJSON('/init/pricing', { method: 'POST', body: JSON.stringify({ models }) });
-export const fetchModels = (baseUrl, token) => fetchJSON('/init/fetch-models', { method: 'POST', body: JSON.stringify({ baseUrl, token }) });
+export const fetchModels = (baseUrl, token) => fetchJSON('/init/fetch-models', { method: 'POST', body: JSON.stringify(baseUrl && token ? { baseUrl, token } : {}) });
 
 // Settings
 export const getSettings = () => fetchJSON('/init/settings');

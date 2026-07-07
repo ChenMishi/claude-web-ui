@@ -125,7 +125,7 @@ export default function StatsPanel() {
 
   const summaryCards = summary ? [
     { label: '总 Tokens', value: fmtTok(summary.totalTokens), icon: getIcon('barChart') },
-    { label: '总花费', value: `${summary.currency || '¥'}${fmtCost(summary.totalCost)}`, icon: getIcon('dollar') },
+    { label: '总花费', value: `¥${fmtCost(summary.totalCost)}`, icon: getIcon('dollar') },
     { label: '会话数', value: summary.sessionCount, icon: getIcon('chat') },
     { label: '主力模型', value: summary.topModel || '—', icon: getIcon('bot') },
   ] : [];
@@ -245,7 +245,7 @@ export default function StatsPanel() {
                           background: 'var(--bg-primary)', border: '1px solid var(--glass-border)',
                           borderRadius: 8, fontSize: 12, color: 'var(--text-primary)',
                         }}
-                        formatter={(val) => [`${summary.currency || '¥'}${fmtCost(val)}`, '花费']}
+                        formatter={(val) => [`¥${fmtCost(val)}`, '花费']}
                       />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Line type="monotone" dataKey="cost" name="花费" stroke="#6366f1" strokeWidth={2}
@@ -275,7 +275,7 @@ export default function StatsPanel() {
                             background: 'var(--bg-primary)', border: '1px solid var(--glass-border)',
                             borderRadius: 8, fontSize: 12, color: 'var(--text-primary)',
                           }}
-                          formatter={(val) => [`${summary.currency || '¥'}${fmtCost(val)}`, '花费']}
+                          formatter={(val) => [`¥${fmtCost(val)}`, '花费']}
                         />
                       </PieChart>
                     </ResponsiveContainer>

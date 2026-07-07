@@ -18,6 +18,7 @@ export default function InitPanel() {
   const [sdkInstallLog, setSdkInstallLog] = useState('');
   const [checkingSdkUpdate, setCheckingSdkUpdate] = useState(false);
   const [sdkUpdateInfo, setSdkUpdateInfo] = useState(null);
+  const [sdkVersions, setSdkVersions] = useState([]); // available versions for rollback
   const [upgradingSDK, setUpgradingSDK] = useState(false);
   const [upgradeSdkLog, setUpgradeSdkLog] = useState('');
   const [claudeInstallLog, setClaudeInstallLog] = useState('');
@@ -36,13 +37,22 @@ export default function InitPanel() {
   // Provider config state
   const [providerConfig, setProviderConfig] = useState(null);
   const [providerLoading, setProviderLoading] = useState(true);
-  const [editApiKey, setEditApiKey] = useState('');
-  const [editBaseUrl, setEditBaseUrl] = useState('');
-  const [editChatUrl, setEditChatUrl] = useState('');
-  const [editModel, setEditModel] = useState('');
-  const [pulledModels, setPulledModels] = useState(null);
+  const [providers, setProviders] = useState([]); // [{id, name, apiKey, baseUrl, chatUrl}]
+  const [providerModels, setProviderModels] = useState({}); // id → {available:[], selected:[]}
   const [fetchingModels, setFetchingModels] = useState(false);
   const [providerToast, setProviderToast] = useState(null);
+
+  // Toggle model selection for a provider
+  const toggleModel = (providerId, model) => {
+    setProviderModels(prev => {
+      const entry = prev[providerId] || { available: [], selected: [] };
+      const sel = entry.selected.includes(model)
+        ? entry.selected.filter(m => m !== model)
+        : [...entry.selected, model];
+      return { ...prev, [providerId]: { ...entry, selected: sel } };
+    });
+  };
+  const [savingIdx, setSavingIdx] = useState(-1); // which card just saved (-1 = none)
 
   const { loadAvailableModels, setNeedInit } = useApp();
 
@@ -58,10 +68,10 @@ export default function InitPanel() {
     setProviderLoading(true);
     getProviderConfig().then(d => {
       setProviderConfig(d);
-      setEditBaseUrl(d.baseUrl || 'https://api.anthropic.com');
-      setEditChatUrl(d.chatUrl || '');
-      setEditModel(d.model || '');
-      setEditApiKey(d.apiKey || '');
+      const ps = d.providers || [];
+      if (ps.length === 0) ps.push({ id: '', name: '', apiKey: '', baseUrl: '', chatUrl: '' });
+      setProviders(ps);
+      setProviderModels(d.providerModels || {});
       setProviderLoading(false);
     }).catch(() => setProviderLoading(false));
   }, []);
@@ -151,15 +161,17 @@ export default function InitPanel() {
 
   const handleCheckSdkUpdate = useCallback(async () => {
     setCheckingSdkUpdate(true); setSdkUpdateInfo(null);
-    try { const res = await checkSdkUpdate(); setSdkUpdateInfo(res); } catch {}
+    try { const res = await checkSdkUpdate(); setSdkUpdateInfo(res); setSdkVersions(res.versions || []); } catch {}
     setCheckingSdkUpdate(false);
   }, []);
 
-  const handleUpgradeSDK = useCallback(async () => {
+  const handleUpgradeSDK = useCallback(async (version) => {
+    const target = version || 'latest';
     setUpgradingSDK(true); setUpgradeSdkLog('');
     try {
       const res = await fetch(`${BASE}/init/upgrade-sdk`, {
-        method: 'POST', headers: authHeaders({ Accept: 'text/event-stream' }),
+        method: 'POST', headers: authHeaders({ Accept: 'text/event-stream', 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ version: target }),
       });
       const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
       while (true) {
@@ -282,16 +294,50 @@ export default function InitPanel() {
     runEnvInstall(component);
   }, [installingEnv, runEnvInstall]);
 
+  // ── Provider card helpers ──
+  const updateProvider = (idx, field, value) => {
+    setProviders(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  };
+  const addProvider = () => {
+    setProviders(prev => [...prev, { id: '', name: '', apiKey: '', baseUrl: '', chatUrl: '' }]);
+  };
+  const removeProvider = async (idx) => {
+    const p = providers[idx];
+    if (p.id) {
+      try { await authHeaders({}); fetch(`/api/init/provider-config/${p.id}`, { method: 'DELETE', headers: authHeaders({}) }); } catch {}
+    }
+    setProviders(prev => prev.filter((_, i) => i !== idx));
+  };
+
   // ── Save Provider config only ──
-  const handleSaveProvider = async () => {
-    setSaveMsg('');
+  const handleSaveProvider = async (idx) => {
+    const p = providers[idx];
+    if (!p) return;
     try {
-      const body = { baseUrl: editBaseUrl, chatUrl: editChatUrl, model: editModel };
-      if (editApiKey) body.apiKey = editApiKey;
-      await saveProviderConfig(body);
-      setSaveMsg('✅ Provider 配置已保存');
-      setTimeout(() => setSaveMsg(''), 3000);
-      loadProviderConfig();
+      const body = { ...p, model: '' };
+      const d = await saveProviderConfig(body);
+      if (d.provider?.id) {
+        // Save models with new provider ID (models may still be keyed by old temp id)
+        const models = providerModels[d.provider.id]?.selected || providerModels[p.id]?.selected;
+        if (models?.length > 0) {
+          await fetch('/api/init/provider-models', {
+            method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ providerId: d.provider.id, selected: models }),
+          });
+        }
+        // Migrate key from old temp id to new id
+        if (p.id !== d.provider.id && providerModels[p.id]) {
+          setProviderModels(prev => {
+            const updated = { ...prev };
+            updated[d.provider.id] = { ...prev[p.id] };
+            delete updated[p.id];
+            return updated;
+          });
+        }
+        updateProvider(idx, 'id', d.provider.id);
+      }
+      setSavingIdx(idx);
+      setTimeout(() => setSavingIdx(-1), 2500);
       loadAvailableModels();
     } catch (err) {
       setSaveMsg(`❌ 保存失败: ${err.message}`);
@@ -331,22 +377,23 @@ export default function InitPanel() {
     } catch { setTestResult('fail'); }
   }, [editProxyHost, editProxyPort]);
 
-  // ── Pull models ──
+  // ── Pull models from all providers ──
   const handlePullModels = async () => {
-    const baseUrl = editBaseUrl || providerConfig?.baseUrl || '';
-    let apiKey = editApiKey;
-    if (!apiKey) apiKey = providerConfig?.apiKey || '';
-    if (!baseUrl || !apiKey) { setProviderToast({ type: 'error', msg: '请先填写 API Key 和 Base URL' }); return; }
+    const active = providers.filter(p => p.baseUrl && p.apiKey);
+    if (active.length === 0) { setProviderToast({ type: 'error', msg: '请先填写至少一个 Provider 的 API Key 和 Base URL' }); return; }
     setFetchingModels(true);
     try {
-      const d = await fetchModels(baseUrl, apiKey);
+      const d = await fetchModels(null, null); // null → use server-side providers
       if (d.ok) {
-        setPulledModels(d.models || []);
-        loadAvailableModels();
+        setProviderModels(d.providerModels || {});
+        setProviderToast({ type: 'success', msg: '模型已更新' });
+        setTimeout(() => setProviderToast(null), 3000);
       } else {
         setProviderToast({ type: 'error', msg: d.error || '拉取失败' });
       }
-    } catch (err) { setProviderToast({ type: 'error', msg: '拉取失败: ' + err.message }); }
+    } catch (err) {
+      setProviderToast({ type: 'error', msg: err.message });
+    }
     setFetchingModels(false);
   };
 
@@ -365,8 +412,6 @@ export default function InitPanel() {
 
   return (
     <div className="init-panel">
-      <h2><IconSettings/> 初始化配置</h2>
-      <p className="init-desc">新部署完成后，在此页面安装和配置所需组件</p>
 
       {/* ── 系统环境 ── */}
       <div className="init-section">
@@ -407,12 +452,21 @@ export default function InitPanel() {
                 {checkingSdkUpdate ? '检查中...' : '检查更新'}
               </button>
               {sdkUpdateInfo && sdkUpdateInfo.hasUpdate && (
-                <button className="init-btn init-btn-install" onClick={handleUpgradeSDK} disabled={upgradingSDK}>
-                  {upgradingSDK ? '升级中...' : `升级到 v${sdkUpdateInfo.latest}`}
+                <button className="init-btn init-btn-install" onClick={() => handleUpgradeSDK(sdkUpdateInfo.latest)} disabled={upgradingSDK}>
+                  {upgradingSDK ? '切换中...' : `升级到 v${sdkUpdateInfo.latest}`}
                 </button>
               )}
               {sdkUpdateInfo && !sdkUpdateInfo.hasUpdate && sdkUpdateInfo.current && (
                 <span style={{ fontSize: 12, color: 'var(--success)' }}>已是最新 v{sdkUpdateInfo.current}</span>
+              )}
+              {sdkVersions.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
+                  <select onChange={(e) => e.target.value && handleUpgradeSDK(e.target.value)}
+                    style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-primary)' }}>
+                    <option value="">— 选择版本 —</option>
+                    {sdkVersions.map(v => <option key={v} value={v}>{v}{sdkUpdateInfo?.current === v ? ' (当前)' : ''}</option>)}
+                  </select>
+                </div>
               )}
               {upgradeSdkLog && <div className="init-install-log"><div className="init-install-scroll"><pre>{upgradeSdkLog}</pre></div></div>}
             </div>
@@ -518,54 +572,73 @@ export default function InitPanel() {
 
           {/* ── Provider 配置 ── */}
           <div className="init-sub-header"><IconSettings/> Provider 配置</div>
-          <div className="init-config-row">
-            <label>API Key</label>
-            <input type="text" value={editApiKey} onChange={e => setEditApiKey(e.target.value)}
-              placeholder={providerConfig?.hasApiKey ? '已保存 (不修改则留空)' : 'sk-...'}
-              style={{ flex: 1, fontSize: 13 }} />
-          </div>
-          <div className="init-config-row">
-            <label>Base URL</label>
-            <input type="text" value={editBaseUrl} onChange={e => setEditBaseUrl(e.target.value)}
-              placeholder="https://api.anthropic.com"
-              style={{ flex: 1, fontSize: 13 }} />
-          </div>
-          <details className="init-advanced" style={{ marginBottom: 10 }}>
-            <summary style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>
-                          高级选项 {editChatUrl ? '(已配置)' : ''}
-            </summary>
-            <div className="init-config-row" style={{ marginTop: 8 }}>
-              <label>Anthropic 聊天地址</label>
-              <input type="text" value={editChatUrl} onChange={e => setEditChatUrl(e.target.value)}
-                placeholder="留空则跟随 Base URL"
-                style={{ flex: 1, fontSize: 13 }} />
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-              部分厂商（如 DeepSeek）模型列表和聊天 API 路径不同，聊天使用 Anthropic 兼容格式需在此填写完整地址
-            </div>
-          </details>
-          <div className="init-config-row">
-            <label>默认模型</label>
-            <div style={{ display: 'flex', gap: 6, flex: 1 }}>
-              {pulledModels && pulledModels.length > 0 ? (
-                <select value={editModel} onChange={e => setEditModel(e.target.value)} style={{ flex: 1, fontSize: 13 }}>
-                  <option value="">— 选择模型 —</option>
-                  {pulledModels.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              ) : (
-                <input type="text" value={editModel} onChange={e => setEditModel(e.target.value)}
-                  style={{ flex: 1, fontSize: 13 }} placeholder="手动输入模型名" />
-              )}
-              <button className="init-btn init-btn-test" onClick={handlePullModels} disabled={fetchingModels}
-                style={{ fontSize: 11, padding: '6px 10px', whiteSpace: 'nowrap' }}>
-                {fetchingModels ? '拉取中...' : '拉取模型'}
-              </button>
-            </div>
-          </div>
 
-          <div style={{ marginTop: 12 }}>
-            <button className="init-btn init-btn-save" onClick={handleSaveProvider}>保存 Provider 配置</button>
-          </div>
+          {providers.map((p, idx) => (
+            <div key={idx} className="provider-card">
+              <div className="provider-card-header">
+                <input
+                  type="text" value={p.name} onChange={e => updateProvider(idx, 'name', e.target.value)}
+                  placeholder="配置名称（如：生产环境）"
+                  className="provider-card-name"
+                />
+                <button onClick={() => removeProvider(idx)} title="删除此配置"
+                  className="provider-card-del">✕</button>
+              </div>
+              <div className="init-config-row">
+                <label>API Key</label>
+                <input type="text" value={p.apiKey} onChange={e => updateProvider(idx, 'apiKey', e.target.value)}
+                  placeholder="sk-..." style={{ flex: 1, fontSize: 13 }} />
+              </div>
+              <div className="init-config-row">
+                <label>Base URL</label>
+                <input type="text" value={p.baseUrl} onChange={e => updateProvider(idx, 'baseUrl', e.target.value)}
+                  placeholder="https://api.anthropic.com" style={{ flex: 1, fontSize: 13 }} />
+              </div>
+              <details className="init-advanced" style={{ marginBottom: 4 }}>
+                <summary style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  高级选项 {p.chatUrl ? '(已配置)' : ''}
+                </summary>
+                <div className="init-config-row" style={{ marginTop: 8 }}>
+                  <label>聊天地址</label>
+                  <input type="text" value={p.chatUrl} onChange={e => updateProvider(idx, 'chatUrl', e.target.value)}
+                    placeholder="留空则跟随 Base URL" style={{ flex: 1, fontSize: 13 }} />
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                  部分厂商（如 DeepSeek）模型列表和聊天 API 路径不同，需在此填写完整地址
+                </div>
+              </details>
+
+              {/* ── 选取模型 ── */}
+              <div style={{ marginTop: 6 }}>
+                <button className="init-btn init-btn-test" onClick={handlePullModels} disabled={fetchingModels}
+                  style={{ fontSize: 11, padding: '3px 8px', marginBottom: 4 }}>
+                  {fetchingModels ? '拉取中...' : '拉取模型列表'}
+                </button>
+                {providerModels[p.id]?.available?.length > 0 && (
+                  <div className="provider-model-list" style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 6, padding: '4px 8px', marginBottom: 6 }}>
+                    {providerModels[p.id].available.map(m => {
+                      const isSel = (providerModels[p.id].selected || []).includes(m);
+                      return (
+                        <label key={m} className="provider-model-item" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer', fontSize: 12 }}>
+                          <input type="checkbox" checked={isSel} onChange={() => toggleModel(p.id, m)}
+                            style={{ accentColor: 'var(--accent)' }} />
+                          <span>{m}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                {savingIdx === idx && <span style={{ fontSize: 11, color: 'var(--success)' }}>✅ 已保存</span>}
+                <button className="init-btn init-btn-save" onClick={() => handleSaveProvider(idx)} style={{ fontSize: 12 }}>保存配置</button>
+              </div>
+            </div>
+          ))}
+          <button onClick={addProvider} className="init-btn" style={{ width: '100%', marginBottom: 10, border: '1px dashed var(--text-muted)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, padding: '6px' }}>
+            ＋ 添加 API 配置
+          </button>
 
           {/* ── 代理地址 ── */}
           <div className="init-sub-header" style={{ marginTop: 16 }}><IconGlobe/> 代理地址</div>

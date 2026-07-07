@@ -197,7 +197,7 @@ function extractBashFilePaths(command, resultContent, cwd, sessionStartTime) {
   //     Catches Python/openpyxl/docx/ImageMagick/ffmpeg/etc output
   //     Scan BOTH result AND command — Python to_excel() doesn't print paths
   //     Skip read-only commands (ls, grep, cat, etc.) — their output lists existing files, not artifacts
-  const readOnlyCmdRe = /^(?:ls|grep|cat|head|tail|find|stat|file|wc|du|df|echo|printf|which|type|pwd|whoami|id|uname|hostname|free|uptime|ps|readlink|realpath|basename|dirname|node|git|npm|npx|cp|mv|chmod|chown|mkdir|rmdir|touch)\b/;
+  const readOnlyCmdRe = /^(?:ls|grep|cat|head|tail|find|stat|file|wc|du|df|echo|printf|which|type|pwd|whoami|id|uname|hostname|free|uptime|ps|readlink|realpath|basename|dirname|node|git|npm|npx|python|python3|cp|mv|chmod|chown|mkdir|rmdir|touch)\b/;
   const strippedCmd = command.trim().replace(/^(?:cd\s+\S+\s*(?:&&|;)\s*)+/, '');
   if (!readOnlyCmdRe.test(strippedCmd)) {
   const resultExtRe = /(\/(?:[^\s"'`]+\/)*[^\s"'`]+\.(?:png|jpe?g|gif|webp|bmp|svg|ico|pdf|docx?|xlsx?|pptx?|zip|tar|gz|tgz|bz2|xz|7z|rar|csv|tsv|txt|md|json|yaml|yml|xml|html?|css|py|js|ts|sh|sql|db|sqlite3?|pkl|h5|pt|onnx|npy|npz|env|cfg|ini|toml|lock|log))(?:\b|$)/gi;

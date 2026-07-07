@@ -57,6 +57,7 @@ const initialState = {
   permissionLevel: loadState('permissionLevel', 'auto'),
   model: loadState('model', 'claude-opus-4-7'),
   availableModels: [],
+  modelGroups: {},    // providerId → {name, models}
   currentModel: loadState('currentModel', ''),
   systemPrompt: loadState('systemPrompt', ''),
   displayMode: loadState('displayMode', 'full'),
@@ -270,7 +271,7 @@ function reducer(state, action) {
       localStorage.setItem(`claude-ui:${action.payload.key}`, JSON.stringify(action.payload.value));
       next = { ...state, [action.payload.key]: action.payload.value }; break;
     case 'SET_MODELS':
-      next = { ...state, availableModels: action.payload.models || [], currentModel: action.payload.current || state.currentModel }; break;
+      next = { ...state, availableModels: action.payload.models || [], modelGroups: action.payload.groups || {}, currentModel: action.payload.current || state.currentModel }; break;
     // Execution status actions
     case 'EXEC_START':
       next = { ...state, tasks: [], mainTask: null, execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
@@ -411,7 +412,7 @@ export function AppContextProvider({ children }) {
   const loadAvailableModels = useCallback(async () => {
     try {
       const data = await listModels();
-      dispatch({ type: 'SET_MODELS', payload: { models: data.models || [], current: data.current || '' } });
+      dispatch({ type: 'SET_MODELS', payload: { models: data.models || [], groups: data.groups || {}, current: data.current || '' } });
     } catch {}
   }, []);
 

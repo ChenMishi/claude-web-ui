@@ -2004,6 +2004,7 @@ html, body, #root {
 .input-dropdown-item:hover { background: var(--accent-light); }
 .input-dropdown-item.active { color: var(--accent); font-weight: 500; }
 .input-dropdown-item .check { color: var(--accent); font-size: 11px; margin-left: auto; }
+.input-dropdown-group-header { font-size: 10px; color: var(--text-muted); padding: 4px 10px 2px; text-transform: none; letter-spacing: 0; cursor: default; }
 
 /* Skills popup */
 .skills-popup {
@@ -4715,7 +4716,8 @@ html, body, #root {
 .init-panel { padding: 32px; max-width: 700px; margin: 0 auto; width: 100%; }
 .init-panel h2 { font-size: 20px; margin-bottom: 4px; color: var(--accent); display: flex; align-items: center; gap: 8px; }
 .init-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
-.init-section { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
+.init-section { background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur)); border: none; border-radius: var(--glass-radius); box-shadow: var(--glass-shadow); padding: 18px 20px; margin-bottom: 16px; overflow: hidden; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.init-section:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.10); }
 .init-section h3 { font-size: 15px; margin-bottom: 12px; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
 .init-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .init-section-header h3 { margin-bottom: 0; }
@@ -4743,6 +4745,14 @@ html, body, #root {
 .init-install-scroll pre, .init-install-log pre { margin: 0; }
 .init-config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .init-config-row label { font-size: 12px; color: var(--text-muted); white-space: nowrap; min-width: 60px; }
+.provider-card { background: var(--glass-dropdown-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12); transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.provider-card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.15); }
+.provider-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); }
+.provider-card-name { font-weight: 600; font-size: 13px; border: 1px solid transparent; background: transparent; color: var(--accent); flex: 1; padding: 2px 4px; border-radius: 4px; }
+.provider-card-name:hover { border-color: var(--border-color); }
+.provider-card-name:focus { border-color: var(--accent); background: var(--input-bg); outline: none; }
+.provider-card-del { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
+.provider-card-del:hover { color: var(--danger); background: rgba(255,107,107,0.08); }
 
 .init-config-inputs { display: flex; align-items: center; gap: 6px; }
 

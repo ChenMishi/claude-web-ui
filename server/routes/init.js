@@ -81,12 +81,49 @@ function writeConfig(cfg) {
 
 function readProviderConfig() {
   try {
-    if (!fs.existsSync(PROVIDER_CONFIG_FILE)) return { apiKey: '', baseUrl: '', chatUrl: '', model: '', haikuModel: '', sonnetModel: '', opusModel: '' };
-    return JSON.parse(fs.readFileSync(PROVIDER_CONFIG_FILE, 'utf8'));
-  } catch { return { apiKey: '', baseUrl: '', chatUrl: '', model: '', haikuModel: '', sonnetModel: '', opusModel: '' }; }
+    if (!fs.existsSync(PROVIDER_CONFIG_FILE)) return emptyProviderConfig();
+    const cfg = JSON.parse(fs.readFileSync(PROVIDER_CONFIG_FILE, 'utf8'));
+    // Migrate old single-object format → new array format
+    if (!cfg.providers) {
+      cfg.providers = [];
+      if (cfg.apiKey || cfg.baseUrl) {
+        cfg.providers.push({
+          id: require('crypto').randomUUID(),
+          name: '默认配置',
+          apiKey: cfg.apiKey || '',
+          baseUrl: cfg.baseUrl || '',
+          chatUrl: cfg.chatUrl || '',
+        });
+      }
+      cfg.providerModels = {};
+      writeProviderConfig(cfg);
+    }
+    // Migrate old providerModels array format → {available, selected} format
+    if (cfg.providerModels) {
+      let migrated = false;
+      for (const [id, val] of Object.entries(cfg.providerModels)) {
+        if (Array.isArray(val)) {
+          cfg.providerModels[id] = { available: val, selected: [] };
+          migrated = true;
+        }
+      }
+      if (migrated) writeProviderConfig(cfg);
+    }
+    return cfg;
+  } catch { return emptyProviderConfig(); }
+}
+
+function emptyProviderConfig() {
+  return { apiKey: '', baseUrl: '', chatUrl: '', model: '', haikuModel: '', sonnetModel: '', opusModel: '', providers: [], providerModels: {} };
 }
 
 function writeProviderConfig(cfg) {
+  // Sync compatibility fields from first provider for proxy.js
+  if (cfg.providers && cfg.providers.length > 0) {
+    cfg.apiKey = cfg.providers[0].apiKey || '';
+    cfg.baseUrl = cfg.providers[0].baseUrl || '';
+    cfg.chatUrl = cfg.providers[0].chatUrl || '';
+  }
   const dir = path.dirname(PROVIDER_CONFIG_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(PROVIDER_CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8');
@@ -98,7 +135,7 @@ router.get('/init/status', (_req, res) => {
   const claudeCodePath = checkClaudeCode();
   const claudeCodeVersion = claudeCodePath ? getClaudeCodeVersion() : null;
   const providerConfig = readProviderConfig();
-  const configured = !!(providerConfig.apiKey && providerConfig.baseUrl);
+  const configured = !!(providerConfig.providers && providerConfig.providers.length > 0 && providerConfig.apiKey);
 
   // Check if built-in proxy is running
   const proxyPort = config.proxyPort || 15721;
@@ -309,7 +346,7 @@ router.post('/init/test-proxy', async (req, res) => {
 
 // ── Provider config (replaces CC-Switch SQLite) ──
 
-// Get provider config
+// Get provider config (multi-provider with compatibility)
 router.get('/init/provider-config', (_req, res) => {
   const cfg = readProviderConfig();
   res.json({
@@ -321,65 +358,101 @@ router.get('/init/provider-config', (_req, res) => {
     sonnetModel: cfg.sonnetModel || '',
     opusModel: cfg.opusModel || '',
     hasApiKey: !!(cfg.apiKey),
+    providers: cfg.providers || [],
+    providerModels: cfg.providerModels || {},
   });
 });
 
-// Save provider config
+// Save a single provider
 router.post('/init/provider-config', (req, res) => {
-  const { apiKey, baseUrl, chatUrl, model, haikuModel, sonnetModel, opusModel } = req.body || {};
+  const { id, name, apiKey, baseUrl, chatUrl, model, haikuModel, sonnetModel, opusModel } = req.body || {};
   const cfg = readProviderConfig();
 
-  // Only update provided fields (allows partial updates)
-  if (apiKey !== undefined) cfg.apiKey = apiKey;
-  if (baseUrl !== undefined) cfg.baseUrl = baseUrl;
-  if (chatUrl !== undefined) cfg.chatUrl = chatUrl;
+  // Model fields (compatibility)
   if (model !== undefined) cfg.model = model;
   if (haikuModel !== undefined) cfg.haikuModel = haikuModel;
   if (sonnetModel !== undefined) cfg.sonnetModel = sonnetModel;
   if (opusModel !== undefined) cfg.opusModel = opusModel;
 
+  if (!cfg.providers) cfg.providers = [];
+  let provider;
+  if (id) {
+    provider = cfg.providers.find(p => p.id === id);
+  }
+  if (!provider) {
+    provider = { id: require('crypto').randomUUID(), name: '', apiKey: '', baseUrl: '', chatUrl: '' };
+    cfg.providers.push(provider);
+  }
+  if (name !== undefined) provider.name = name;
+  if (apiKey !== undefined) provider.apiKey = apiKey;
+  if (baseUrl !== undefined) provider.baseUrl = baseUrl;
+  if (chatUrl !== undefined) provider.chatUrl = chatUrl;
+
   writeProviderConfig(cfg);
-
-  // Bust models cache so /models returns fresh data
   modelsCache = null;
-
-  logProxy('Provider config saved');
-  res.json({ ok: true, model: cfg.model });
+  res.json({ ok: true, provider });
 });
 
-// Fetch available models from provider API
+// Delete a provider
+router.delete('/init/provider-config/:id', (req, res) => {
+  const cfg = readProviderConfig();
+  const idx = (cfg.providers || []).findIndex(p => p.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: 'Provider not found' });
+  cfg.providers.splice(idx, 1);
+  writeProviderConfig(cfg);
+  modelsCache = null;
+  res.json({ ok: true });
+});
+
+// Fetch available models from ALL providers
 router.post('/init/fetch-models', async (req, res) => {
-  const { baseUrl, token } = req.body || {};
+  const cfg = readProviderConfig();
+  const providers = cfg.providers || [];
+  if (providers.length === 0) return res.status(400).json({ error: '没有配置任何 Provider' });
 
-  // Allow reading credentials from provider-config.json if not provided in body
-  let apiKey = token;
-  let apiBaseUrl = baseUrl;
-  if (!apiKey || !apiBaseUrl) {
-    const cfg = readProviderConfig();
-    apiKey = apiKey || cfg.apiKey;
-    apiBaseUrl = apiBaseUrl || cfg.baseUrl;
-  }
-  if (!apiBaseUrl || !apiKey) return res.status(400).json({ error: '缺少 baseUrl 或 apiKey' });
-
-  try {
-    const url = `${apiBaseUrl.replace(/\/$/, '')}/v1/models`;
-    const resp = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'x-api-key': apiKey,
-      },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => '');
-      return res.status(resp.status).json({ error: `请求失败 (${resp.status}): ${errText}`.slice(0, 200) });
+  const results = {};
+  for (const p of providers) {
+    if (!p.baseUrl || !p.apiKey) continue;
+    try {
+      const url = `${p.baseUrl.replace(/\/$/, '')}/v1/models`;
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${p.apiKey}`, 'x-api-key': p.apiKey },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const models = (data.data || []).map(m => m.id);
+        // Preserve existing selected models, default to all if new
+        const prev = cfg.providerModels?.[p.id];
+        const prevSelected = prev?.selected || models;
+        results[p.id] = { available: models, selected: prevSelected.filter(m => models.includes(m)) };
+      } else {
+        results[p.id] = { available: [], selected: [] };
+      }
+    } catch {
+      results[p.id] = { available: [], selected: [] };
     }
-    const data = await resp.json();
-    const models = (data.data || []).map(m => m.id);
-    res.json({ ok: true, models });
-  } catch (err) {
-    res.status(500).json({ error: `无法连接: ${err.message}` });
   }
+
+  // Save to providerModels
+  cfg.providerModels = { ...cfg.providerModels, ...results };
+  writeProviderConfig(cfg);
+  modelsCache = null;
+
+  res.json({ ok: true, providerModels: cfg.providerModels });
+});
+
+// Save selected models for a provider
+router.post('/init/provider-models', (req, res) => {
+  const { providerId, selected } = req.body || {};
+  if (!providerId) return res.status(400).json({ error: 'providerId is required' });
+  const cfg = readProviderConfig();
+  if (!cfg.providerModels) cfg.providerModels = {};
+  if (!cfg.providerModels[providerId]) cfg.providerModels[providerId] = { available: [], selected: [] };
+  cfg.providerModels[providerId].selected = selected || [];
+  writeProviderConfig(cfg);
+  modelsCache = null;
+  res.json({ ok: true });
 });
 
 // Install Claude Code CLI globally
@@ -672,15 +745,21 @@ router.post('/init/check-sdk-update', (req, res) => {
   try {
     const current = getSDKVersion();
     const latest = execSync('npm view @anthropic-ai/claude-agent-sdk version', { encoding: 'utf8', timeout: 15000 }).trim();
-    res.json({ current, latest, hasUpdate: current && latest && current !== latest && current !== '?' });
+    let versions = [];
+    try {
+      const raw = execSync('npm view @anthropic-ai/claude-agent-sdk versions --json', { encoding: 'utf8', timeout: 15000 }).trim();
+      versions = JSON.parse(raw).slice(-20).reverse(); // last 20, newest first
+    } catch {}
+    res.json({ current, latest, versions, hasUpdate: current && latest && current !== latest && current !== '?' });
   } catch (err) {
     logInit('Error checking SDK update', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Upgrade Agent SDK
+// Upgrade / Rollback Agent SDK
 router.post('/init/upgrade-sdk', (req, res) => {
+  const targetVersion = req.body?.version || 'latest';
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
 
@@ -688,9 +767,9 @@ router.post('/init/upgrade-sdk', (req, res) => {
     if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  send('progress', { pct: 5, text: '正在升级 Agent SDK...' });
+  send('progress', { pct: 5, text: `正在切换到 SDK v${targetVersion}...` });
 
-  const proc = spawn('npm', ['install', '@anthropic-ai/claude-agent-sdk@latest',
+  const proc = spawn('npm', ['install', `@anthropic-ai/claude-agent-sdk@${targetVersion}`,
     '--prefer-online', '--registry', 'https://registry.npmmirror.com'], { cwd: PROJECT_DIR, env: process.env });
 
   let lastPct = 5;
@@ -852,36 +931,56 @@ const MODELS_CACHE_TTL = 2 * 60 * 1000;
 
 router.get('/models', async (req, res) => {
   try {
-    // Return cached models if fresh
     if (modelsCache && (Date.now() - modelsCacheTime) < MODELS_CACHE_TTL) {
       return res.json(modelsCache);
     }
 
     const cfg = readProviderConfig();
-    const { apiKey, baseUrl, model } = cfg;
+    const models = [];
+    const groups = {};
+    const seen = new Set();
 
-    if (!baseUrl || !apiKey) return res.json({ models: [], current: model || '' });
-
-    // Fetch model list from provider's /v1/models
-    let models = [];
-    try {
-      const resp = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/models`, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'x-api-key': apiKey,
-        },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        models = (data.data || []).map(m => m.id);
+    // Collect selected models from all providers
+    if (cfg.providerModels) {
+      for (const [id, val] of Object.entries(cfg.providerModels)) {
+        const list = val?.selected || val?.available || (Array.isArray(val) ? val : []);
+        const provider = (cfg.providers || []).find(p => p.id === id);
+        const pName = provider?.name || id.slice(0, 8);
+        const pModels = [];
+        for (const m of list) {
+          if (!seen.has(m)) { seen.add(m); models.push(m); }
+          pModels.push(m);
+        }
+        if (pModels.length > 0) groups[id] = { name: pName, models: pModels };
       }
-    } catch {
-      // Fallback: use current model only
-      if (model) models = [model];
     }
 
-    modelsCache = { models, current: model };
+    // Fallback: if no selected models, return all available
+    if (models.length === 0 && cfg.providerModels) {
+      for (const [id, val] of Object.entries(cfg.providerModels)) {
+        const list = val?.available || (Array.isArray(val) ? val : []);
+        for (const m of list) {
+          if (!seen.has(m)) { seen.add(m); models.push(m); }
+        }
+      }
+    }
+
+    // Legacy: single provider fallback
+    if (models.length === 0 && cfg.baseUrl && cfg.apiKey) {
+      try {
+        const resp = await fetch(`${cfg.baseUrl.replace(/\/$/, '')}/v1/models`, {
+          headers: { Authorization: `Bearer ${cfg.apiKey}`, 'x-api-key': cfg.apiKey },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          (data.data || []).forEach(m => { if (!seen.has(m.id)) { seen.add(m.id); models.push(m.id); } });
+        }
+      } catch {}
+    }
+
+    const current = cfg.model || models[0] || '';
+    modelsCache = { models, groups, current };
     modelsCacheTime = Date.now();
     res.json(modelsCache);
   } catch (err) {

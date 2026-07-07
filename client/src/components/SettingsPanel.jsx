@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getUsers, createUser, deleteUser, getPricing, savePricing, getSettings, saveSettings } from '../api';
 import VersionCard from './VersionCard';
-import ClaudeCodeCard from './ClaudeCodeCard';
 import AgentSdkCard from './AgentSdkCard';
 import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
@@ -243,7 +242,7 @@ export default function SettingsPanel() {
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">版本</span>
-                <span className="settings-info-value">v2.3.0</span>
+                <span className="settings-info-value">v2.3.1</span>
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">数据存储</span>
@@ -291,7 +290,6 @@ export default function SettingsPanel() {
         <>
           <VersionCard triggerCheck={upgradeCheckTrigger} />
           <AgentSdkCard triggerCheck={upgradeCheckTrigger} />
-          <ClaudeCodeCard triggerCheck={upgradeCheckTrigger} />
         </>
       ) : settingsTab === 'stats' ? (
         <StatsPanel />
