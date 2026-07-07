@@ -399,16 +399,37 @@ router.delete('/init/provider-config/:id', (req, res) => {
   const idx = (cfg.providers || []).findIndex(p => p.id === req.params.id);
   if (idx < 0) return res.status(404).json({ error: 'Provider not found' });
   cfg.providers.splice(idx, 1);
+  // Clean up orphaned model data
+  if (cfg.providerModels) delete cfg.providerModels[req.params.id];
   writeProviderConfig(cfg);
   modelsCache = null;
   res.json({ ok: true });
 });
 
-// Fetch available models from ALL providers
+// Fetch available models from ALL providers, or specified provider if baseUrl+token passed
 router.post('/init/fetch-models', async (req, res) => {
+  const { baseUrl, token } = req.body || {};
+
+  // Explicit provider: fetch directly
+  if (baseUrl && token) {
+    try {
+      const url = `${baseUrl.replace(/\/$/, '')}/v1/models`;
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}`, 'x-api-key': token },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        return res.json({ ok: true, models: (data.data || []).map(m => m.id) });
+      }
+      return res.json({ ok: false, models: [], error: `请求失败 (${resp.status})` });
+    } catch (err) {
+      return res.status(500).json({ error: `无法连接: ${err.message}` });
+    }
+  }
+
+  // All providers: read from config
   const cfg = readProviderConfig();
-  const providers = cfg.providers || [];
-  if (providers.length === 0) return res.status(400).json({ error: '没有配置任何 Provider' });
 
   const results = {};
   for (const p of providers) {
@@ -444,12 +465,14 @@ router.post('/init/fetch-models', async (req, res) => {
 
 // Save selected models for a provider
 router.post('/init/provider-models', (req, res) => {
-  const { providerId, selected } = req.body || {};
+  const { providerId, available, selected } = req.body || {};
   if (!providerId) return res.status(400).json({ error: 'providerId is required' });
   const cfg = readProviderConfig();
   if (!cfg.providerModels) cfg.providerModels = {};
-  if (!cfg.providerModels[providerId]) cfg.providerModels[providerId] = { available: [], selected: [] };
-  cfg.providerModels[providerId].selected = selected || [];
+  const entry = cfg.providerModels[providerId] || { available: [], selected: [] };
+  if (available !== undefined) entry.available = available;
+  if (selected !== undefined) entry.selected = selected;
+  cfg.providerModels[providerId] = entry;
   writeProviderConfig(cfg);
   modelsCache = null;
   res.json({ ok: true });

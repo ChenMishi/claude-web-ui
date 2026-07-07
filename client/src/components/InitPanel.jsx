@@ -1,10 +1,85 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { authHeaders, getInitStatus, saveInitConfig, testProxy, checkClaudeUpdate, checkSdkUpdate,
          getProviderConfig, saveProviderConfig, fetchModels } from '../api';
 import { useApp } from '../context/AppContext';
 import { IconSettings, IconClipboard, IconPackage, IconBot, IconImage, IconRefresh, IconGlobe, IconSave, IconPin } from './icons';
 
 const BASE = '/api';
+
+
+// ── Individual provider card (isolated state) ──
+function ProviderCard({ p, idx, onUpdate, onRemove, onSave, providerModels, onToggleModel, onPullModels, savingIdx, setConfirmDelProvider }) {
+  const [fetching, setFetching] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const handlePull = async () => {
+    setFetching(true); setMsg('');
+    const result = await onPullModels(idx);
+    setFetching(false);
+    if (result?.ok) setMsg('✅ 模型已更新'); else setMsg('❌ 拉取失败');
+    setTimeout(() => setMsg(''), 3000);
+  };
+
+  return (
+    <div className="provider-card">
+      <div className="provider-card-header">
+        <input type="text" value={p.name} onChange={e => onUpdate(idx, 'name', e.target.value)}
+          placeholder="配置名称（如：生产环境）" className="provider-card-name" />
+        <button onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setConfirmDelProvider({ idx, x: r.left + r.width / 2, y: r.top }); }} title="删除此配置" className="provider-card-del">✕</button>
+      </div>
+      <div className="init-config-row">
+        <label>API Key</label>
+        <input type="text" value={p.apiKey} onChange={e => onUpdate(idx, 'apiKey', e.target.value)}
+          placeholder="sk-..." style={{ flex: 1, fontSize: 13 }} />
+      </div>
+      <div className="init-config-row">
+        <label>Base URL</label>
+        <input type="text" value={p.baseUrl} onChange={e => onUpdate(idx, 'baseUrl', e.target.value)}
+          placeholder="https://api.anthropic.com" style={{ flex: 1, fontSize: 13 }} />
+      </div>
+      <details className="init-advanced" style={{ marginBottom: 4 }}>
+        <summary style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}>
+          高级选项 {p.chatUrl ? '(已配置)' : ''}
+        </summary>
+        <div className="init-config-row" style={{ marginTop: 8 }}>
+          <label>聊天地址</label>
+          <input type="text" value={p.chatUrl} onChange={e => onUpdate(idx, 'chatUrl', e.target.value)}
+            placeholder="留空则跟随 Base URL" style={{ flex: 1, fontSize: 13 }} />
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+          部分厂商（如 DeepSeek）模型列表和聊天 API 路径不同，需在此填写完整地址
+        </div>
+      </details>
+
+      <div style={{ marginTop: 6 }}>
+        <button className="init-btn init-btn-test" onClick={handlePull} disabled={fetching}
+          style={{ fontSize: 11, padding: '3px 8px', marginBottom: 4 }}>
+          {fetching ? '拉取中...' : '拉取模型列表'}
+        </button>
+        {msg && <span style={{ fontSize: 11, color: msg.startsWith('✅') ? 'var(--success)' : 'var(--danger)', marginLeft: 8 }}>{msg}</span>}
+        {providerModels[p.id]?.available?.length > 0 && (
+          <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 6, padding: '4px 8px', marginBottom: 6 }}>
+            {providerModels[p.id].available.map(m => {
+              const isSel = (providerModels[p.id].selected || []).includes(m);
+              return (
+                <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer', fontSize: 12 }}>
+                  <input type="checkbox" checked={isSel} onChange={() => onToggleModel(p.id, m)} style={{ accentColor: 'var(--accent)' }} />
+                  <span>{m}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 4 }}>
+        {savingIdx === idx && <span style={{ fontSize: 11, color: 'var(--success)' }}>✅ 已保存</span>}
+        <button className="init-btn init-btn-save" onClick={() => onSave(idx)} style={{ fontSize: 12 }}>保存配置</button>
+      </div>
+    </div>
+  );
+}
 
 export default function InitPanel() {
   const [status, setStatus] = useState(null);
@@ -39,9 +114,9 @@ export default function InitPanel() {
   const [providerLoading, setProviderLoading] = useState(true);
   const [providers, setProviders] = useState([]); // [{id, name, apiKey, baseUrl, chatUrl}]
   const [providerModels, setProviderModels] = useState({}); // id → {available:[], selected:[]}
-  const [fetchingModels, setFetchingModels] = useState(false);
   const [providerToast, setProviderToast] = useState(null);
-  const [fetchMsg, setFetchMsg] = useState(''); // inline status next to pull button
+  const [fetchMsg, setFetchMsg] = useState('');
+  const [fetchingIdx, setFetchingIdx] = useState(-1); // which card is currently pulling // inline status next to pull button
 
   // Toggle model selection for a provider
   const toggleModel = (providerId, model) => {
@@ -54,6 +129,7 @@ export default function InitPanel() {
     });
   };
   const [savingIdx, setSavingIdx] = useState(-1); // which card just saved (-1 = none)
+  const [confirmDelProvider, setConfirmDelProvider] = useState(null); // { idx, x, y }
 
   const { loadAvailableModels, setNeedInit } = useApp();
 
@@ -303,11 +379,14 @@ export default function InitPanel() {
     setProviders(prev => [...prev, { id: '', name: '', apiKey: '', baseUrl: '', chatUrl: '' }]);
   };
   const removeProvider = async (idx) => {
+    setConfirmDelProvider(null);
+    if (idx === null || idx === undefined) return;
     const p = providers[idx];
-    if (p.id) {
-      try { await authHeaders({}); fetch(`/api/init/provider-config/${p.id}`, { method: 'DELETE', headers: authHeaders({}) }); } catch {}
+    if (p?.id) {
+      try { await fetch(`/api/init/provider-config/${p.id}`, { method: 'DELETE', headers: authHeaders({}) }); } catch {}
     }
     setProviders(prev => prev.filter((_, i) => i !== idx));
+    loadAvailableModels();
   };
 
   // ── Save Provider config only ──
@@ -379,23 +458,34 @@ export default function InitPanel() {
   }, [editProxyHost, editProxyPort]);
 
   // ── Pull models from all providers ──
-  const handlePullModels = async () => {
-    const active = providers.filter(p => p.baseUrl && p.apiKey);
-    if (active.length === 0) { setFetchMsg('❌ 请填写 API Key 和 Base URL'); setTimeout(() => setFetchMsg(''), 3000); return; }
-    setFetchingModels(true); setFetchMsg('');
-    try {
-      const d = await fetchModels(null, null);
-      if (d.ok) {
-        setProviderModels(d.providerModels || {});
-        setFetchMsg('✅ 模型已更新');
-      } else {
-        setFetchMsg(`❌ ${d.error || '拉取失败'}`);
-      }
-    } catch (err) {
-      setFetchMsg(`❌ ${err.message}`);
+  const handlePullModels = async (idx) => {
+    const p = providers[idx];
+    if (!p || !p.baseUrl || !p.apiKey) return { ok: false };
+    let pid = p.id;
+    if (!pid) {
+      try {
+        const d = await saveProviderConfig({ ...p, model: '' });
+        if (d.provider?.id) { pid = d.provider.id; updateProvider(idx, 'id', pid); }
+      } catch { return { ok: false }; }
     }
-    setFetchingModels(false);
-    setTimeout(() => setFetchMsg(''), 3000);
+    try {
+      const d = await fetchModels(p.baseUrl, p.apiKey);
+      if (d.ok) {
+        const models = d.models || [];
+        // Save available models to server (preserve existing selected)
+        const prev = providerModels[pid] || {};
+        await fetch('/api/init/provider-models', {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ providerId: pid, available: models, selected: prev.selected || [] }),
+        });
+        setProviderModels(prev => ({
+          ...prev,
+          [pid]: { available: models, selected: prev[pid]?.selected || [] },
+        }));
+        return { ok: true };
+      }
+    } catch {}
+    return { ok: false };
   };
 
   const env = status?.env || {};
@@ -575,68 +665,7 @@ export default function InitPanel() {
           <div className="init-sub-header"><IconSettings/> Provider 配置</div>
 
           {providers.map((p, idx) => (
-            <div key={idx} className="provider-card">
-              <div className="provider-card-header">
-                <input
-                  type="text" value={p.name} onChange={e => updateProvider(idx, 'name', e.target.value)}
-                  placeholder="配置名称（如：生产环境）"
-                  className="provider-card-name"
-                />
-                <button onClick={() => removeProvider(idx)} title="删除此配置"
-                  className="provider-card-del">✕</button>
-              </div>
-              <div className="init-config-row">
-                <label>API Key</label>
-                <input type="text" value={p.apiKey} onChange={e => updateProvider(idx, 'apiKey', e.target.value)}
-                  placeholder="sk-..." style={{ flex: 1, fontSize: 13 }} />
-              </div>
-              <div className="init-config-row">
-                <label>Base URL</label>
-                <input type="text" value={p.baseUrl} onChange={e => updateProvider(idx, 'baseUrl', e.target.value)}
-                  placeholder="https://api.anthropic.com" style={{ flex: 1, fontSize: 13 }} />
-              </div>
-              <details className="init-advanced" style={{ marginBottom: 4 }}>
-                <summary style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}>
-                  高级选项 {p.chatUrl ? '(已配置)' : ''}
-                </summary>
-                <div className="init-config-row" style={{ marginTop: 8 }}>
-                  <label>聊天地址</label>
-                  <input type="text" value={p.chatUrl} onChange={e => updateProvider(idx, 'chatUrl', e.target.value)}
-                    placeholder="留空则跟随 Base URL" style={{ flex: 1, fontSize: 13 }} />
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                  部分厂商（如 DeepSeek）模型列表和聊天 API 路径不同，需在此填写完整地址
-                </div>
-              </details>
-
-              {/* ── 选取模型 ── */}
-              <div style={{ marginTop: 6 }}>
-                <button className="init-btn init-btn-test" onClick={handlePullModels} disabled={fetchingModels}
-                  style={{ fontSize: 11, padding: '3px 8px', marginBottom: 4 }}>
-                  {fetchingModels ? '拉取中...' : '拉取模型列表'}
-                </button>
-                {fetchMsg && <span style={{ fontSize: 11, color: fetchMsg.startsWith('✅') ? 'var(--success)' : 'var(--danger)', marginLeft: 8 }}>{fetchMsg}</span>}
-                {providerModels[p.id]?.available?.length > 0 && (
-                  <div className="provider-model-list" style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 6, padding: '4px 8px', marginBottom: 6 }}>
-                    {providerModels[p.id].available.map(m => {
-                      const isSel = (providerModels[p.id].selected || []).includes(m);
-                      return (
-                        <label key={m} className="provider-model-item" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer', fontSize: 12 }}>
-                          <input type="checkbox" checked={isSel} onChange={() => toggleModel(p.id, m)}
-                            style={{ accentColor: 'var(--accent)' }} />
-                          <span>{m}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                {savingIdx === idx && <span style={{ fontSize: 11, color: 'var(--success)' }}>✅ 已保存</span>}
-                <button className="init-btn init-btn-save" onClick={() => handleSaveProvider(idx)} style={{ fontSize: 12 }}>保存配置</button>
-              </div>
-            </div>
+            <ProviderCard key={p.id || idx} p={p} idx={idx} onUpdate={updateProvider} onRemove={removeProvider} onSave={handleSaveProvider} providerModels={providerModels} onToggleModel={toggleModel} onPullModels={handlePullModels} savingIdx={savingIdx} setConfirmDelProvider={setConfirmDelProvider} />
           ))}
           <button onClick={addProvider} className="init-btn" style={{ width: '100%', marginBottom: 10, border: '1px dashed var(--text-muted)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, padding: '6px' }}>
             ＋ 添加 API 配置
@@ -669,7 +698,6 @@ export default function InitPanel() {
           </div>
           {testResult && <div className={`init-test-result ${testResult}`} style={{ marginTop: 8 }}>{testResult === 'success' ? '✅ 代理连接成功' : '❌ 代理连接失败'}</div>}
           {saveMsg && <div className="init-test-result" style={{ color: saveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)', marginTop: 8 }}>{saveMsg}</div>}
-          {}
         </div>
       )}
 
@@ -682,6 +710,23 @@ export default function InitPanel() {
             <div className="init-info-item"><span className="init-info-label">代理地址</span><span className="init-info-value mono">{status.claudeProxyUrl}</span></div>
           </div>
         </div>
+      )}
+
+      {confirmDelProvider && createPortal(
+        <div className="confirm-popup-overlay" onClick={() => setConfirmDelProvider(null)}>
+          <div
+            className="confirm-popup"
+            style={{ left: confirmDelProvider.x, top: confirmDelProvider.y - 10 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="confirm-popup-text">确定删除 API 配置「{providers[confirmDelProvider.idx]?.name || '未命名'}」？</div>
+            <div className="confirm-popup-actions">
+              <button className="confirm-popup-cancel" onClick={() => setConfirmDelProvider(null)}>取消</button>
+              <button className="confirm-popup-ok" onClick={() => removeProvider(confirmDelProvider.idx)}>确定</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
