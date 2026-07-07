@@ -135,7 +135,6 @@ export default function StatsPanel() {
     { label: '缓存命中率', value: `${cacheHitRate}%`, icon: getIcon('barChart') },
     { label: '总花费', value: `¥${fmtCost(summary.totalCost)}`, icon: getIcon('dollar') },
     { label: '会话数', value: summary.sessionCount, icon: getIcon('chat') },
-    { label: '主力模型', value: summary.topModel || '—', icon: getIcon('bot') },
   ] : [];
 
   return (
@@ -272,12 +271,16 @@ export default function StatsPanel() {
                     <ResponsiveContainer width="100%" height={260}>
                       <PieChart>
                         <Pie data={usage.byModel} dataKey="cost" nameKey="model"
-                          cx="50%" cy="50%" outerRadius={90} innerRadius={50}
-                          label={({ model, percent }) => `${model?.slice(0, 12)} ${(percent * 100).toFixed(0)}%`}>
+                          cx="50%" cy="45%" outerRadius={75} innerRadius={40}
+                          label={false}>
                           {usage.byModel.map((_, i) => (
                             <Cell key={i} fill={COLORS[i % COLORS.length]} />
                           ))}
                         </Pie>
+                        <Legend
+                          wrapperStyle={{ fontSize: 11, color: 'var(--text-primary)' }}
+                          formatter={(value) => value?.slice(0, 20)}
+                        />
                         <Tooltip
                           contentStyle={{
                             background: 'var(--bg-primary)', border: '1px solid var(--glass-border)',
@@ -307,8 +310,9 @@ export default function StatsPanel() {
                             return raw.filter(d => d.value > 0);
                           })()}
                           dataKey="value" nameKey="name"
-                          cx="50%" cy="50%" outerRadius={90} innerRadius={50}
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                          cx="50%" cy="50%" outerRadius={70} innerRadius={35}
+                          labelLine={{ stroke: 'var(--text-muted)', strokeWidth: 1 }}
+                          label={false}>
                           {(() => {
                             const raw = [
                               { name: '输入', value: summary.totalInput },
@@ -321,6 +325,9 @@ export default function StatsPanel() {
                             ));
                           })()}
                         </Pie>
+                        <Legend
+                          wrapperStyle={{ fontSize: 11, color: 'var(--text-primary)' }}
+                        />
                         <Tooltip
                           contentStyle={{
                             background: 'var(--bg-primary)', border: '1px solid var(--glass-border)',

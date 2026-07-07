@@ -100,16 +100,18 @@ export function InputSelectsCard({ activeSkill, onSkillChange }) {
                 {Object.keys(modelGroups).length > 0 ? (
                   Object.entries(modelGroups).map(([id, g]) => [
                     <div key={`h-${id}`} className="input-dropdown-group-header">----{g.name}----</div>,
-                    ...(g.models || []).map(m => (
+                    ...(g.models || []).map(m => {
+                      const fullName = g.name + '/' + m;
+                      return (
                       <div
-                        key={m}
-                        className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
-                        onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
+                        key={id + ':' + m}
+                        className={`input-dropdown-item ${(currentModel || model) === fullName ? 'active' : ''}`}
+                        onClick={() => { switchCurrentModel(fullName); setShowModelDropdown(false); }}
                       >
                         <span className="input-dropdown-item-text">{m}</span>
-                        {(currentModel || model) === m && <span className="check">✓</span>}
+                        {(currentModel || model) === fullName && <span className="check">✓</span>}
                       </div>
-                    ))
+                    )})
                   ]).flat()
                 ) : (
                   (availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
@@ -706,16 +708,18 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
                 {Object.keys(modelGroups).length > 0 ? (
                   Object.entries(modelGroups).map(([id, g]) => [
                     <div key={`h-${id}`} className="input-dropdown-group-header">----{g.name}----</div>,
-                    ...(g.models || []).map(m => (
+                    ...(g.models || []).map(m => {
+                      const fullName = g.name + '/' + m;
+                      return (
                       <div
-                        key={m}
-                        className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
-                        onClick={() => { switchCurrentModel(m); setShowModelDropdown(false); }}
+                        key={id + ':' + m}
+                        className={`input-dropdown-item ${(currentModel || model) === fullName ? 'active' : ''}`}
+                        onClick={() => { switchCurrentModel(fullName); setShowModelDropdown(false); }}
                       >
                         <span className="input-dropdown-item-text">{m}</span>
-                        {(currentModel || model) === m && <span className="check">✓</span>}
+                        {(currentModel || model) === fullName && <span className="check">✓</span>}
                       </div>
-                    ))
+                    )})
                   ]).flat()
                 ) : (
                   (availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (

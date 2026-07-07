@@ -665,7 +665,7 @@ export default function InitPanel() {
           <div className="init-sub-header"><IconSettings/> Provider 配置</div>
 
           {providers.map((p, idx) => (
-            <ProviderCard key={p.id || idx} p={p} idx={idx} onUpdate={updateProvider} onRemove={removeProvider} onSave={handleSaveProvider} providerModels={providerModels} onToggleModel={toggleModel} onPullModels={handlePullModels} savingIdx={savingIdx} setConfirmDelProvider={setConfirmDelProvider} />
+            <ProviderCard key={idx} p={p} idx={idx} onUpdate={updateProvider} onRemove={removeProvider} onSave={handleSaveProvider} providerModels={providerModels} onToggleModel={toggleModel} onPullModels={handlePullModels} savingIdx={savingIdx} setConfirmDelProvider={setConfirmDelProvider} />
           ))}
           <button onClick={addProvider} className="init-btn" style={{ width: '100%', marginBottom: 10, border: '1px dashed var(--text-muted)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, padding: '6px' }}>
             ＋ 添加 API 配置
