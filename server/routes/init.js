@@ -391,9 +391,17 @@ router.post('/init/provider-config', (req, res) => {
     provider = { id: require('crypto').randomUUID(), name: '', apiKey: '', baseUrl: '', chatUrl: '' };
     cfg.providers.push(provider);
   }
+  if (baseUrl !== undefined && baseUrl !== provider.baseUrl) {
+    // Base URL changed — clear stale model list
+    if (cfg.providerModels?.[provider.id]) {
+      cfg.providerModels[provider.id] = { available: [], selected: [] };
+    }
+    provider.baseUrl = baseUrl;
+  } else if (baseUrl !== undefined) {
+    provider.baseUrl = baseUrl;
+  }
   if (name !== undefined) provider.name = name;
   if (apiKey !== undefined) provider.apiKey = apiKey;
-  if (baseUrl !== undefined) provider.baseUrl = baseUrl;
   if (chatUrl !== undefined) provider.chatUrl = chatUrl;
 
   // Clean orphaned providerModels entries
