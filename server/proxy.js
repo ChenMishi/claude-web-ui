@@ -52,29 +52,29 @@ function createProxy() {
     let baseUrl = config.baseUrl;
     let chatUrl = config.chatUrl;
 
-    // Route by model name: parse "ProviderName/model_name" → use that provider's key
+    // Read body and route by model name BEFORE setting up headers
+    let requestBody = '';
     try {
-      const body = await readBody(req);
-      if (body.length > 0) {
-        const bodyObj = JSON.parse(body.toString());
+      const rawBody = await readBody(req);
+      if (rawBody.length > 0) {
+        requestBody = rawBody.toString();
+        const bodyObj = JSON.parse(requestBody);
         const modelName = bodyObj.model || '';
         const slashIdx = modelName.indexOf('/');
         if (slashIdx > 0) {
           const providerName = modelName.slice(0, slashIdx);
           const realModel = modelName.slice(slashIdx + 1);
-          // Find matching provider
           for (const p of (config.providers || [])) {
             if (p.name === providerName && p.apiKey && p.baseUrl) {
               apiKey = p.apiKey;
               baseUrl = p.baseUrl;
               chatUrl = p.chatUrl || '';
-              // Replace model in body with the real model name
               bodyObj.model = realModel;
+              requestBody = JSON.stringify(bodyObj);
               break;
             }
           }
         }
-        fetchOptions.body = JSON.stringify(bodyObj);
       }
     } catch {}
 
@@ -98,12 +98,11 @@ function createProxy() {
     delete headers['proxy-authorization'];
     delete headers['proxy-authenticate'];
 
-    // 注入真实的 API Key（SDK 传过来的 x-api-key / Authorization 是占位符）
+    // 注入真实的 API Key
     headers['x-api-key'] = apiKey;
     headers['authorization'] = `Bearer ${apiKey}`;
     headers['anthropic-version'] = headers['anthropic-version'] || '2023-06-01';
 
-    // 确保内容类型和长度头不被破坏
     if (req.method === 'GET' || req.method === 'HEAD') {
       delete headers['content-type'];
       delete headers['content-length'];
@@ -115,12 +114,11 @@ function createProxy() {
       const fetchOptions = {
         method: req.method,
         headers,
-        signal: AbortSignal.timeout(300000), // 5 分钟超时（适应长 SSE）
+        signal: AbortSignal.timeout(300000),
       };
-
       if (req.method !== 'GET' && req.method !== 'HEAD') {
-        // Body already read and processed for model routing above
-        fetchOptions.body = fetchOptions.body || '';
+        fetchOptions.body = requestBody;
+        if (requestBody) headers['content-length'] = String(Buffer.byteLength(requestBody));
       }
 
       const upstream = await fetch(upstreamUrl, fetchOptions);
