@@ -406,9 +406,14 @@ router.delete('/init/provider-config/:id', (req, res) => {
   const cfg = readProviderConfig();
   const idx = (cfg.providers || []).findIndex(p => p.id === req.params.id);
   if (idx < 0) return res.status(404).json({ error: 'Provider not found' });
+  const deletedName = cfg.providers[idx]?.name;
   cfg.providers.splice(idx, 1);
   // Clean up orphaned model data
   if (cfg.providerModels) delete cfg.providerModels[req.params.id];
+  // Clear current model if it was from the deleted provider
+  if (cfg.model && deletedName && cfg.model.startsWith(deletedName + '/')) {
+    cfg.model = '';
+  }
   writeProviderConfig(cfg);
   modelsCache = null;
   res.json({ ok: true });

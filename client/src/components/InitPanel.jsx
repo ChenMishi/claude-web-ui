@@ -131,7 +131,7 @@ export default function InitPanel() {
   const [savingIdx, setSavingIdx] = useState(-1); // which card just saved (-1 = none)
   const [confirmDelProvider, setConfirmDelProvider] = useState(null); // { idx, x, y }
 
-  const { loadAvailableModels, setNeedInit } = useApp();
+  const { loadAvailableModels, setNeedInit, currentModel, switchCurrentModel } = useApp();
 
   const loadStatus = useCallback(() => {
     getInitStatus().then(d => {
@@ -382,11 +382,19 @@ export default function InitPanel() {
     setConfirmDelProvider(null);
     if (idx === null || idx === undefined) return;
     const p = providers[idx];
+
+    // Check if currentModel exists in remaining providers before deleting
+    if (currentModel) {
+      const remaining = providers.filter((_, i) => i !== idx);
+      const found = remaining.some(pr => {
+        const sel = (providerModels[pr.id] || {}).selected || [];
+        return sel.some(m => (pr.name ? pr.name + '/' : '') + m === currentModel);
+      });
+      if (!found) switchCurrentModel('');
+    }
+
     if (p?.id) {
       try { await fetch(`/api/init/provider-config/${p.id}`, { method: 'DELETE', headers: authHeaders({}) }); } catch {}
-    }
-    // Clean orphaned providerModels from local state
-    if (p?.id) {
       setProviderModels(prev => { const u = { ...prev }; delete u[p.id]; return u; });
     }
     setProviders(prev => prev.filter((_, i) => i !== idx));
