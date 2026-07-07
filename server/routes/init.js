@@ -396,6 +396,14 @@ router.post('/init/provider-config', (req, res) => {
   if (baseUrl !== undefined) provider.baseUrl = baseUrl;
   if (chatUrl !== undefined) provider.chatUrl = chatUrl;
 
+  // Clean orphaned providerModels entries
+  const validIds = new Set((cfg.providers || []).map(p => p.id));
+  if (cfg.providerModels) {
+    for (const id of Object.keys(cfg.providerModels)) {
+      if (!validIds.has(id)) { delete cfg.providerModels[id]; }
+    }
+  }
+
   writeProviderConfig(cfg);
   modelsCache = null;
   res.json({ ok: true, provider });
