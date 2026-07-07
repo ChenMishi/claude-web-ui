@@ -70,8 +70,9 @@ const initialState = {
     cost: null,
     currency: null,
   },
-  tasks: [],  // { id, subject, description, status: 'pending'|'in_progress'|'completed' }
-  mainTask: null,  // { subject: string, status: 'in_progress'|'completed' }
+  tasks: [],  // current session tasks
+  mainTask: null,  // current session main task
+  taskCache: {},  // sessionId → { tasks, mainTask }
   restartStatus: null,  // null | 'restarting' | 'done' | 'timeout' | 'error'
   restartError: '',
   needInit: true,  // assume needs init until proven otherwise
@@ -108,18 +109,24 @@ function reducer(state, action) {
       const sid = action.payload;
       localStorage.setItem('claude-ui:currentSessionId', JSON.stringify(sid));
       const cache = { ...state.messageCache };
+      const taskCache = { ...state.taskCache };
       const saveKey = state.currentSessionId || '__pending__';
       if (state.chatMessages.length > 0) {
         cache[saveKey] = state.chatMessages;
       }
-      // 流式期间切回正在执行的会话：恢复完整消息（含 tool/thinking），不经过 textOnly
+      // Save current tasks to cache
+      if (state.tasks.length > 0 || state.mainTask) {
+        taskCache[saveKey] = { tasks: state.tasks, mainTask: state.mainTask };
+      }
       const isStreamingTarget = state.isStreaming && action.isStreamingSession;
       const raw = cache[sid] || [];
       const restored = (isStreamingTarget ? raw : textOnly(raw)).map(m =>
         m.streaming ? { ...m, streaming: false } : m
       );
+      // Restore tasks for target session
+      const cachedTasks = taskCache[sid] || { tasks: [], mainTask: null };
       saveCache(cache);
-      next = { ...state, currentSessionId: sid, chatMessages: restored, messageCache: cache };
+      next = { ...state, currentSessionId: sid, chatMessages: restored, messageCache: cache, tasks: cachedTasks.tasks, mainTask: cachedTasks.mainTask, taskCache };
       break;
     }
     case 'SET_SESSION_ID': {
@@ -274,7 +281,7 @@ function reducer(state, action) {
       next = { ...state, availableModels: action.payload.models || [], modelGroups: action.payload.groups || {}, currentModel: action.payload.current || state.currentModel }; break;
     // Execution status actions
     case 'EXEC_START':
-      next = { ...state, tasks: [], mainTask: null, execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
+      next = { ...state, tasks: [], mainTask: null, taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: [], mainTask: null } }, execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
     case 'EXEC_PHASE':
       next = { ...state, execStatus: { ...state.execStatus, ...action.payload } }; break;
     case 'EXEC_TICK':
@@ -304,7 +311,7 @@ function reducer(state, action) {
         toolUseId: action.payload.toolUseId || null,
         sdkTaskId: null,  // 等 tool result 回来才绑定
       };
-      next = { ...state, tasks: [...state.tasks, newTask] }; break;
+      next = { ...state, tasks: [...state.tasks, newTask], taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: [...state.tasks, newTask], mainTask: state.mainTask } } }; break;
     }
     case 'TASK_BIND_ID': {
       // tool result 返回了 SDK taskId → 用 tool_use_id 精确绑定
@@ -317,7 +324,7 @@ function reducer(state, action) {
           break;
         }
       }
-      next = { ...state, tasks }; break;
+      next = { ...state, tasks, taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks, mainTask: state.mainTask } } }; break;
     }
     case 'TASK_UPDATE': {
       const rawId = action.payload.taskId;
@@ -343,17 +350,17 @@ function reducer(state, action) {
           }
           return t;
         });
-        next = { ...state, tasks: fallback }; break;
+        next = { ...state, tasks: fallback, taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: fallback, mainTask: state.mainTask } } }; break;
       }
-      next = { ...state, tasks: updated }; break;
+      next = { ...state, tasks: updated, taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: updated, mainTask: state.mainTask } } }; break;
     }
     case 'TASKS_CLEAR':
-      next = { ...state, tasks: [] }; break;
+      next = { ...state, tasks: [], taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: [], mainTask: state.mainTask } } }; break;
     case 'SET_MAIN_TASK':
-      next = { ...state, mainTask: { subject: action.payload.subject, status: 'in_progress' } }; break;
+      next = { ...state, mainTask: { subject: action.payload.subject, status: 'in_progress' }, taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: state.tasks, mainTask: { subject: action.payload.subject, status: 'in_progress' } } } }; break;
     case 'UPDATE_MAIN_TASK':
       if (!state.mainTask) return state;
-      next = { ...state, mainTask: { ...state.mainTask, subject: action.payload.subject } }; break;
+      next = { ...state, mainTask: { ...state.mainTask, subject: action.payload.subject }, taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: state.tasks, mainTask: { ...state.mainTask, subject: action.payload.subject } } } }; break;
     case 'RESTART_STATUS':
       next = { ...state, restartStatus: action.payload.status, restartError: action.payload.error || '' }; break;
     case 'SET_NEED_INIT':

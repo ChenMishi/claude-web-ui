@@ -41,6 +41,7 @@ export default function InitPanel() {
   const [providerModels, setProviderModels] = useState({}); // id → {available:[], selected:[]}
   const [fetchingModels, setFetchingModels] = useState(false);
   const [providerToast, setProviderToast] = useState(null);
+  const [fetchMsg, setFetchMsg] = useState(''); // inline status next to pull button
 
   // Toggle model selection for a provider
   const toggleModel = (providerId, model) => {
@@ -380,21 +381,21 @@ export default function InitPanel() {
   // ── Pull models from all providers ──
   const handlePullModels = async () => {
     const active = providers.filter(p => p.baseUrl && p.apiKey);
-    if (active.length === 0) { setProviderToast({ type: 'error', msg: '请先填写至少一个 Provider 的 API Key 和 Base URL' }); return; }
-    setFetchingModels(true);
+    if (active.length === 0) { setFetchMsg('❌ 请填写 API Key 和 Base URL'); setTimeout(() => setFetchMsg(''), 3000); return; }
+    setFetchingModels(true); setFetchMsg('');
     try {
-      const d = await fetchModels(null, null); // null → use server-side providers
+      const d = await fetchModels(null, null);
       if (d.ok) {
         setProviderModels(d.providerModels || {});
-        setProviderToast({ type: 'success', msg: '模型已更新' });
-        setTimeout(() => setProviderToast(null), 3000);
+        setFetchMsg('✅ 模型已更新');
       } else {
-        setProviderToast({ type: 'error', msg: d.error || '拉取失败' });
+        setFetchMsg(`❌ ${d.error || '拉取失败'}`);
       }
     } catch (err) {
-      setProviderToast({ type: 'error', msg: err.message });
+      setFetchMsg(`❌ ${err.message}`);
     }
     setFetchingModels(false);
+    setTimeout(() => setFetchMsg(''), 3000);
   };
 
   const env = status?.env || {};
@@ -614,6 +615,7 @@ export default function InitPanel() {
                   style={{ fontSize: 11, padding: '3px 8px', marginBottom: 4 }}>
                   {fetchingModels ? '拉取中...' : '拉取模型列表'}
                 </button>
+                {fetchMsg && <span style={{ fontSize: 11, color: fetchMsg.startsWith('✅') ? 'var(--success)' : 'var(--danger)', marginLeft: 8 }}>{fetchMsg}</span>}
                 {providerModels[p.id]?.available?.length > 0 && (
                   <div className="provider-model-list" style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 6, padding: '4px 8px', marginBottom: 6 }}>
                     {providerModels[p.id].available.map(m => {
@@ -667,18 +669,7 @@ export default function InitPanel() {
           </div>
           {testResult && <div className={`init-test-result ${testResult}`} style={{ marginTop: 8 }}>{testResult === 'success' ? '✅ 代理连接成功' : '❌ 代理连接失败'}</div>}
           {saveMsg && <div className="init-test-result" style={{ color: saveMsg.includes('✅') ? 'var(--success)' : 'var(--danger)', marginTop: 8 }}>{saveMsg}</div>}
-
-          {/* Toast */}
-          {providerToast && (
-            <div className="restart-overlay" style={{ zIndex: 200 }} onClick={() => setProviderToast(null)}>
-              <div className="restart-toast" onClick={e => e.stopPropagation()} style={{ padding: '24px 32px', gap: 12 }}>
-                <p style={{ color: providerToast.type === 'error' ? 'var(--danger)' : 'var(--success)', fontSize: 15 }}>
-                  {providerToast.type === 'error' ? '❌' : '✅'} {providerToast.msg}
-                </p>
-                <button className="restart-reload-btn" onClick={() => setProviderToast(null)}>确定</button>
-              </div>
-            </div>
-          )}
+          {}
         </div>
       )}
 

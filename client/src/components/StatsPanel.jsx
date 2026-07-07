@@ -123,8 +123,16 @@ export default function StatsPanel() {
     }
   };
 
+  const cacheHitRate = summary && (summary.totalInput + summary.totalCacheRead) > 0
+    ? Math.round((summary.totalCacheRead / (summary.totalInput + summary.totalCacheRead)) * 100) : 0;
+
   const summaryCards = summary ? [
     { label: '总 Tokens', value: fmtTok(summary.totalTokens), icon: getIcon('barChart') },
+    { label: '总输入 Token', value: fmtTok(summary.totalInput), icon: getIcon('chat') },
+    { label: '总输出 Token', value: fmtTok(summary.totalOutput), icon: getIcon('chat') },
+    { label: '总缓存输入', value: fmtTok(summary.totalCacheRead), icon: getIcon('zap') },
+    { label: '总缓存输出', value: fmtTok(summary.totalCacheWrite), icon: getIcon('zap') },
+    { label: '缓存命中率', value: `${cacheHitRate}%`, icon: getIcon('barChart') },
     { label: '总花费', value: `¥${fmtCost(summary.totalCost)}`, icon: getIcon('dollar') },
     { label: '会话数', value: summary.sessionCount, icon: getIcon('chat') },
     { label: '主力模型', value: summary.topModel || '—', icon: getIcon('bot') },
