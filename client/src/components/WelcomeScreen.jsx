@@ -2,6 +2,7 @@ import { useApp } from '../context/AppContext';
 
 export default function WelcomeScreen() {
   const { currentModel, systemPrompt, setSetting, availableModels, modelGroups, switchCurrentModel, currentProjectId } = useApp();
+  const hasModels = Object.keys(modelGroups).length > 0 || availableModels.length > 0;
 
   return (
     <div className="welcome">
@@ -13,7 +14,7 @@ export default function WelcomeScreen() {
       </p>
       <div className="welcome-config">
         <label>Model</label>
-        <select value={currentModel} onChange={e => switchCurrentModel(e.target.value)}>
+        <select value={currentModel} onChange={e => switchCurrentModel(e.target.value)} disabled={!hasModels}>
           {Object.keys(modelGroups).length > 0 ? (
             Object.entries(modelGroups).map(([id, g]) => (
               <optgroup key={id} label={`----${g.name}----`}>
@@ -23,11 +24,7 @@ export default function WelcomeScreen() {
           ) : availableModels.length > 0 ? (
             availableModels.map(m => <option key={m} value={m}>{m}</option>)
           ) : (
-            <>
-              <option value="claude-opus-4-7">Claude Opus 4.7</option>
-              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-            </>
+            <option value="">无模型可用</option>
           )}
         </select>
 

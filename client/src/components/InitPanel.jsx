@@ -385,6 +385,10 @@ export default function InitPanel() {
     if (p?.id) {
       try { await fetch(`/api/init/provider-config/${p.id}`, { method: 'DELETE', headers: authHeaders({}) }); } catch {}
     }
+    // Clean orphaned providerModels from local state
+    if (p?.id) {
+      setProviderModels(prev => { const u = { ...prev }; delete u[p.id]; return u; });
+    }
     setProviders(prev => prev.filter((_, i) => i !== idx));
     loadAvailableModels();
   };

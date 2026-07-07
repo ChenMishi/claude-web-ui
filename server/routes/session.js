@@ -1051,11 +1051,6 @@ function buildSDKOptions(runtime, body, authUser) {
 
   const proxyUrl = getProxyUrl();
 
-  // Strip any ProviderName/ prefix from model (e.g. "APIRouter/glm5.1" → "glm5.1")
-  // Strip any ProviderName/ prefix from model (e.g. APIRouter/glm5.1 → glm5.1)
-  if (agentOptions.model && agentOptions.model.includes('/')) {
-    agentOptions.model = agentOptions.model.split('/').pop();
-  }
   const options = {
     cwd: sandbox ? sandbox.homeDir : runtime.cwd,
     permissionMode: 'acceptEdits',

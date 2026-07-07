@@ -76,6 +76,7 @@ export default function ChatView() {
     addTask, bindTaskId, updateTask, setMainTask, updateMainTask, execStatus,
     currentModel, finishAllStreaming, finalizeStreaming, streamStart, streamEnd, setSessionExecStatus,
     busySessions, taskOutputTick,
+    availableModels, modelGroups,
   } = useApp();
   const busyRef = useRef(busySessions);
   busyRef.current = busySessions;
@@ -740,6 +741,12 @@ export default function ChatView() {
 
     // 防重入锁 — 防止同一个 handleSend 被并发调用
     if (sendingRef.current) return;
+
+    // 无可用模型时直接提示
+    if (!Object.keys(modelGroups).length && !availableModels.length) {
+      bAppend({ role: 'system', content: '⚠️ 无可用模型，请前往 设置→初始化→Provider配置 配置 API', timestamp: Date.now() });
+      return;
+    }
 
     // 当前会话正在执行 → 排队
     if (currentSessionId && busyRef.current.has(currentSessionId)) {

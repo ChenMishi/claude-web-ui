@@ -47,6 +47,7 @@ export function InputSelectsCard({ activeSkill, onSkillChange }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
     setView, currentProjectId, projects,
     availableModels, currentModel, switchCurrentModel, displayMode, modelGroups } = useApp();
+  const hasModels = Object.keys(modelGroups).length > 0 || availableModels.length > 0;
   const skillsRef = useRef(null);
   const skillsContainerRef = useRef(null);
   const modelDropdownRef = useRef(null);
@@ -93,8 +94,8 @@ export function InputSelectsCard({ activeSkill, onSkillChange }) {
             <span className="input-select-icon" title="模型">⚡</span>
             <button
               className="input-select input-select-model"
-              onClick={() => setShowModelDropdown(!showModelDropdown)}
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{currentModel || model}</span></button>
+              onClick={() => hasModels && setShowModelDropdown(!showModelDropdown)}
+              style={{ background: 'transparent', border: 'none', color: hasModels ? 'var(--text-primary)' : 'var(--text-muted)', cursor: hasModels ? 'pointer' : 'default', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{hasModels ? (currentModel || model) : '无模型可用'}</span></button>
             {showModelDropdown && (
               <div className="input-dropdown-panel">
                 {Object.keys(modelGroups).length > 0 ? (
@@ -113,8 +114,8 @@ export function InputSelectsCard({ activeSkill, onSkillChange }) {
                       </div>
                     )})
                   ]).flat()
-                ) : (
-                  (availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
+                ) : availableModels.length > 0 ? (
+                  availableModels.map(m => (
                     <div
                       key={m}
                       className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
@@ -124,7 +125,7 @@ export function InputSelectsCard({ activeSkill, onSkillChange }) {
                       {(currentModel || model) === m && <span className="check">✓</span>}
                     </div>
                   ))
-                )}
+                ) : null}
               </div>
             )}
           </div>
@@ -242,6 +243,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
   const { isStreaming, currentSessionId, execStatus, setSetting,
     setView, setMessages, currentProjectId, selectProject, theme, chatMessages,
     availableModels, model, permissionLevel, projects, currentModel, switchCurrentModel, displayMode, modelGroups } = useApp();
+  const hasModels = Object.keys(modelGroups).length > 0 || availableModels.length > 0;
   const inputRef = useRef(null);
   const cmdListRef = useRef(null);
   const skillChipRef = useRef(null);
@@ -701,8 +703,8 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
             <span className="input-select-icon" title="模型">⚡</span>
             <button
               className="input-select input-select-model"
-              onClick={() => setShowModelDropdown(!showModelDropdown)}
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{currentModel || model}</span></button>
+              onClick={() => hasModels && setShowModelDropdown(!showModelDropdown)}
+              style={{ background: 'transparent', border: 'none', color: hasModels ? 'var(--text-primary)' : 'var(--text-muted)', cursor: hasModels ? 'pointer' : 'default', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{hasModels ? (currentModel || model) : '无模型可用'}</span></button>
             {showModelDropdown && (
               <div className="input-dropdown-panel">
                 {Object.keys(modelGroups).length > 0 ? (
@@ -721,8 +723,8 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
                       </div>
                     )})
                   ]).flat()
-                ) : (
-                  (availableModels.length > 0 ? availableModels : ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']).map(m => (
+                ) : availableModels.length > 0 ? (
+                  availableModels.map(m => (
                     <div
                       key={m}
                       className={`input-dropdown-item ${(currentModel || model) === m ? 'active' : ''}`}
@@ -732,7 +734,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
                       {(currentModel || model) === m && <span className="check">✓</span>}
                     </div>
                   ))
-                )}
+                ) : null}
               </div>
             )}
           </div>
