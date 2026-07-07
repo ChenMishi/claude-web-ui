@@ -48,7 +48,37 @@ function createProxy() {
   const server = http.createServer(async (req, res) => {
     const config = readConfig();
 
-    if (!config.apiKey || !config.baseUrl) {
+    let apiKey = config.apiKey;
+    let baseUrl = config.baseUrl;
+    let chatUrl = config.chatUrl;
+
+    // Route by model name: parse "ProviderName/model_name" → use that provider's key
+    try {
+      const body = await readBody(req);
+      if (body.length > 0) {
+        const bodyObj = JSON.parse(body.toString());
+        const modelName = bodyObj.model || '';
+        const slashIdx = modelName.indexOf('/');
+        if (slashIdx > 0) {
+          const providerName = modelName.slice(0, slashIdx);
+          const realModel = modelName.slice(slashIdx + 1);
+          // Find matching provider
+          for (const p of (config.providers || [])) {
+            if (p.name === providerName && p.apiKey && p.baseUrl) {
+              apiKey = p.apiKey;
+              baseUrl = p.baseUrl;
+              chatUrl = p.chatUrl || '';
+              // Replace model in body with the real model name
+              bodyObj.model = realModel;
+              break;
+            }
+          }
+        }
+        fetchOptions.body = JSON.stringify(bodyObj);
+      }
+    } catch {}
+
+    if (!apiKey || !baseUrl) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         error: '代理未配置 — 请在初始化页面填写 API Key 和 Base URL',
@@ -57,7 +87,7 @@ function createProxy() {
       return;
     }
 
-    const upstreamBase = config.chatUrl || config.baseUrl;
+    const upstreamBase = chatUrl || baseUrl;
     const upstreamUrl = upstreamBase.replace(/\/$/, '') + req.url;
     const headers = { ...req.headers };
 
@@ -69,8 +99,8 @@ function createProxy() {
     delete headers['proxy-authenticate'];
 
     // 注入真实的 API Key（SDK 传过来的 x-api-key / Authorization 是占位符）
-    headers['x-api-key'] = config.apiKey;
-    headers['authorization'] = `Bearer ${config.apiKey}`;
+    headers['x-api-key'] = apiKey;
+    headers['authorization'] = `Bearer ${apiKey}`;
     headers['anthropic-version'] = headers['anthropic-version'] || '2023-06-01';
 
     // 确保内容类型和长度头不被破坏
@@ -89,9 +119,8 @@ function createProxy() {
       };
 
       if (req.method !== 'GET' && req.method !== 'HEAD') {
-        // 读取请求体
-        const body = await readBody(req);
-        fetchOptions.body = body;
+        // Body already read and processed for model routing above
+        fetchOptions.body = fetchOptions.body || '';
       }
 
       const upstream = await fetch(upstreamUrl, fetchOptions);
