@@ -374,6 +374,17 @@ export default function InitPanel() {
   // ── Provider card helpers ──
   const updateProvider = (idx, field, value) => {
     setProviders(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+    // Clear local model state when API Key or Base URL changes
+    if ((field === 'apiKey' || field === 'baseUrl') && providers[idx]?.[field] !== value && value) {
+      const pid = providers[idx]?.id;
+      if (pid) {
+        setProviderModels(prev => {
+          const u = { ...prev };
+          if (u[pid]) u[pid] = { ...u[pid], available: [], selected: [] };
+          return u;
+        });
+      }
+    }
   };
   const addProvider = () => {
     setProviders(prev => [...prev, { id: '', name: '', apiKey: '', baseUrl: '', chatUrl: '' }]);
@@ -405,17 +416,27 @@ export default function InitPanel() {
   const handleSaveProvider = async (idx) => {
     const p = providers[idx];
     if (!p) return;
+    // If API Key or Base URL changed, clear local model state before save
+    const savedCfg = providerConfig;
+    const oldProvider = savedCfg?.providers?.find(pp => pp.id === p.id);
+    const keyChanged = oldProvider && p.apiKey !== oldProvider.apiKey;
+    const urlChanged = oldProvider && p.baseUrl !== oldProvider.baseUrl;
+    if ((keyChanged || urlChanged) && p.id) {
+      setProviderModels(prev => { const u = { ...prev }; if (u[p.id]) u[p.id] = { available: u[p.id]?.available || [], selected: [] }; return u; });
+    }
     try {
       const body = { ...p, model: '' };
       const d = await saveProviderConfig(body);
       if (d.provider?.id) {
-        // Save models with new provider ID (models may still be keyed by old temp id)
-        const models = providerModels[d.provider.id]?.selected || providerModels[p.id]?.selected;
-        if (models?.length > 0) {
-          await fetch('/api/init/provider-models', {
-            method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ providerId: d.provider.id, selected: models }),
-          });
+        // Skip model persistence if API Key or Base URL changed
+        if (!keyChanged && !urlChanged) {
+          const models = (providerModels[d.provider.id] || providerModels[p.id] || {}).selected;
+          if (models?.length > 0) {
+            await fetch('/api/init/provider-models', {
+              method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ providerId: d.provider.id, selected: models }),
+            });
+          }
         }
         // Migrate key from old temp id to new id
         if (p.id !== d.provider.id && providerModels[p.id]) {
