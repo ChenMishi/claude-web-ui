@@ -107,6 +107,11 @@ function readProviderConfig() {
           migrated = true;
         }
       }
+      // Clean orphaned entries (no corresponding provider)
+      const validIds = new Set((cfg.providers || []).map(p => p.id));
+      for (const id of Object.keys(cfg.providerModels)) {
+        if (!validIds.has(id)) { delete cfg.providerModels[id]; migrated = true; }
+      }
       if (migrated) writeProviderConfig(cfg);
     }
     return cfg;
@@ -118,11 +123,14 @@ function emptyProviderConfig() {
 }
 
 function writeProviderConfig(cfg) {
-  // Sync compatibility fields from first provider for proxy.js
   if (cfg.providers && cfg.providers.length > 0) {
     cfg.apiKey = cfg.providers[0].apiKey || '';
     cfg.baseUrl = cfg.providers[0].baseUrl || '';
     cfg.chatUrl = cfg.providers[0].chatUrl || '';
+  } else {
+    cfg.apiKey = '';
+    cfg.baseUrl = '';
+    cfg.chatUrl = '';
   }
   const dir = path.dirname(PROVIDER_CONFIG_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
