@@ -17,8 +17,8 @@ function ProviderCard({ p, idx, onUpdate, onRemove, onSave, providerModels, onTo
     setFetching(true); setMsg('');
     const result = await onPullModels(idx);
     setFetching(false);
-    if (result?.ok) setMsg('✅ 模型已更新'); else setMsg('❌ 拉取失败');
-    setTimeout(() => setMsg(''), 3000);
+    if (result?.ok) setMsg('✅ 模型已更新'); else setMsg('❌ ' + (result?.msg || '拉取失败'));
+    setTimeout(() => setMsg(''), 4000);
   };
 
   return (
@@ -419,6 +419,7 @@ export default function InitPanel() {
     try {
       const body = { ...p, model: '' };
       const d = await saveProviderConfig(body);
+      if (d.error) throw new Error(d.error);
       if (d.provider?.id) {
         // Persist user-selected models (and available if URL changed)
         const pm = providerModels[d.provider.id] || providerModels[p.id] || {};
@@ -490,8 +491,9 @@ export default function InitPanel() {
     if (!pid) {
       try {
         const d = await saveProviderConfig({ ...p, model: '' });
+        if (d.error) return { ok: false, msg: d.error };
         if (d.provider?.id) { pid = d.provider.id; updateProvider(idx, 'id', pid); }
-      } catch { return { ok: false }; }
+      } catch (e) { return { ok: false, msg: e.message }; }
     }
     try {
       const d = await fetchModels(p.baseUrl, p.apiKey);

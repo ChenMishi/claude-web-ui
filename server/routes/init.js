@@ -407,7 +407,12 @@ router.post('/init/provider-config', (req, res) => {
   } else if (baseUrl !== undefined) {
     provider.baseUrl = baseUrl;
   }
-  if (name !== undefined) provider.name = name;
+  if (name !== undefined) {
+    // Check name uniqueness (excluding this provider itself)
+    const dup = (cfg.providers || []).find(p => p.name === name && p.id !== provider.id);
+    if (dup) return res.status(400).json({ error: `Provider 名称 "${name}" 已存在，请使用不同的名称` });
+    provider.name = name;
+  }
   if (apiKey !== undefined) provider.apiKey = apiKey;
   if (chatUrl !== undefined) provider.chatUrl = chatUrl;
 

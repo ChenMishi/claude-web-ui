@@ -52,7 +52,7 @@ function createProxy() {
     let baseUrl = config.baseUrl;
     let chatUrl = config.chatUrl;
 
-    // Read body and route by model name BEFORE setting up headers
+    // Read body and route by model name
     let requestBody = '';
     try {
       const rawBody = await readBody(req);
@@ -62,24 +62,24 @@ function createProxy() {
         const modelName = bodyObj.model || '';
         const slashIdx = modelName.indexOf('/');
         if (slashIdx > 0) {
-          const providerName = modelName.slice(0, slashIdx);
           const realModel = modelName.slice(slashIdx + 1);
-          let matched = false;
+          // Match by provider name (guaranteed unique) or ID as fallback
+          const searchKey = modelName.slice(0, slashIdx);
           for (const p of (config.providers || [])) {
-            if (p.name === providerName && p.apiKey && p.baseUrl) {
+            if ((p.name === searchKey || p.id === searchKey) && p.apiKey && p.baseUrl) {
               apiKey = p.apiKey;
               baseUrl = p.baseUrl;
               chatUrl = p.chatUrl || '';
-              matched = true;
               break;
             }
           }
-          if (!matched) proxyLog(`Provider "${providerName}" not found, falling back to default`);
           bodyObj.model = realModel;
           requestBody = JSON.stringify(bodyObj);
         }
       }
-    } catch {}
+    } catch (e) {
+      proxyLog(`Body routing failed: ${e.message}`);
+    }
 
     if (!apiKey || !baseUrl) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
