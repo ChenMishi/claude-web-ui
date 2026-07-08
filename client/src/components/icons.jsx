@@ -72,6 +72,7 @@ export const IconNewFolder = () => <svg {...svgProps}><path d="M22 19a2 2 0 0 1-
 export const IconNewFile = () => <svg {...svgProps}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>;
 export const IconSquare = () => <svg {...svgProps}><rect x="3" y="3" width="18" height="18" rx="2"/></svg>;
 export const IconHourglass = () => <svg {...svgProps}><path d="M6 2h12v4l-6 6 6 6v4H6v-4l6-6-6-6V2z"/></svg>;
+export const IconCompress = () => <svg {...svgProps}><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>;
 
 // Map for dynamic icon lookup
 const iconMap = {
@@ -92,6 +93,7 @@ const iconMap = {
   checkCircle: IconCheckCircle, xCircle: IconXCircle, paperclip: IconPaperclip,
   mail: IconMail, target: IconTarget, shield: IconShield, cube: IconCube,
   puzzle: IconPuzzle, note: IconNote, newFolder: IconNewFolder, newFile: IconNewFile,
+  compress: IconCompress, square: IconSquare, hourglass: IconHourglass,
 };
 
 export function getIcon(name) {

@@ -2243,10 +2243,10 @@ router.post('/session/:id/title', async (req, res) => {
   res.json({ title });
 });
 
-// Compact session: trim history to keep only the last N records
+// Compact session: trim history, preserving complete user-assistant turns
 router.post('/session/:id/compact', requireAuth, (req, res) => {
   const { id } = req.params;
-  const keepCount = Math.max(1, parseInt(req.body?.keepCount) || 2);
+  const keepUserTurns = Math.max(0, parseInt(req.body?.keepCount) || 2);
   const sessionInfo = findSessionFile(id, req.user);
   if (!sessionInfo) return res.status(404).json({ error: 'Session not found' });
 
@@ -2257,11 +2257,32 @@ router.post('/session/:id/compact', requireAuth, (req, res) => {
     } catch {}
     const content = fs.readFileSync(realPath, 'utf8');
     const lines = content.split('\n').filter(Boolean);
-    if (lines.length <= keepCount) return res.json({ ok: true, trimmed: false });
+    if (lines.length === 0) return res.json({ ok: true, trimmed: false });
 
-    const trimmed = lines.slice(-keepCount);
+    // Scan from end to find the last N+2 user-type entries
+    // +1 because the last user entry is the compact trigger itself ("压缩对话上下文")
+    // +1 extra for safety margin — always keep at least one prior user turn
+    const targetUserCount = keepUserTurns + 2;
+    const userIndices = [];
+    for (let i = lines.length - 1; i >= 0 && userIndices.length < targetUserCount; i--) {
+      try {
+        const rec = JSON.parse(lines[i]);
+        if (rec.type === 'user') userIndices.unshift(i);
+      } catch { /* skip unparseable lines */ }
+    }
+
+    if (userIndices.length === 0) {
+      // No user entries — keep everything (shouldn't happen in normal flow)
+      return res.json({ ok: true, trimmed: false });
+    }
+
+    // Keep from the earliest found user entry (ensures complete turns)
+    const fromIdx = userIndices[0];
+    if (fromIdx === 0) return res.json({ ok: true, trimmed: false }); // Already minimal
+
+    const trimmed = lines.slice(fromIdx);
     fs.writeFileSync(realPath, trimmed.join('\n') + '\n', 'utf8');
-    res.json({ ok: true, trimmed: true, removed: lines.length - trimmed.length });
+    res.json({ ok: true, trimmed: true, removed: lines.length - trimmed.length, keptTurns: userIndices.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

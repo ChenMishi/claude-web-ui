@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { runAgent, getProjects, getProjectSessions, abortSession, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages } from '../api';
+import { runAgent, getProjects, getProjectSessions, abortSession, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages, authHeaders } from '../api';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import ChatStatusBar from './ChatStatusBar';
@@ -9,7 +9,7 @@ import WelcomeScreen from './WelcomeScreen';
 import ExecutionPanel from './ExecutionPanel';
 import TaskPanel from './TaskPanel';
 import ArtifactDrawer from './ArtifactDrawer';
-import { IconPackage } from './icons';
+import { IconPackage, IconCompress } from './icons';
 // (icons reverted to emoji for chat view)
 
 const PHASE_LABELS = {
@@ -114,6 +114,7 @@ export default function ChatView() {
   const [activeSkill, setActiveSkill] = useState(null); // { name, displayName, icon }
   const [queuedMessages, setQueuedMessages] = useState([]); // 排队中的消息
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [compacting, setCompacting] = useState(false);
   const currentProject = projects.find(p => p.id === currentProjectId);
   const projectCwd = currentProject?.cwd || '';
   const pendingQueues = useRef(new Map()); // sessionId → [{text, timestamp}]
@@ -662,6 +663,16 @@ export default function ChatView() {
     }).catch(() => {});
   }, [taskOutputTick]); // eslint-disable-line
 
+  const handleCompact = useCallback(() => {
+    if (!currentSessionId || compacting || isStreaming) return;
+    // 复用 /compact 的完整逻辑：发消息 → Claude 总结 → 自动裁剪
+    handleSendRef.current?.("请帮我压缩对话上下文");
+    setCompacting(true);
+    // compacting 由 onDone 中的 compactRef 流程自动复位
+    // 这里设一个兜底定时器
+    setTimeout(() => setCompacting(false), 30000);
+  }, [currentSessionId, compacting, isStreaming]);
+
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => execTick(), 1000);
@@ -970,15 +981,25 @@ export default function ChatView() {
         // Compact conversation: trim JSONL + local messages + cache
         if (compactRef.current) {
           compactRef.current = false;
+          setCompacting(false);
+          // Trim local messages to keep the last few user turns
           const msgs = chatMessagesRef.current;
-          if (msgs.length > 6) setMessages([...msgs.slice(-6)]);
-          fetch(`${BASE}/session/${encodeURIComponent(realSid)}/compact`, {
+          if (msgs.length > 12) {
+            // Find last few user messages to anchor the trim point
+            const keptMsgs = [];
+            let userCount = 0;
+            const minUserTurns = 4; // keep at least last 4 user turns
+            for (let i = msgs.length - 1; i >= 0 && userCount < minUserTurns; i--) {
+              keptMsgs.unshift(msgs[i]);
+              if (msgs[i].role === 'user') userCount++;
+            }
+            setMessages(keptMsgs);
+          }
+          fetch(`/api/session/${encodeURIComponent(realSid)}/compact`, {
             method: 'POST', headers: authHeaders({}),
-            body: JSON.stringify({ keepCount: 6 }),
+            body: JSON.stringify({ keepCount: 4 }),
           }).catch(() => {});
         }
-
-        setTimeout(() => execReset(), 5000);
 
         if (currentProjectId) {
           getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
@@ -1166,14 +1187,27 @@ export default function ChatView() {
         )}
         <ChatStatusBar />
         {currentSessionId && (
-          <button
-            className="artifact-trigger-btn"
-            onClick={() => setDrawerOpen(v => !v)}
-            title="产物文件"
-          >
-            <IconPackage />
-            <span className="artifact-trigger-label">当前会话产物合集</span>
-          </button>
+          <div className="footer-buttons">
+            <button
+              className="compact-trigger-btn"
+              onClick={handleCompact}
+              disabled={compacting}
+              title="压缩对话上下文"
+            >
+              <span className={`compact-icon${compacting ? ' spinning' : ''}`}>
+                <IconCompress />
+              </span>
+              <span className="artifact-trigger-label">压缩对话</span>
+            </button>
+            <button
+              className="artifact-trigger-btn"
+              onClick={() => setDrawerOpen(v => !v)}
+              title="产物文件"
+            >
+              <IconPackage />
+              <span className="artifact-trigger-label">会话产物</span>
+            </button>
+          </div>
         )}
         {currentSessionId && (
           <ArtifactDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} cwd={projectCwd} />

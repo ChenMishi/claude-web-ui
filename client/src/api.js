@@ -599,3 +599,11 @@ export async function deleteSessionArtifacts(sessionId, files, cwd) {
 export function getArtifactDownloadUrl(sessionId, fileName, cwd) {
   return `${BASE}/session/${sessionId}/artifacts/download?file=${encodeURIComponent(fileName)}&cwd=${encodeURIComponent(cwd || '')}`;
 }
+
+// Session compact
+export async function compactSession(sessionId, keepCount = 6) {
+  return fetchJSON(`/session/${sessionId}/compact`, {
+    method: 'POST',
+    body: JSON.stringify({ keepCount }),
+  });
+}
