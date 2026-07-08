@@ -1033,7 +1033,19 @@ router.get('/models', async (req, res) => {
       } catch {}
     }
 
-    const current = cfg.model || models[0] || '';
+    // Build current model with provider prefix if it's provider-scoped
+    let current = cfg.model || '';
+    if (!current && models.length > 0) {
+      for (const [id, val] of Object.entries(cfg.providerModels || {})) {
+        const list = val?.selected || val?.available || [];
+        if (list.includes(models[0])) {
+          const p = (cfg.providers || []).find(pp => pp.id === id);
+          current = (p?.name || id.slice(0, 8)) + '/' + models[0];
+          break;
+        }
+      }
+      if (!current) current = models[0];
+    }
     modelsCache = { models, groups, current };
     modelsCacheTime = Date.now();
     res.json(modelsCache);
