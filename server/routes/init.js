@@ -1033,9 +1033,9 @@ router.get('/models', async (req, res) => {
       } catch {}
     }
 
-    // Build current model with provider prefix if it's provider-scoped
-    let current = cfg.model || '';
-    if (!current && models.length > 0) {
+    // Build current model from provider data (auto-corrects renamed providers)
+    let current = '';
+    if (models.length > 0) {
       for (const [id, val] of Object.entries(cfg.providerModels || {})) {
         const list = val?.selected || val?.available || [];
         if (list.includes(models[0])) {
@@ -1046,6 +1046,7 @@ router.get('/models', async (req, res) => {
       }
       if (!current) current = models[0];
     }
+    if (!current) current = cfg.model || '';
     modelsCache = { models, groups, current };
     modelsCacheTime = Date.now();
     res.json(modelsCache);

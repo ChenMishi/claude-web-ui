@@ -64,16 +64,19 @@ function createProxy() {
         if (slashIdx > 0) {
           const providerName = modelName.slice(0, slashIdx);
           const realModel = modelName.slice(slashIdx + 1);
+          let matched = false;
           for (const p of (config.providers || [])) {
             if (p.name === providerName && p.apiKey && p.baseUrl) {
               apiKey = p.apiKey;
               baseUrl = p.baseUrl;
               chatUrl = p.chatUrl || '';
-              bodyObj.model = realModel;
-              requestBody = JSON.stringify(bodyObj);
+              matched = true;
               break;
             }
           }
+          if (!matched) proxyLog(`Provider "${providerName}" not found, falling back to default`);
+          bodyObj.model = realModel;
+          requestBody = JSON.stringify(bodyObj);
         }
       }
     } catch {}
