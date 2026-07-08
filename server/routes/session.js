@@ -17,6 +17,7 @@ function getProxyUrl() {
 }
 const { dirNameToCwd, parseTitleFromJsonl } = require('../utils');
 const { findUserById } = require('../auth/users');
+const { requireAuth } = require('../middleware/auth');
 const {
   getRuntimeSession, deleteRuntimeSession, getOrCreateRuntime,
   createPendingRuntime, assignSessionId, resolvePendingApproval, setPendingApproval,
@@ -891,7 +892,11 @@ function handleSDKMessage(message, runtime, isStreaming) {
         const pricingFile = path.join(path.resolve(__dirname, '..', '..'), 'pricing-config.json');
         if (fs.existsSync(pricingFile)) {
           const pricing = JSON.parse(fs.readFileSync(pricingFile, 'utf8'));
-          const modelPricing = pricing.models?.[runtime.model];
+          // Strip provider prefix from model name for pricing lookup
+          const pureModel = (runtime.model || '').includes('/')
+            ? runtime.model.split('/').pop()
+            : runtime.model;
+          const modelPricing = pricing.models?.[pureModel];
           // Always use custom pricing if config exists — unconfigured models default to 0
           const ip = modelPricing?.input || 0;
           const op = modelPricing?.output || 0;
@@ -2236,6 +2241,30 @@ router.post('/session/:id/title', async (req, res) => {
 
   const title = await generateSessionTitle(id, prompt, req.body.cwd, req.user);
   res.json({ title });
+});
+
+// Compact session: trim history to keep only the last N records
+router.post('/session/:id/compact', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const keepCount = Math.max(1, parseInt(req.body?.keepCount) || 2);
+  const sessionInfo = findSessionFile(id, req.user);
+  if (!sessionInfo) return res.status(404).json({ error: 'Session not found' });
+
+  try {
+    let realPath = sessionInfo.file;
+    try {
+      if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath);
+    } catch {}
+    const content = fs.readFileSync(realPath, 'utf8');
+    const lines = content.split('\n').filter(Boolean);
+    if (lines.length <= keepCount) return res.json({ ok: true, trimmed: false });
+
+    const trimmed = lines.slice(-keepCount);
+    fs.writeFileSync(realPath, trimmed.join('\n') + '\n', 'utf8');
+    res.json({ ok: true, trimmed: true, removed: lines.length - trimmed.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── Session Artifact Management ──

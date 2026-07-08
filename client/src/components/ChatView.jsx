@@ -736,6 +736,8 @@ export default function ChatView() {
     bAppend({ role: 'system', content: summary, timestamp: Date.now() });
   }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset, clearPendingQueue, finalizeStreaming]);
 
+  const compactRef = useRef(false); // true when /compact triggered this send
+
   const handleSend = useCallback((text, attachments) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
@@ -747,6 +749,9 @@ export default function ChatView() {
       bAppend({ role: 'system', content: '⚠️ 无可用模型，请前往 设置→初始化→Provider配置 配置 API', timestamp: Date.now() });
       return;
     }
+
+    // Mark compact trigger
+    compactRef.current = text.includes('压缩对话上下文');
 
     // 当前会话正在执行 → 排队
     if (currentSessionId && busyRef.current.has(currentSessionId)) {
@@ -959,6 +964,20 @@ export default function ChatView() {
         if (artifactFiles && artifactFiles.length > 0) {
           lbAppend({ role: 'artifacts', files: artifactFiles, timestamp: Date.now() });
         }
+
+        setTimeout(() => execReset(), 5000);
+
+        // Compact conversation: trim JSONL + local messages + cache
+        if (compactRef.current) {
+          compactRef.current = false;
+          const msgs = chatMessagesRef.current;
+          if (msgs.length > 6) setMessages([...msgs.slice(-6)]);
+          fetch(`${BASE}/session/${encodeURIComponent(realSid)}/compact`, {
+            method: 'POST', headers: authHeaders({}),
+            body: JSON.stringify({ keepCount: 6 }),
+          }).catch(() => {});
+        }
+
         setTimeout(() => execReset(), 5000);
 
         if (currentProjectId) {
