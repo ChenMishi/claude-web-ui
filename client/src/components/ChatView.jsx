@@ -1194,7 +1194,7 @@ export default function ChatView() {
               disabled={compacting}
               title="压缩对话上下文"
             >
-              <span className={`compact-icon${compacting ? ' spinning' : ''}`}>
+              <span className={`compact-icon${compacting ? ' compacting' : ''}`}>
                 <IconCompress />
               </span>
               <span className="artifact-trigger-label">压缩对话</span>

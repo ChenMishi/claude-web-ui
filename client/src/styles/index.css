@@ -4006,8 +4006,12 @@ html, body, #root {
   align-items: center;
   justify-content: center;
 }
-.compact-icon.spinning {
-  animation: spin 0.8s linear infinite;
+.compact-icon.compacting {
+  animation: compact-pulse 0.8s ease-in-out infinite;
+}
+@keyframes compact-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(0.75); }
 }
 
 /* ── Artifact Drawer ── */
