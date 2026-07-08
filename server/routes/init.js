@@ -103,7 +103,12 @@ function readProviderConfig() {
       let migrated = false;
       for (const [id, val] of Object.entries(cfg.providerModels)) {
         if (Array.isArray(val)) {
-          cfg.providerModels[id] = { available: val, selected: [] };
+          cfg.providerModels[id] = { available: val, selected: [...val] };
+          migrated = true;
+        }
+        // Repair: if selected is empty but available has models, populate selected
+        if (typeof val === 'object' && val.available?.length > 0 && (!val.selected || val.selected.length === 0)) {
+          val.selected = [...val.available];
           migrated = true;
         }
       }
