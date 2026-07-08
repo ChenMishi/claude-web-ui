@@ -391,10 +391,12 @@ router.post('/init/provider-config', (req, res) => {
     provider = { id: require('crypto').randomUUID(), name: '', apiKey: '', baseUrl: '', chatUrl: '' };
     cfg.providers.push(provider);
   }
+  let modelsCleared = false;
   if (baseUrl !== undefined && baseUrl !== provider.baseUrl) {
     // Base URL changed — clear stale model list
     if (cfg.providerModels?.[provider.id]) {
       cfg.providerModels[provider.id] = { available: [], selected: [] };
+      modelsCleared = true;
     }
     provider.baseUrl = baseUrl;
   } else if (baseUrl !== undefined) {
@@ -414,7 +416,7 @@ router.post('/init/provider-config', (req, res) => {
 
   writeProviderConfig(cfg);
   modelsCache = null;
-  res.json({ ok: true, provider });
+  res.json({ ok: true, provider, modelsCleared });
 });
 
 // Delete a provider
