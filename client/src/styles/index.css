@@ -2094,6 +2094,58 @@ html, body, #root {
   white-space: nowrap;
 }
 
+/* ── Agent Selector Popup ── */
+.agent-popup {
+  min-width: 480px;
+  max-width: 600px;
+  overflow-x: hidden;
+}
+
+.agent-dept-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.agent-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.agent-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+  text-align: left;
+  white-space: nowrap;
+}
+.agent-chip:hover {
+  border-color: var(--accent);
+  background: rgba(108, 99, 255, 0.06);
+}
+.agent-chip.active {
+  border-color: var(--accent);
+  background: rgba(108, 99, 255, 0.12);
+}
+.agent-chip-emoji {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.agent-chip-name {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
 /* ── Skills Management Panel ── */
 .skills-panel {
   padding: 24px 32px;
@@ -2107,24 +2159,38 @@ html, body, #root {
 }
 .skills-panel-header h2 { font-size: 20px; color: var(--accent); margin: 0; display: flex; align-items: center; gap: 8px; }
 
-.skills-panel-tabs { display: flex; gap: 4px; }
-.skills-panel-tabs button {
-  padding: 8px 22px;
+/* Skills section tabs — inside card, same pattern as settings */
+.skills-section-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 16px 0;
+  background: rgba(108, 99, 255, 0.03);
+}
+.skills-section-tabs button {
+  padding: 10px 20px;
   background: transparent;
-  border: 1px solid var(--glass-border);
-  border-bottom: none;
-  border-radius: 10px 10px 0 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 8px 8px 0 0;
   color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.15s;
+  position: relative;
+  margin-bottom: -1px;
 }
-.skills-panel-tabs button:hover { color: var(--text-primary); background: rgba(108,99,255,0.05); }
-.skills-panel-tabs button.active {
+.skills-section-tabs button:hover { color: var(--text-primary); background: rgba(108,99,255,0.06); }
+.skills-section-tabs button.active {
   color: var(--accent);
   background: var(--glass-bg);
-  border-color: var(--glass-border);
+  border-bottom-color: var(--accent);
   font-weight: 500;
+}
+
+/* Skills section body — content area below tabs */
+.skills-section-body {
+  padding: 20px;
 }
 
 .skills-section {
@@ -2134,7 +2200,7 @@ html, body, #root {
   border: none;
   border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow);
-  padding: 20px;
+  overflow: hidden;
 }
 .skills-section-actions { display: flex; gap: 8px; margin-bottom: 16px; }
 .skills-create-btn {
@@ -2259,8 +2325,36 @@ html, body, #root {
   border-radius: 8px;
 }
 
-/* Marketplace */
-.skills-marketplace-bar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+/* ── Plugin Management ── */
+.plugin-status-badge {
+  font-size: 10px; padding: 2px 8px; border-radius: 4px;
+  font-weight: 500;
+}
+.plugin-status-badge[data-status="active"] { background: rgba(76,175,80,0.12); color: var(--success); }
+.plugin-status-badge[data-status="disabled"] { background: rgba(128,128,128,0.1); color: var(--text-muted); }
+.plugin-status-badge[data-status="none"] { background: var(--input-bg); color: var(--text-muted); border: 1px solid var(--glass-border); }
+
+.plugin-add-bar {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+}
+.plugin-add-actions { display: flex; gap: 8px; align-items: center; }
+.plugin-add-cancel {
+  padding: 8px 18px;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.plugin-add-cancel:hover { border-color: var(--accent); color: var(--accent); }
+
 .skills-search-input {
   width: 100%; padding: 10px 14px;
   background: var(--input-bg);
@@ -2273,20 +2367,6 @@ html, body, #root {
 }
 .skills-search-input:focus { border-color: var(--accent); }
 .skills-search-input::placeholder { color: var(--text-muted); }
-
-.skills-cat-filter { display: flex; gap: 6px; flex-wrap: wrap; }
-.skills-cat-filter button {
-  padding: 6px 14px;
-  background: transparent;
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  color: var(--text-muted);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.skills-cat-filter button:hover { border-color: var(--accent); color: var(--text-primary); }
-.skills-cat-filter button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* ── Skill Editor Modal ── */
 .skills-editor-modal {
@@ -3355,18 +3435,51 @@ html, body, #root {
 .ask-user-option input { accent-color: var(--accent); }
 
 .ask-user-submit {
-  width: 100%;
-  padding: 10px;
+  padding: 10px 16px;
   background: var(--accent);
   color: white;
   border: none;
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
-  margin-top: 8px;
 }
 
 .ask-user-submit:hover { background: var(--accent-hover); }
+
+.ask-user-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.ask-user-mode-switch {
+  display: flex;
+  gap: 2px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.ask-user-mode-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ask-user-mode-btn.active {
+  background: var(--glass-bg);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.ask-user-mode-btn:hover:not(.active) { color: var(--text-primary); }
 
 /* Tool confirmation buttons (允许 / 拒绝) */
 .confirm-buttons {
@@ -5323,9 +5436,8 @@ html, body, #root {
 
 .stats-controls {
   display: flex; gap: 8px; align-items: center; margin: 16px 0 8px;
-  flex-wrap: wrap;
 }
-.stats-presets { display: flex; gap: 4px; flex-wrap: wrap; }
+.stats-presets { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; min-width: 0; }
 .stats-preset-btn {
   padding: 6px 14px; font-size: 12px; border-radius: 8px; cursor: pointer;
   background: var(--bg-primary); border: 1px solid var(--glass-border);

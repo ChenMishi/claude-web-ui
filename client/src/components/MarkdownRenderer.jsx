@@ -140,9 +140,10 @@ export default function MarkdownRenderer({ content, streaming }) {
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => { active = false; cancelAnimationFrame(rafRef.current); };
-    // Only restart when streaming starts/stops — NOT on every content change.
-    // contentRef lets the running loop see the latest content.
-  }, [streaming, fullContent.length > 0]);  // eslint-disable-line
+    // Restart on streaming state change or content length growth.
+    // Using content length (not a boolean) ensures the rAF loop restarts
+    // when SSE delivers more text after the previous loop caught up.
+  }, [streaming, fullContent.length]);  // eslint-disable-line
 
   if (!content || typeof content !== 'string') return null;
 

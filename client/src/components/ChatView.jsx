@@ -112,9 +112,14 @@ export default function ChatView() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [activeSkill, setActiveSkill] = useState(null); // { name, displayName, icon }
+  const [activeAgent, setActiveAgent] = useState(null); // { id, name, description, emoji, department }
   const [queuedMessages, setQueuedMessages] = useState([]); // 排队中的消息
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [compacting, setCompacting] = useState(false);
+  const [askMode, setAskMode] = useState(() => localStorage.getItem('claude-ui:askUserResumeMode') || 'send');
+  // Ref for askMode to avoid stale closure
+  const askModeRef = useRef(askMode);
+  askModeRef.current = askMode;
   const currentProject = projects.find(p => p.id === currentProjectId);
   const projectCwd = currentProject?.cwd || '';
   const pendingQueues = useRef(new Map()); // sessionId → [{text, timestamp}]
@@ -797,6 +802,11 @@ export default function ChatView() {
       else if (promptText.startsWith('/' + activeSkill.name)) promptText = promptText.slice(activeSkill.name.length + 1).trim();
     }
 
+    // Inject active agent persona as system instruction prefix
+    if (activeAgent && promptText) {
+      promptText = `[系统指令] 你现在扮演「${activeAgent.name}」角色。${activeAgent.description || ''}\n\n---\n\n${promptText}`;
+    }
+
     setMainTask(promptText.length > 30 ? promptText.slice(0, 30) + '…' : promptText);
     startTimer();
 
@@ -1049,7 +1059,7 @@ export default function ChatView() {
       },
     });
     sendingRef.current = false;  // 释放发送锁，允许其他会话并发发送
-  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, addTask, bindTaskId, updateTask, setMainTask, updateMainTask, modelGroups, availableModels]);
+  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, activeAgent, addTask, bindTaskId, updateTask, setMainTask, updateMainTask, modelGroups, availableModels]);
   handleSendRef.current = handleSend;
 
   const handleResolveAsk = useCallback((answers) => {
@@ -1064,9 +1074,9 @@ export default function ChatView() {
       buf.forEach(msg => appendRef.current(msg));
       askBufferRef.current = [];
     }
+
+    // askMode: 'send' = visible message in chat (default), 'inject' = silent
     if (text) {
-      // Abort current SDK turn (canUseTool is unreliable),
-      // then send answer as a new message via handleSend.
       abortSession(currentSessionId).catch(() => {});
       sendingRef.current = false;
       ++execIdRef.current;
@@ -1074,11 +1084,14 @@ export default function ChatView() {
       if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
       finalizeStreaming();
       execReset();
+
+      if (askModeRef.current === 'inject') {
+        appendRef.current({ role: 'user', content: text, timestamp: Date.now() });
+      }
       setTimeout(() => handleSend(text), 500);
     }
   }, [askUser, currentSessionId, handleSend, stopTimer, finalizeStreaming, execReset]);
 
-  // Tool confirmation handler — separate from AskUserQuestion
   const handleToolConfirm = useCallback((allowed) => {
     if (!toolConfirm || !currentSessionId) return;
     const answer = allowed ? '允许' : '拒绝';
@@ -1133,26 +1146,40 @@ export default function ChatView() {
                   )}
                 </div>
               ))}
-              <button className="ask-user-submit" onClick={() => {
-                const collected = {};
-                askQs.forEach((q, qi) => {
-                  if (q.options && q.options.length > 0) {
-                    if (q.multiSelect) {
-                      const checked = document.querySelectorAll(`.ask-user-dialog input[name="q-${qi}"]:checked`);
-                      collected[`q${qi}`] = Array.from(checked).map(c => c.value).join(', ');
+              <div className="ask-user-footer">
+                <button className="ask-user-submit" onClick={() => {
+                  const collected = {};
+                  askQs.forEach((q, qi) => {
+                    if (q.options && q.options.length > 0) {
+                      if (q.multiSelect) {
+                        const checked = document.querySelectorAll(`.ask-user-dialog input[name="q-${qi}"]:checked`);
+                        collected[`q${qi}`] = Array.from(checked).map(c => c.value).join(', ');
+                      } else {
+                        const checked = document.querySelector(`.ask-user-dialog input[name="q-${qi}"]:checked`);
+                        collected[`q${qi}`] = checked ? checked.value : '';
+                      }
                     } else {
-                      const checked = document.querySelector(`.ask-user-dialog input[name="q-${qi}"]:checked`);
-                      collected[`q${qi}`] = checked ? checked.value : '';
+                      const inp = document.querySelector(`.ask-user-dialog [data-q="${qi}"]`);
+                      collected[`q${qi}`] = inp ? inp.value : '';
                     }
-                  } else {
-                    const inp = document.querySelector(`.ask-user-dialog [data-q="${qi}"]`);
-                    collected[`q${qi}`] = inp ? inp.value : '';
-                  }
-                });
-                handleResolveAsk({ answers: collected });
-              }}>
-                提交
-              </button>
+                  });
+                  handleResolveAsk({ answers: collected });
+                }}>
+                  提交
+                </button>
+                <span className="ask-user-mode-switch">
+                  <button
+                    className={`ask-user-mode-btn ${askMode === 'send' ? 'active' : ''}`}
+                    onClick={() => { setAskMode('send'); localStorage.setItem('claude-ui:askUserResumeMode', 'send'); }}
+                    title="答案作为消息显示在聊天区"
+                  >📨 可见</button>
+                  <button
+                    className={`ask-user-mode-btn ${askMode === 'inject' ? 'active' : ''}`}
+                    onClick={() => { setAskMode('inject'); localStorage.setItem('claude-ui:askUserResumeMode', 'inject'); }}
+                    title="答案静默注入，不显示在聊天区"
+                  >🔇 静默</button>
+                </span>
+              </div>
             </div>
           )}
           {/* Tool permission confirmation — same style as AskUserQuestion, separate logic */}
@@ -1222,7 +1249,7 @@ export default function ChatView() {
       </div>
       <div className="input-row">
         <div className="input-row-spacer">
-          <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} queuedMessages={queuedMessages} onRemoveQueued={(idx) => { getQueue().splice(idx, 1); setQueuedMessages([...getQueue()]); }} onPrioritize={handlePrioritize} />
+          <ChatInput onSend={handleSend} onStop={handleStop} activeSkill={activeSkill} onSkillChange={setActiveSkill} activeAgent={activeAgent} onAgentChange={setActiveAgent} queuedMessages={queuedMessages} onRemoveQueued={(idx) => { getQueue().splice(idx, 1); setQueuedMessages([...getQueue()]); }} onPrioritize={handlePrioritize} />
         </div>
       </div>
     </div>

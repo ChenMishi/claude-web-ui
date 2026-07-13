@@ -423,14 +423,12 @@ export default function InitPanel() {
       if (d.provider?.id) {
         // Persist user-selected models (and available if URL changed)
         const pm = providerModels[d.provider.id] || providerModels[p.id] || {};
-        const body = { providerId: d.provider.id, selected: pm.selected || [] };
-        if (d.modelsCleared) body.available = pm.available || [];
-        if (body.selected.length > 0 || d.modelsCleared) {
-          await fetch('/api/init/provider-models', {
-            method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify(body),
-          });
-        }
+        // Always include both selected and available, even if empty
+        const body = { providerId: d.provider.id, selected: pm.selected || [], available: pm.available || [] };
+        await fetch('/api/init/provider-models', {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify(body),
+        });
         // Migrate key from old temp id to new id
         if (p.id !== d.provider.id && providerModels[p.id]) {
           setProviderModels(prev => {
@@ -444,7 +442,7 @@ export default function InitPanel() {
       }
       setSavingIdx(idx);
       setTimeout(() => setSavingIdx(-1), 2500);
-      loadAvailableModels();
+      await loadAvailableModels();
     } catch (err) {
       setSaveMsg(`❌ 保存失败: ${err.message}`);
     }
@@ -470,7 +468,7 @@ export default function InitPanel() {
 
     // Refresh
     loadProviderConfig();
-    loadAvailableModels();
+    await loadAvailableModels();
     setTimeout(() => loadStatus(), 1500);
     setTimeout(() => setSaveMsg(''), 3000);
   };

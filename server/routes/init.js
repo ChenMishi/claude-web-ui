@@ -106,11 +106,6 @@ function readProviderConfig() {
           cfg.providerModels[id] = { available: val, selected: [...val] };
           migrated = true;
         }
-        // Repair: if selected is empty but available has models, populate selected
-        if (typeof val === 'object' && val.available?.length > 0 && (!val.selected || val.selected.length === 0)) {
-          val.selected = [...val.available];
-          migrated = true;
-        }
       }
       // Clean orphaned entries (no corresponding provider)
       const validIds = new Set((cfg.providers || []).map(p => p.id));
@@ -1007,7 +1002,9 @@ router.get('/models', async (req, res) => {
     // Collect selected models from all providers
     if (cfg.providerModels) {
       for (const [id, val] of Object.entries(cfg.providerModels)) {
-        const list = val?.selected || val?.available || (Array.isArray(val) ? val : []);
+        // Use selected if it's explicitly set (even empty), fallback to available only if selected is undefined/null
+        const list = (val && 'selected' in val && Array.isArray(val.selected)) ? val.selected
+          : (val?.available || (Array.isArray(val) ? val : []));
         const provider = (cfg.providers || []).find(p => p.id === id);
         const pName = provider?.name || id.slice(0, 8);
         const pModels = [];
@@ -1019,9 +1016,16 @@ router.get('/models', async (req, res) => {
       }
     }
 
-    // Fallback: if no selected models, return all available
+    // If all providers have explicit empty selected (user deliberately chose none), return empty
+    // Otherwise if no models were collected and some provider lacks explicit selection, fallback to available
+    let hasExplicitSelection = false;
     if (models.length === 0 && cfg.providerModels) {
       for (const [id, val] of Object.entries(cfg.providerModels)) {
+        if (val && 'selected' in val) hasExplicitSelection = true;
+      }
+    }
+    if (models.length === 0 && !hasExplicitSelection) {
+      for (const [id, val] of Object.entries(cfg.providerModels || {})) {
         const list = val?.available || (Array.isArray(val) ? val : []);
         for (const m of list) {
           if (!seen.has(m)) { seen.add(m); models.push(m); }

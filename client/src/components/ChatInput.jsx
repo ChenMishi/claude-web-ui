@@ -5,6 +5,7 @@ import { getFileIcon } from '../utils/fileIcons';
 import ExecutionBar from './ExecutionBar';
 
 import TimerDropdown from './TimerDropdown';
+import AgentSelector from './AgentSelector';
 const COMMANDS = [
   { cmd: '/help', desc: '查看所有可用命令', action: 'help' },
   { cmd: '/new', desc: '新建一个空白对话', action: 'new' },
@@ -27,7 +28,7 @@ const COMMANDS = [
   { cmd: '/version', desc: '查看版本和更新', action: 'version' },
   { cmd: '/theme dark', desc: '切换为深色主题', action: 'theme-dark' },
   { cmd: '/theme light', desc: '切换为浅色主题', action: 'theme-light' },
-  { cmd: '/theme warm', desc: '切换为浅色主题', action: 'theme-warm' },
+  { cmd: '/theme warm', desc: '切换为护眼主题', action: 'theme-warm' },
   { cmd: '/model opus', desc: '切换为 Claude Opus 4.7', action: 'model-opus' },
   { cmd: '/model sonnet', desc: '切换为 Claude Sonnet 4.6', action: 'model-sonnet' },
   { cmd: '/model haiku', desc: '切换为 Claude Haiku 4.5', action: 'model-haiku' },
@@ -43,7 +44,7 @@ function formatSizeLocal(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-export function InputSelectsCard({ activeSkill, onSkillChange }) {
+export function InputSelectsCard({ activeSkill, onSkillChange, activeAgent, onAgentChange }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
     setView, currentProjectId, projects,
     availableModels, currentModel, switchCurrentModel, displayMode, modelGroups } = useApp();
@@ -59,12 +60,12 @@ export function InputSelectsCard({ activeSkill, onSkillChange }) {
   const [showDisplayDropdown, setShowDisplayDropdown] = useState(false);
   const [skills, setSkills] = useState([]);
 
-  useEffect(() => {
-    const project = projects.find(p => p.id === currentProjectId);
-    listSkills(project?.cwd || null)
-      .then(d => setSkills(d.skills || []))
-      .catch(() => {});
-  }, [currentProjectId, projects]);
+  // Superpowers skills are plugin-managed, hide from manual selector.
+  // dispatching-parallel-agents and subagent-driven-development excluded: they use
+  // background Agent dispatch which doesn't work in the Web UI SDK context.
+  const _spSkills = new Set(['brainstorming','executing-plans','finishing-a-development-branch','receiving-code-review','requesting-code-review','systematic-debugging','test-driven-development','using-git-worktrees','using-superpowers','verification-before-completion','writing-plans','writing-skills']);
+
+  useEffect(() => { const project = projects.find(p => p.id === currentProjectId); listSkills(project?.cwd||null).then(d => setSkills((d.skills||[]).filter(s => !_spSkills.has(s.name)))).catch(()=>{}); }, [currentProjectId, projects]);
 
   useEffect(() => {
     if (!showSkills && !showModelDropdown && !showPermDropdown && !showDisplayDropdown) return;
@@ -239,7 +240,7 @@ export function InputSelectsCard({ activeSkill, onSkillChange }) {
   );
 }
 
-export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, queuedMessages, onRemoveQueued, onPrioritize }) {
+export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, activeAgent, onAgentChange, queuedMessages, onRemoveQueued, onPrioritize }) {
   const { isStreaming, currentSessionId, execStatus, setSetting,
     setView, setMessages, currentProjectId, selectProject, theme, chatMessages,
     availableModels, model, permissionLevel, projects, currentModel, switchCurrentModel, displayMode, modelGroups } = useApp();
@@ -263,12 +264,12 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
   const [showDisplayDropdown, setShowDisplayDropdown] = useState(false);
   const [skills, setSkills] = useState([]);
 
-  useEffect(() => {
-    const project = projects.find(p => p.id === currentProjectId);
-    listSkills(project?.cwd || null)
-      .then(d => setSkills(d.skills || []))
-      .catch(() => {});
-  }, [currentProjectId, projects]);
+  // Superpowers skills are plugin-managed, hide from manual selector.
+  // dispatching-parallel-agents and subagent-driven-development excluded: they use
+  // background Agent dispatch which doesn't work in the Web UI SDK context.
+  const _spSkills = new Set(['brainstorming','executing-plans','finishing-a-development-branch','receiving-code-review','requesting-code-review','systematic-debugging','test-driven-development','using-git-worktrees','using-superpowers','verification-before-completion','writing-plans','writing-skills']);
+
+  useEffect(() => { const project = projects.find(p => p.id === currentProjectId); listSkills(project?.cwd||null).then(d => setSkills((d.skills||[]).filter(s => !_spSkills.has(s.name)))).catch(()=>{}); }, [currentProjectId, projects]);
 
   useEffect(() => {
     if (!showSkills && !showModelDropdown && !showPermDropdown && !showDisplayDropdown) return;
@@ -841,6 +842,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           )}
           </div>
           <TimerDropdown />
+          <AgentSelector activeAgent={activeAgent} onAgentChange={onAgentChange} />
         </div>
       </div>
     </div>

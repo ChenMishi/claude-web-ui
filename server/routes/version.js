@@ -55,35 +55,61 @@ router.get('/version/info', (_req, res) => {
 router.post('/version/check', (req, res) => {
   const { remote } = req.body || {};
   try {
+    const gitDir = path.join(PROJECT_DIR, '.git');
+    let isGitRepo = fs.existsSync(gitDir);
+
+    // Tarball-deployed: no .git — init a bare repo to enable remote fetch
+    if (!isGitRepo) {
+      if (!remote) {
+        return res.status(400).json({ error: '当前部署方式不支持自动检测升级，请提供 git 仓库地址' });
+      }
+      execSync('git init', { cwd: PROJECT_DIR, timeout: 5000 });
+      execSync(`git remote add origin "${remote}"`, { cwd: PROJECT_DIR, timeout: 5000 });
+      isGitRepo = true;
+    }
+
     const currentRemote = remote || getGitRemote();
     if (currentRemote) {
       execSync(`git remote set-url origin "${currentRemote}"`, { cwd: PROJECT_DIR, timeout: 5000 });
     }
-    // Fetch latest
-    execSync('git fetch origin master --quiet', { cwd: PROJECT_DIR, timeout: 15000 });
-    // Get new commits with full messages
-    const log = execSync('git log HEAD..origin/master --no-merges --format="%h||%s"', {
-      cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
-    }).trim();
+
+    // Fetch latest (shallow to save bandwidth for tarball deployments)
+    const depthFlag = fs.existsSync(path.join(PROJECT_DIR, '.git', 'shallow'))
+      || !fs.existsSync(path.join(PROJECT_DIR, '.git', 'logs')) ? '--depth 1' : '';
+    execSync(`git fetch origin master --quiet ${depthFlag}`, { cwd: PROJECT_DIR, timeout: 15000 });
+
+    // Get remote version
     const newVersion = execSync('git show origin/master:VERSION', {
       cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
     }).trim().replace(/\n/g, '');
+    const curVer = getCurrentVersion();
 
-    if (log) {
-      const commits = log.split('\n').map(line => {
-        const [hash, ...msg] = line.split('||');
-        const message = msg.join('||');
-        // Categorize: 新增/修复/优化/版本
-        let category = '其他';
-        if (message.startsWith('新增') || message.startsWith('功能')) category = '新增';
-        else if (message.startsWith('修复') || message.startsWith('fix')) category = '修复';
-        else if (message.startsWith('优化')) category = '优化';
-        else if (message.startsWith('版本')) category = '版本';
-        return { hash, message, category };
-      });
-      res.json({ hasUpdate: true, currentVersion: getCurrentVersion(), newVersion, commits });
+    if (newVersion !== curVer) {
+      // Try to get commit log — may fail if local HEAD doesn't exist (tarball deploy)
+      let commits = [];
+      try {
+        const log = execSync('git log HEAD..origin/master --no-merges --format="%h||%s"', {
+          cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
+        }).trim();
+        if (log) {
+          commits = log.split('\n').map(line => {
+            const [hash, ...msg] = line.split('||');
+            const message = msg.join('||');
+            let category = '其他';
+            if (message.startsWith('新增') || message.startsWith('功能')) category = '新增';
+            else if (message.startsWith('修复') || message.startsWith('fix')) category = '修复';
+            else if (message.startsWith('优化')) category = '优化';
+            else if (message.startsWith('版本')) category = '版本';
+            return { hash, message, category };
+          });
+        }
+      } catch {
+        // No local HEAD — just show version diff without commit history
+        commits = [{ hash: 'new', message: `v${curVer} → v${newVersion}`, category: '版本' }];
+      }
+      res.json({ hasUpdate: true, currentVersion: curVer, newVersion, commits });
     } else {
-      res.json({ hasUpdate: false, currentVersion: getCurrentVersion() });
+      res.json({ hasUpdate: false, currentVersion: curVer });
     }
   } catch (err) {
     res.status(500).json({ error: `检测失败: ${err.message}` });
@@ -113,6 +139,20 @@ router.post('/version/upgrade', (req, res) => {
   const upgradeScript = path.join(PROJECT_DIR, 'upgrade.sh');
   if (!fs.existsSync(upgradeScript)) {
     return res.status(500).json({ error: 'upgrade.sh 脚本不存在' });
+  }
+
+  // Init git repo if tarball-deployed (no .git directory)
+  const gitDir = path.join(PROJECT_DIR, '.git');
+  if (!fs.existsSync(gitDir)) {
+    if (!remote) {
+      return res.status(400).json({ error: '当前部署方式不支持自动升级，请提供 git 仓库地址' });
+    }
+    try {
+      execSync('git init', { cwd: PROJECT_DIR, timeout: 5000 });
+      execSync(`git remote add origin "${remote}"`, { cwd: PROJECT_DIR, timeout: 5000 });
+    } catch (err) {
+      return res.status(500).json({ error: `初始化 git 仓库失败: ${err.message}` });
+    }
   }
 
   // Update remote if provided

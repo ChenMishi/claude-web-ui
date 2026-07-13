@@ -9,7 +9,7 @@ import { IconChat, IconFolder, IconTerminal, IconGrid, IconSettings, IconLogout,
 const THEMES = [
   { key: 'dark', icon: '🌙', label: '深色' },
   { key: 'light', icon: '☀️', label: '白色' },
-  { key: 'warm', icon: '🌿', label: '浅色' },
+  { key: 'warm', icon: '🌿', label: '护眼' },
 ];
 
 export default function Sidebar() {
@@ -210,7 +210,7 @@ export default function Sidebar() {
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${sidebarMinimal ? 'minimal' : ''} ${sidebarUpCollapsed ? 'up-collapsed' : ''} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
         <h2>{sidebarMinimal ? 'AI' : 'AI IntelliWork Hub'}</h2>
-        {!sidebarMinimal && <div className="sidebar-version">v2.3.3</div>}
+        {!sidebarMinimal && <div className="sidebar-version">v2.3.4</div>}
       </div>
 
       {!sidebarMinimal && (
@@ -241,8 +241,8 @@ export default function Sidebar() {
         <button className={activeView === 'terminal' ? 'active' : ''} onClick={() => setView('terminal')} title="终端">
           <IconTerminal/> {!sidebarMinimal && '终端'}
         </button>
-        <button className={activeView === 'skills' ? 'active' : ''} onClick={() => setView('skills')} title="技能">
-          <IconGrid/> {!sidebarMinimal && '技能'}
+        <button className={activeView === 'skills' ? 'active' : ''} onClick={() => setView('skills')} title="技能与插件">
+          <IconGrid/> {!sidebarMinimal && '技能&插件'}
         </button>
         {isAdmin && (
           <button className={activeView === 'settings' ? 'active' : ''} onClick={() => setView('settings')} title="设置">

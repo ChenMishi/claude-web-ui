@@ -526,6 +526,40 @@ export async function importSkillFile(file) {
   return res.json();
 }
 
+// ── Plugin API ──
+
+export async function installPlugin(githubUrl, pluginId) {
+  return fetchJSON('/plugins/install', {
+    method: 'POST', body: JSON.stringify({ githubUrl, pluginId }),
+  });
+}
+
+export async function uninstallPlugin(pluginId) {
+  return fetchJSON(`/plugins/${encodeURIComponent(pluginId)}/uninstall`, { method: 'POST' });
+}
+
+export async function getPluginInfo(githubUrl) {
+  return fetchJSON('/plugins/info', {
+    method: 'POST', body: JSON.stringify({ githubUrl }),
+  });
+}
+
+export async function toggleKarpathySkills(enabled) {
+  return fetchJSON('/plugins/karpathy/toggle', {
+    method: 'POST', body: JSON.stringify({ enabled }),
+  });
+}
+
+export async function listAgents() {
+  return fetchJSON('/plugins/agents/list');
+}
+
+export async function toggleSuperpowers(enabled) {
+  return fetchJSON('/plugins/superpowers/toggle', {
+    method: 'POST', body: JSON.stringify({ enabled }),
+  });
+}
+
 // ── Model API (built-in proxy provider) ──
 
 export async function listModels() {

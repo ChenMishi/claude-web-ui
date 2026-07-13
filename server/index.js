@@ -90,6 +90,7 @@ function createApp() {
   app.use('/api', require('./routes/version'));
   app.use('/api', require('./routes/init'));
   app.use('/api', require('./routes/skills'));
+  app.use('/api', require('./routes/plugins'));
   app.use('/api', require('./routes/fs'));
   app.use('/api', require('./routes/stats'));
 app.use('/api', require('./routes/backup'));
@@ -495,7 +496,31 @@ function startServer(opts = {}) {
   // Auto-backup scheduler
   try {
     const backup = require('./routes/backup');
-    let lastHour = -1, lastDay = -1, lastWeek = -1;
+    const lastBackupFile = path.join(os.homedir(), '.claude-web-ui', '.last-backup');
+
+    // Read persisted last-backup timestamp to survive restarts
+    let lastHour, lastDay, lastWeek;
+    try {
+      if (fs.existsSync(lastBackupFile)) {
+        const lastDate = new Date(parseInt(fs.readFileSync(lastBackupFile, 'utf8')));
+        if (!isNaN(lastDate.getTime())) {
+          lastHour = lastDate.getHours();
+          lastDay = lastDate.getDate();
+          lastWeek = lastDate.getDay();
+        } else {
+          throw new Error('invalid timestamp');
+        }
+      } else {
+        throw new Error('no persisted state');
+      }
+    } catch {
+      // No persisted state — use current time to avoid immediate backup on startup
+      const now = new Date();
+      lastHour = now.getHours();
+      lastDay = now.getDate();
+      lastWeek = now.getDay();
+    }
+
     setInterval(() => {
       try {
         const cfg = backup.readBackupConfig();
@@ -507,6 +532,8 @@ function startServer(opts = {}) {
         else if (cfg.frequency === 'weekly' && now.getDay() !== lastWeek) { lastWeek = now.getDay(); shouldBackup = true; }
         if (shouldBackup) {
           backup.createBackup();
+          // Persist last backup timestamp so next restart knows when we last backed up
+          try { fs.writeFileSync(lastBackupFile, String(Date.now())); } catch {}
           console.log(`[backup] 自动备份完成 (${cfg.frequency})`);
         }
       } catch (err) {

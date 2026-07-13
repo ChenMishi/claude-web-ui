@@ -526,7 +526,7 @@ async function llmJudgeArtifacts(userPrompt, pendingFiles, cwd, model) {
 
 判断标准：
 - **是产物(true)**：用户明确要求生成的脚本、文档、Office文件、图片、压缩包等；用户上传并要求修改/整理的文件；用户明确要求修改的之前生成的文件
-- **不是产物(false)**：项目原有的源代码文件（即使被模型自动修改了）；项目配置文件（除非用户明确要求修改或生成）
+- **不是产物(false)**：项目原有的源代码文件（即使被模型自动修改了）；项目配置文件（除非用户明确要求修改或生成）；开发过程中的临时/中间文件（测试脚本、debug输出、临时数据、构建中间产物等）
 
 用户原始需求：
 ${(userPrompt || '(无)').slice(0, 500)}
@@ -593,7 +593,7 @@ function sweepNewOutputFiles(cwd, sessionStartTime) {
     '.zip', '.tar', '.gz', '.tgz', '.bz2', '.xz', '.7z',
     '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp',
   ]);
-  const SKIP_DIRS = new Set(['node_modules', '.git', '__pycache__', 'dist', 'build', '.cache', '.claude', '.claude-web-ui', 'venv', '.vision_cache']);
+  const SKIP_DIRS = new Set(['node_modules', '.git', '__pycache__', 'dist', 'build', '.cache', '.claude', '.claude-web-ui', 'venv', '.vision_cache', 'test_output', 'outputs', 'temp', 'tmp', '.pytest_cache']);
 
   function scan(dir, depth) {
     if (depth > 4) return;
@@ -643,6 +643,8 @@ async function finalizeArtifacts(runtime, extractedPaths, authUser) {
   // 1. Collect paths from Bash tools (already filtered by extractBashFilePaths + filterArtifactPaths)
   for (const [, paths] of Object.entries(extractedPaths || {})) {
     for (const p of paths) {
+      // Secondary filter: skip temp/dev/test files
+      if (/[._-](?:tmp|temp|test|test_|spec|mock|fixture)/i.test(path.basename(p))) continue;
       if (!allFiles.has(p)) {
         try {
           if (fs.existsSync(p) && fs.statSync(p).isFile()) {
@@ -1054,6 +1056,21 @@ function buildSDKOptions(runtime, body, authUser) {
     }
   } catch {}
 
+  // Inject Superpowers using-superpowers bootstrap if skills are synced
+  try {
+    const superpowersBootstrap = path.join(os.homedir(), '.claude', 'skills', 'using-superpowers.md');
+    if (fs.existsSync(superpowersBootstrap)) {
+      const content = fs.readFileSync(superpowersBootstrap, 'utf8');
+      // Extract body after YAML frontmatter (between second ---)
+      const parts = content.split('---');
+      const body = parts.length >= 3 ? parts.slice(2).join('---').trim() : content.trim();
+      if (body) {
+        const userPrompt = agentOptions.systemPrompt || '';
+        agentOptions.systemPrompt = body + (userPrompt ? '\n\n' + userPrompt : '');
+      }
+    }
+  } catch {}
+
   const proxyUrl = getProxyUrl();
 
   const options = {
@@ -1099,22 +1116,21 @@ function buildSDKOptions(runtime, body, authUser) {
     }
 
     if (toolName === 'AskUserQuestion') {
+      console.log('[AskUserQuestion] canUseTool called, questions:', input.questions?.length || 0);
+      // Store resolver — use fixed key to avoid session ID mismatch between SDK and frontend
       broadcast(runtime, 'ask_user', { questions: input.questions || [] });
-      // Store resolver so frontend can resolve via /session/:id/message/resolve
-      // Return a Promise that waits for the user's answers (with 2-minute timeout)
-      const sessionKey = runtime.sessionId || 'pending';
       return new Promise((resolve) => {
         const timeout = setTimeout(() => {
-          askQuestionContext.delete(sessionKey);
-          console.log('[AskUserQuestion] 超时，自动允许继续');
-          // Timeout: allow with empty answers so the model can continue
+          askQuestionContext.delete('pending');
+          console.log('[AskUserQuestion] 超时（2分钟），自动继续');
           resolve({ behavior: 'allow', updatedInput: { ...input, answers: {} } });
-        }, 120000); // 2 minute timeout
-        askQuestionContext.set(sessionKey, (result) => {
+        }, 120000);
+        askQuestionContext.set('pending', (result) => {
           clearTimeout(timeout);
-          // Inject user answers into the tool input
+          console.log('[AskUserQuestion] resolver called with answers:', JSON.stringify(result.answers || {}).slice(0, 100));
           resolve({ behavior: 'allow', updatedInput: { ...input, answers: result.answers || {} } });
         });
+        console.log('[AskUserQuestion] resolver stored with key "pending"');
       });
     }
 
@@ -2223,14 +2239,20 @@ router.post('/session/:id/message/resolve', (req, res) => {
     return res.json({ ok: true });
   }
 
-  // AskUserQuestion — resolve with plain answers
-  const askResolve = askQuestionContext.get(id) || askQuestionContext.get('pending');
+  // AskUserQuestion — always resolve via fixed key 'pending'
+  console.log('[AskUserQuestion] resolve request, answers:', JSON.stringify(body.answers).slice(0, 100), 'firstVal:', firstVal);
+  const askResolve = askQuestionContext.get('pending');
+  console.log('[AskUserQuestion] resolver found:', !!askResolve);
   if (askResolve && firstVal !== '允许' && firstVal !== '拒绝') {
-    askQuestionContext.delete(id);
     askQuestionContext.delete('pending');
     askResolve({ answers: body.answers });
+    console.log('[AskUserQuestion] resolved successfully');
     return res.json({ ok: true });
   }
+  if (!askResolve) {
+    console.log('[AskUserQuestion] resolver NOT FOUND. pending keys:', [...askQuestionContext.keys()]);
+  }
+  return res.status(409).json({ error: 'No pending question for this session' });
 });
 
 // Generate session title from first user message via Claude
