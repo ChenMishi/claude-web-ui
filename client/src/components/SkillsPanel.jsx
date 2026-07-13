@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { listSkills, deleteSkillApi, installPlugin, uninstallPlugin as uninstallPluginApi, getPluginInfo, toggleKarpathySkills, toggleSuperpowers, authHeaders } from '../api';
+import { listSkills, deleteSkillApi, installPlugin, uninstallPlugin as uninstallPluginApi, getPluginInfo, getPluginStatus, toggleKarpathySkills, toggleSuperpowers, authHeaders } from '../api';
 import SkillEditor from './SkillEditor';
 import { IconPuzzle, IconPackage } from './icons';
 
@@ -78,23 +78,32 @@ export default function SkillsPanel() {
 
   // ── Plugin state ──
   const [pluginState, setPluginState] = useState(() => loadPluginState());
+  const [pluginDiskStatus, setPluginDiskStatus] = useState({}); // {superpowers: true/false, ...}
   const [pluginInstallLoading, setPluginInstallLoading] = useState({});
   const [showAddPlugin, setShowAddPlugin] = useState(false);
   const [newPluginUrl, setNewPluginUrl] = useState('');
   const [addingPlugin, setAddingPlugin] = useState(false);
   const [pluginDetail, setPluginDetail] = useState(null);
 
+  // Check actual disk installation status of builtin plugins
+  useEffect(() => {
+    getPluginStatus().then(d => setPluginDiskStatus(d.plugins || {})).catch(() => {});
+  }, []);
+
   // Merge builtin plugins + user plugins + state
+  // Disk status overrides default only when user has NOT explicitly set state in localStorage
   const allPlugins = (() => {
     const map = new Map();
-    // Built-in plugins first — default to installed/enabled if no state saved
     for (const bp of BUILTIN_PLUGINS) {
       const state = pluginState[bp.id];
       const hasExplicitState = state && ('installed' in state);
+      const diskInstalled = pluginDiskStatus[bp.id];
+      // Use disk status only when: no explicit state AND disk status is available
+      const defaultInstalled = diskInstalled !== undefined ? diskInstalled : true;
       map.set(bp.id, {
         ...bp,
-        installed: hasExplicitState ? !!state.installed : true,
-        enabled: hasExplicitState ? (state.enabled !== false) : true,
+        installed: hasExplicitState ? !!state.installed : defaultInstalled,
+        enabled: hasExplicitState ? (state.enabled !== false) : defaultInstalled,
       });
     }
     // User-added plugins

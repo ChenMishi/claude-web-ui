@@ -554,6 +554,10 @@ export async function listAgents() {
   return fetchJSON('/plugins/agents/list');
 }
 
+export async function getPluginStatus() {
+  return fetchJSON('/plugins/status');
+}
+
 export async function toggleSuperpowers(enabled) {
   return fetchJSON('/plugins/superpowers/toggle', {
     method: 'POST', body: JSON.stringify({ enabled }),

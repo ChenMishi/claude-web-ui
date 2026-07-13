@@ -110,13 +110,16 @@ const KARPATHY_CONTENT = `## 🤖 Karpathy 编码规范（AI Agent 行为准则�
 function autoInstallBuiltinPlugins() {
   for (const plugin of BUILTIN_PLUGINS) {
     const targetDir = path.join(PLUGINS_DIR, plugin.id);
-    // Skip if already installed — only clone on first run
+    // Skip only if the clone was successful (has .git directory)
     if (fs.existsSync(targetDir)) {
-      continue;
+      const dotGit = path.join(targetDir, '.git');
+      if (fs.existsSync(dotGit)) continue; // healthy clone, skip
+      // Directory exists but no .git → failed/corrupted clone. Retry.
+      try { fs.rmSync(targetDir, { recursive: true, force: true }); } catch {}
     }
     exec(`git clone --depth 1 "${plugin.githubUrl}" "${targetDir}"`, { timeout: 15000, encoding: 'utf8' }, (err) => {
       if (err) {
-        console.error(`[plugins] ${plugin.name}: clone failed (non-fatal):`, err.message.slice(0, 80));
+        console.error(`[plugins] ${plugin.name}: clone failed (will retry on next restart):`, err.message.slice(0, 80));
       } else {
         console.log(`[plugins] ${plugin.name}: auto-installed`);
       }
@@ -465,8 +468,21 @@ router.post('/plugins/superpowers/toggle', (req, res) => {
     const claudeSkillsDir = path.join(os.homedir(), '.claude', 'skills');
     const superpowersSkillsDir = path.join(sourcePath, 'skills');
 
+    // Race condition: autoInstallBuiltinPlugins uses async clone → startup hasn't finished yet.
+    // If source doesn't exist but plugin is builtin, try a quick sync clone before rejecting.
     if (!fs.existsSync(sourcePath)) {
-      return res.status(404).json({ error: 'Superpowers 插件未安装，请先在插件管理页面安装' });
+      // Check if Superpowers is a builtin plugin
+      const bp = BUILTIN_PLUGINS.find(p => p.id === 'superpowers');
+      if (bp) {
+        try {
+          execSync(`git clone --depth 1 "${bp.githubUrl}" "${sourcePath}"`, { timeout: 15000, encoding: 'utf8', stdio: 'pipe' });
+          console.log('[plugins] Superpowers: cloned on-demand for toggle');
+        } catch (cloneErr) {
+          return res.status(404).json({ error: 'Superpowers 插件未安装，请先在插件管理页面安装' });
+        }
+      } else {
+        return res.status(404).json({ error: 'Superpowers 插件未安装，请先在插件管理页面安装' });
+      }
     }
 
     if (enabled) {
@@ -537,6 +553,25 @@ router.post('/plugins/superpowers/toggle', (req, res) => {
 });
 
 /**
+ * GET /api/plugins/status
+ * Check actual installation status of built-in plugins (directory exists + has .git).
+ * Used by frontend to show true state when auto-install fails on slow networks.
+ */
+router.get('/plugins/status', (req, res) => {
+  try {
+    const result = {};
+    for (const plugin of BUILTIN_PLUGINS) {
+      const targetDir = path.join(PLUGINS_DIR, plugin.id);
+      const dotGit = path.join(targetDir, '.git');
+      result[plugin.id] = fs.existsSync(targetDir) && fs.existsSync(dotGit);
+    }
+    res.json({ plugins: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * GET /api/plugins/agents/list
  * Scan agency-agents-zh plugin directory and return all agent roles.
  */
@@ -552,43 +587,51 @@ router.get('/plugins/agents/list', (req, res) => {
       .filter(d => d.isDirectory() && !d.name.startsWith('.') && !d.name.startsWith('_'))
       .map(d => d.name);
 
-    for (const dept of deptDirs) {
-      const deptPath = path.join(agentsDir, dept);
-      let files;
-      try { files = fs.readdirSync(deptPath); } catch { continue; }
-      for (const f of files) {
-        if (!f.endsWith('.md')) continue;
-        try {
-          const content = fs.readFileSync(path.join(deptPath, f), 'utf8');
-          // Extract YAML frontmatter between --- markers
-          const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
-          if (!match) continue;
-          const frontmatter = match[1];
-          const name = (frontmatter.match(/^name:\s*(.+)$/m) || [])[1];
-          const description = (frontmatter.match(/^description:\s*(.+)$/m) || [])[1];
-          const emoji = (frontmatter.match(/^emoji:\s*(.+)$/m) || [])[1];
-          if (!name) continue;
-          // Build display name for department
-          const deptNames = {
-            engineering: '工程', marketing: '营销', design: '设计',
-            security: '安全', product: '产品', testing: '测试',
-            sales: '销售', 'paid-media': '付费媒体', hr: 'HR',
-            legal: '法务', finance: '金融', strategy: '战略',
-            support: '支持', academic: '学术', gis: 'GIS',
-            'game-development': '游戏', 'spatial-computing': '空间计算',
-            specialized: '专项', 'supply-chain': '供应链',
-            'project-management': '项目管理',
-          };
-          agents.push({
-            id: f.replace('.md', ''),
-            name: name.trim(),
-            description: description ? description.trim() : '',
-            emoji: emoji ? emoji.trim() : '🤖',
-            department: dept,
-            departmentName: deptNames[dept] || dept,
-          });
-        } catch {}
+    const deptNames = {
+      engineering: '工程', marketing: '营销', design: '设计',
+      security: '安全', product: '产品', testing: '测试',
+      sales: '销售', 'paid-media': '付费媒体', hr: 'HR',
+      legal: '法务', finance: '金融', strategy: '战略',
+      support: '支持', academic: '学术', gis: 'GIS',
+      'game-development': '游戏', 'spatial-computing': '空间计算',
+      specialized: '专项', 'supply-chain': '供应链',
+      'project-management': '项目管理',
+      examples: '示例', integrations: '集成',
+    };
+
+    // Recursively scan for .md files — some departments have subdirectories (e.g. game-development/unity/)
+    function scanDir(dept, dir, depth) {
+      if (depth > 3) return;
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const entry of entries) {
+        if (entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.startsWith('_')) {
+          scanDir(dept, path.join(dir, entry.name), depth + 1);
+        } else if (entry.isFile() && entry.name.endsWith('.md')) {
+          try {
+            const content = fs.readFileSync(path.join(dir, entry.name), 'utf8');
+            const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
+            if (!match) continue;
+            const frontmatter = match[1];
+            const name = (frontmatter.match(/^name:\s*(.+)$/m) || [])[1];
+            const description = (frontmatter.match(/^description:\s*(.+)$/m) || [])[1];
+            const emoji = (frontmatter.match(/^emoji:\s*(.+)$/m) || [])[1];
+            if (!name) continue;
+            agents.push({
+              id: entry.name.replace('.md', ''),
+              name: name.trim(),
+              description: description ? description.trim() : '',
+              emoji: emoji ? emoji.trim() : '🤖',
+              department: dept,
+              departmentName: deptNames[dept] || dept,
+            });
+          } catch {}
+        }
       }
+    }
+
+    for (const dept of deptDirs) {
+      scanDir(dept, path.join(agentsDir, dept), 0);
     }
 
     res.json({ agents });
