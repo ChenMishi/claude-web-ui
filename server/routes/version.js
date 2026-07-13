@@ -73,10 +73,8 @@ router.post('/version/check', (req, res) => {
       execSync(`git remote set-url origin "${currentRemote}"`, { cwd: PROJECT_DIR, timeout: 5000 });
     }
 
-    // Fetch latest (shallow to save bandwidth for tarball deployments)
-    const depthFlag = fs.existsSync(path.join(PROJECT_DIR, '.git', 'shallow'))
-      || !fs.existsSync(path.join(PROJECT_DIR, '.git', 'logs')) ? '--depth 1' : '';
-    execSync(`git fetch origin master --quiet ${depthFlag}`, { cwd: PROJECT_DIR, timeout: 15000 });
+    // Fetch latest (full fetch — shallow breaks git log range detection)
+    execSync('git fetch origin master --quiet', { cwd: PROJECT_DIR, timeout: 15000 });
 
     // Get remote version
     const newVersion = execSync('git show origin/master:VERSION', {
@@ -84,28 +82,39 @@ router.post('/version/check', (req, res) => {
     }).trim().replace(/\n/g, '');
     const curVer = getCurrentVersion();
 
-    if (newVersion !== curVer) {
-      // Try to get commit log — may fail if local HEAD doesn't exist (tarball deploy)
+    // Get remote HEAD hash for comparison
+    const remoteHash = execSync('git rev-parse origin/master', {
+      cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
+    }).trim().slice(0, 7);
+    let localHash = '';
+    try {
+      localHash = execSync('git rev-parse HEAD', {
+        cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
+      }).trim().slice(0, 7);
+    } catch {}
+
+    // Detect update: version changed OR same version but new commit hash
+    const hasUpdate = newVersion !== curVer || (localHash && localHash !== remoteHash);
+
+    if (hasUpdate) {
       let commits = [];
       try {
-        const log = execSync('git log HEAD..origin/master --no-merges --format="%h||%s"', {
-          cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
-        }).trim();
-        if (log) {
-          commits = log.split('\n').map(line => {
-            const [hash, ...msg] = line.split('||');
-            const message = msg.join('||');
-            let category = '其他';
-            if (message.startsWith('新增') || message.startsWith('功能')) category = '新增';
-            else if (message.startsWith('修复') || message.startsWith('fix')) category = '修复';
-            else if (message.startsWith('优化')) category = '优化';
-            else if (message.startsWith('版本')) category = '版本';
-            return { hash, message, category };
-          });
-        }
+        const logArgs = localHash
+          ? `git log ${localHash}..origin/master --no-merges --format="%h||%s"`
+          : `git log origin/master --no-merges --format="%h||%s" -n 20`;
+        const log = execSync(logArgs, { cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000 }).trim();
+        commits = log ? log.split('\n').map(line => {
+          const [hash, ...msg] = line.split('||');
+          const message = msg.join('||');
+          let category = '其他';
+          if (message.startsWith('新增') || message.startsWith('功能')) category = '新增';
+          else if (message.startsWith('修复') || message.startsWith('fix')) category = '修复';
+          else if (message.startsWith('优化')) category = '优化';
+          else if (message.startsWith('版本')) category = '版本';
+          return { hash, message, category };
+        }) : [{ hash: remoteHash, message: `${curVer} → ${newVersion === curVer ? `commit ${remoteHash}` : newVersion}`, category: '版本' }];
       } catch {
-        // No local HEAD — just show version diff without commit history
-        commits = [{ hash: 'new', message: `v${curVer} → v${newVersion}`, category: '版本' }];
+        commits = [{ hash: remoteHash, message: `${curVer} → ${newVersion === curVer ? `commit ${remoteHash}` : newVersion}`, category: '版本' }];
       }
       res.json({ hasUpdate: true, currentVersion: curVer, newVersion, commits });
     } else {
