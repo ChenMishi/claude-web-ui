@@ -5,7 +5,7 @@ import { getDirs, linkProject, unlinkProject, mkdir } from '../api';
 import { IconFolder } from './icons';
 
 export default function ProjectSelector({ projects, currentProjectId, onSelect, onLink }) {
-  const { user, setView } = useApp();
+  const { user, setView, newChat } = useApp();
   const isAdmin = user?.role === 'admin';
   const [showDialog, setShowDialog] = useState(false);
   const [currentPath, setCurrentPath] = useState(user?.role !== 'admin' ? (user?.homeDir || '/root') : '/root');
@@ -124,7 +124,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
 
       <div className="project-actions">
         <button onClick={() => setShowDialog(true)}>+ 添加会话存储目录</button>
-        <button className="new-chat-btn-inline" onClick={() => { onSelect(currentProjectId); setView('chat'); }}>
+        <button className="new-chat-btn-inline" onClick={() => { newChat(); setView('chat'); }}>
           + 新建对话
         </button>
       </div>

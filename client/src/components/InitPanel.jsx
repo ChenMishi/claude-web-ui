@@ -394,12 +394,12 @@ export default function InitPanel() {
     if (idx === null || idx === undefined) return;
     const p = providers[idx];
 
-    // Check if currentModel exists in remaining providers before deleting
+    // Check if currentModel exists in remaining providers before deleting (ID-based match)
     if (currentModel) {
       const remaining = providers.filter((_, i) => i !== idx);
       const found = remaining.some(pr => {
         const sel = (providerModels[pr.id] || {}).selected || [];
-        return sel.some(m => (pr.name ? pr.name + '/' : '') + m === currentModel);
+        return sel.some(m => pr.id + '/' + m === currentModel);
       });
       if (!found) switchCurrentModel('');
     }
@@ -417,7 +417,8 @@ export default function InitPanel() {
     const p = providers[idx];
     if (!p) return;
     try {
-      const body = { ...p, model: '' };
+      const body = { ...p };
+      delete body.model;  // 不覆盖聊天选择器里用户当前选的模型
       const d = await saveProviderConfig(body);
       if (d.error) throw new Error(d.error);
       if (d.provider?.id) {
@@ -488,7 +489,7 @@ export default function InitPanel() {
     let pid = p.id;
     if (!pid) {
       try {
-        const d = await saveProviderConfig({ ...p, model: '' });
+        const d = await saveProviderConfig(p);
         if (d.error) return { ok: false, msg: d.error };
         if (d.provider?.id) { pid = d.provider.id; updateProvider(idx, 'id', pid); }
       } catch (e) { return { ok: false, msg: e.message }; }

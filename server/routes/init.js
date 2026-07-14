@@ -114,6 +114,20 @@ function readProviderConfig() {
       }
       if (migrated) writeProviderConfig(cfg);
     }
+    // Migrate old name-based model → ID-based model ("deepseek-官方/v4" → "uuid/v4")
+    if (cfg.model && cfg.model.includes('/') && (cfg.providers || []).length > 0) {
+      const slashIdx = cfg.model.lastIndexOf('/');
+      const pName = cfg.model.slice(0, slashIdx);
+      const mName = cfg.model.slice(slashIdx + 1);
+      // If the prefix looks like a name (not a UUID), find the matching provider
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-/.test(pName)) {
+        const provider = cfg.providers.find(p => p.name === pName);
+        if (provider && provider.id) {
+          cfg.model = provider.id + '/' + mName;
+          writeProviderConfig(cfg);
+        }
+      }
+    }
     return cfg;
   } catch { return emptyProviderConfig(); }
 }
@@ -429,12 +443,11 @@ router.delete('/init/provider-config/:id', (req, res) => {
   const cfg = readProviderConfig();
   const idx = (cfg.providers || []).findIndex(p => p.id === req.params.id);
   if (idx < 0) return res.status(404).json({ error: 'Provider not found' });
-  const deletedName = cfg.providers[idx]?.name;
   cfg.providers.splice(idx, 1);
   // Clean up orphaned model data
   if (cfg.providerModels) delete cfg.providerModels[req.params.id];
-  // Clear current model if it was from the deleted provider
-  if (cfg.model && deletedName && cfg.model.startsWith(deletedName + '/')) {
+  // Clear current model if it was from the deleted provider (ID-based match)
+  if (cfg.model && cfg.model.startsWith(req.params.id + '/')) {
     cfg.model = '';
   }
   writeProviderConfig(cfg);
@@ -1033,8 +1046,8 @@ router.get('/models', async (req, res) => {
       }
     }
 
-    // Legacy: single provider fallback
-    if (models.length === 0 && cfg.baseUrl && cfg.apiKey) {
+    // Legacy: single provider fallback — only when there are no providers configured at all
+    if (models.length === 0 && !hasExplicitSelection && cfg.baseUrl && cfg.apiKey && (!cfg.providers || cfg.providers.length === 0)) {
       try {
         const resp = await fetch(`${cfg.baseUrl.replace(/\/$/, '')}/v1/models`, {
           headers: { Authorization: `Bearer ${cfg.apiKey}`, 'x-api-key': cfg.apiKey },
@@ -1047,20 +1060,27 @@ router.get('/models', async (req, res) => {
       } catch {}
     }
 
-    // Build current model from provider data (auto-corrects renamed providers)
+    // Build current model: cfg.model is "providerId/modelName" — O(1) lookup
     let current = '';
-    if (models.length > 0) {
+    if (cfg.model && cfg.model.includes('/')) {
+      const slashIdx = cfg.model.lastIndexOf('/');
+      const pId = cfg.model.slice(0, slashIdx);
+      const mName = cfg.model.slice(slashIdx + 1);
+      // Verify model still exists for this provider
+      const pModels = cfg.providerModels?.[pId];
+      const list = pModels?.selected || pModels?.available || [];
+      if (list.includes(mName)) {
+        current = cfg.model;
+      }
+    }
+    // Fall back to first available model if current is invalid
+    if (!current && models.length > 0) {
       for (const [id, val] of Object.entries(cfg.providerModels || {})) {
         const list = val?.selected || val?.available || [];
-        if (list.includes(models[0])) {
-          const p = (cfg.providers || []).find(pp => pp.id === id);
-          current = (p?.name || id.slice(0, 8)) + '/' + models[0];
-          break;
-        }
+        if (list.length > 0) { current = id + '/' + list[0]; break; }
       }
       if (!current) current = models[0];
     }
-    if (!current) current = cfg.model || '';
     modelsCache = { models, groups, current };
     modelsCacheTime = Date.now();
     res.json(modelsCache);

@@ -1098,6 +1098,9 @@ function buildSDKOptions(runtime, body, authUser) {
       ...(agentOptions.env || {}),
     },
     ...agentOptions.thinking !== undefined ? { thinking: agentOptions.thinking } : {},
+    // GLM models don't support extended thinking — force disable to avoid
+    // "content[].thinking must be passed back" errors from non-conformant APIs
+    ...(/^glm/i.test(agentOptions.model || '') ? { thinking: { type: 'disabled' } } : {}),
     stream_options: { include_usage: true },
     ...runtime.abort ? { abortController: runtime.abort } : {},
   };
@@ -1996,7 +1999,10 @@ router.post('/session/:id/message', async (req, res) => {
 
     let result;
     const allMessages = [];
+    let compactRetried = false;  // 防止死循环 — 只压缩一次
 
+    // Outer retry loop: compact on ContextWindowExceededError and retry
+    while (true) {
     // ── Try strategies in priority order, retry on image_error ──
     for (const strategy of promptStrategies) {
       const arg = buildPromptArgForStrategy(attachments, prompt || '', strategy);
@@ -2074,6 +2080,70 @@ router.post('/session/:id/message', async (req, res) => {
                 imageError = true;
                 break; // break inner for-await, continue outer loop to next strategy
               }
+              // ── Context window exceeded: auto compact and retry (once) ──
+              if (!compactRetried && /context.*window|context.*length|ContextWindowExceeded|maximum.*context|input.*token/i.test(errText) && runtime.sessionId) {
+                compactRetried = true;
+                logError('Context window exceeded, auto-compacting', errText);
+                try {
+                  const sessionData = findSessionFile(runtime.sessionId, authUser);
+                  if (sessionData) {
+                    let realPath = sessionData.file;
+                    try { if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath); } catch {}
+                    const content = fs.readFileSync(realPath, 'utf8');
+                    const lines = content.split('\n').filter(Boolean);
+                    if (lines.length > 0) {
+                      const userIndices = [];
+                      for (let i = lines.length - 1; i >= 0 && userIndices.length < 5; i--) {
+                        try { if (JSON.parse(lines[i]).type === 'user') userIndices.unshift(i); } catch {}
+                      }
+                      if (userIndices.length > 0 && userIndices[0] > 0) {
+                        fs.writeFileSync(realPath, lines.slice(userIndices[0]).join('\n') + '\n', 'utf8');
+                        console.log('[SESSION] Auto-compacted:', lines.length, '→', lines.length - userIndices[0], 'lines for session', runtime.sessionId);
+                      }
+                    }
+                  }
+                } catch (e) { console.error('[SESSION] Auto-compact error:', e.message); }
+                allMessages.length = 0;
+                runtime.buffer = [];
+                broadcast(runtime, 'system_notice', {
+                  text: '⚠️ 上下文超限，已自动压缩对话历史后重试...'
+                });
+                break;
+              }
+              // ── Thinking block pollution: strip from JSONL and retry (once) ──
+              if (!compactRetried && /thinking.*must be passed|content\[\].*thinking/i.test(errText) && runtime.sessionId) {
+                compactRetried = true;
+                logError('Thinking block pollution detected, stripping from JSONL', errText);
+                try {
+                  const sessionData = findSessionFile(runtime.sessionId, authUser);
+                  if (sessionData) {
+                    let realPath = sessionData.file;
+                    try { if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath); } catch {}
+                    const content = fs.readFileSync(realPath, 'utf8');
+                    const lines = content.split('\n').filter(Boolean);
+                    let cleaned = 0;
+                    const cleanedLines = lines.map(line => {
+                      try {
+                        const obj = JSON.parse(line);
+                        const content = obj.message?.content;
+                        if (Array.isArray(content)) {
+                          obj.message = { ...obj.message, content: content.filter(b => b.type !== 'thinking') };
+                          cleaned++;
+                        }
+                        return JSON.stringify(obj);
+                      } catch { return line; }
+                    });
+                    fs.writeFileSync(realPath, cleanedLines.join('\n') + '\n', 'utf8');
+                    console.log('[SESSION] Stripped thinking blocks from', cleaned, 'messages for session', runtime.sessionId);
+                  }
+                } catch (e) { console.error('[SESSION] Strip thinking error:', e.message); }
+                allMessages.length = 0;
+                runtime.buffer = [];
+                broadcast(runtime, 'system_notice', {
+                  text: '⚠️ 检测到不兼容的 thinking 数据，已自动清理后重试...'
+                });
+                break;
+              }
               logError('SDK result error', errText);
               result = { error: errText };
             } else {
@@ -2087,7 +2157,13 @@ router.post('/session/:id/message', async (req, res) => {
 
       if (!imageError) break; // success or non-image error → exit strategy loop
     }
-    // If all strategies exhausted without success, result holds the last error
+
+    // If compact retry was triggered, loop back; otherwise exit
+    if (result && !result.error) break;
+    if (!compactRetried || (result && result.error)) break;
+    // compactRetried is true and no result set = we did a compact break, need to retry
+    result = null;
+    } // end outer while
 
     if (wantsStream) {
       // 如果 abort controller 已被替换，说明新执行已接管，跳过广播

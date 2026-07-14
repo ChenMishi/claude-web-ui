@@ -103,6 +103,19 @@ function reducer(state, action) {
         chatMessages: [], messageCache: newCache };
       break;
     }
+    case 'NEW_CHAT': {
+      // 新建空白对话 — 只清空当前会话，不触发项目/会话重新加载
+      const saveKey = state.currentSessionId || '__pending__';
+      const newCache = { ...state.messageCache };
+      if (state.chatMessages.length > 0) {
+        newCache[saveKey] = state.chatMessages;
+        saveCache(newCache);
+      }
+      localStorage.removeItem('claude-ui:currentSessionId');
+      next = { ...state, currentSessionId: null, chatMessages: [], messageCache: newCache,
+        tasks: [], mainTask: null };
+      break;
+    }
     case 'SET_SESSIONS':
       next = { ...state, sessions: action.payload }; break;
     case 'SELECT_SESSION': {
@@ -277,8 +290,25 @@ function reducer(state, action) {
     case 'SET_SETTING':
       localStorage.setItem(`claude-ui:${action.payload.key}`, JSON.stringify(action.payload.value));
       next = { ...state, [action.payload.key]: action.payload.value }; break;
-    case 'SET_MODELS':
-      next = { ...state, availableModels: action.payload.models || [], modelGroups: action.payload.groups || {}, currentModel: action.payload.current || state.currentModel }; break;
+    case 'SET_MODELS': {
+      const newAvailable = action.payload.models || [];
+      const newGroups = action.payload.groups || {};
+      const backendCurrent = action.payload.current || '';
+      // allNewModels uses "providerId/modelName" format for stable matching
+      const allNewModels = new Set();
+      for (const [id, g] of Object.entries(newGroups)) {
+        for (const m of (g.models || [])) allNewModels.add(id + '/' + m);
+      }
+      for (const m of newAvailable) allNewModels.add(m);
+      const keepCurrent = state.currentModel && allNewModels.has(state.currentModel);
+      const resolved = keepCurrent ? state.currentModel : (backendCurrent || state.currentModel);
+      // Persist resolved model to localStorage so refreshes don't lose it
+      if (resolved) {
+        try { localStorage.setItem('claude-ui:currentModel', JSON.stringify(resolved)); } catch {}
+      }
+      next = { ...state, availableModels: newAvailable, modelGroups: newGroups, currentModel: resolved };
+      break;
+    }
     // Execution status actions
     case 'EXEC_START':
       next = { ...state, tasks: [], mainTask: null, taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: [], mainTask: null } }, execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
@@ -384,6 +414,7 @@ export function AppContextProvider({ children }) {
   const setSessions = useCallback((sessions) => dispatch({ type: 'SET_SESSIONS', payload: sessions }), []);
   const selectSession = useCallback((id, isStreamingSession) => dispatch({ type: 'SELECT_SESSION', payload: id, isStreamingSession }), []);
   const setSessionId = useCallback((id) => dispatch({ type: 'SET_SESSION_ID', payload: id }), []);
+  const newChat = useCallback(() => dispatch({ type: 'NEW_CHAT' }), []);
   const setMessages = useCallback((messages, targetSessionId) => dispatch({ type: 'SET_MESSAGES', payload: messages, targetSessionId }), []);
   const appendMessage = useCallback((msg, targetSessionId) => dispatch({ type: 'APPEND_MESSAGE', payload: msg, targetSessionId }), []);
   const updateLastMessage = useCallback((content, targetSessionId) => dispatch({ type: 'UPDATE_LAST_MESSAGE', payload: content, targetSessionId }), []);
@@ -540,9 +571,20 @@ export function AppContextProvider({ children }) {
     finishAllStreaming,
     finalizeStreaming,
     setNeedInit,
+    newChat,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+}
+
+// Format "providerId/modelName" → "providerName/modelName" for display
+export function fmtModel(currentModel, modelGroups, fallback = '') {
+  if (!currentModel || !currentModel.includes('/')) return currentModel || fallback || '';
+  const idx = currentModel.indexOf('/');
+  const gid = currentModel.slice(0, idx);
+  const mn = currentModel.slice(idx + 1);
+  const group = modelGroups[gid];
+  return group ? `${group.name}/${mn}` : currentModel;
 }
 
 export function useApp() {

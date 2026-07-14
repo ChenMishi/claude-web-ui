@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, fmtModel } from '../context/AppContext';
 import { getUsers, createUser, deleteUser, getPricing, savePricing, getSettings, saveSettings } from '../api';
 import VersionCard from './VersionCard';
 import AgentSdkCard from './AgentSdkCard';
@@ -12,7 +12,8 @@ import { IconSettings, IconUsers, IconZap, IconClipboard, IconBarChart, IconRefr
 
 export default function SettingsPanel() {
   const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId, user,
-    availableModels, currentModel, switchCurrentModel, updateAvailable } = useApp();
+    availableModels, currentModel, switchCurrentModel, updateAvailable, modelGroups } = useApp();
+  const displayModel = fmtModel(currentModel, modelGroups, model);
   const isAdmin = user?.role === 'admin';
   const project = projects.find(p => p.id === currentProjectId);
   const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'users' | 'init' | 'logs' | 'upgrade'
@@ -114,7 +115,13 @@ export default function SettingsPanel() {
               <div className="settings-row">
                 <label>模型</label>
                 <select value={currentModel || model} onChange={e => switchCurrentModel(e.target.value)}>
-                  {availableModels.length > 0 ? (
+                  {Object.keys(modelGroups).length > 0 ? (
+                    Object.entries(modelGroups).map(([id, g]) => (
+                      <optgroup key={id} label={`----${g.name}----`}>
+                        {g.models.map(m => <option key={m} value={`${id}/${m}`}>{m}</option>)}
+                      </optgroup>
+                    ))
+                  ) : availableModels.length > 0 ? (
                     availableModels.map(m => <option key={m} value={m}>{m}</option>)
                   ) : (
                     <>
@@ -242,7 +249,7 @@ export default function SettingsPanel() {
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">版本</span>
-                <span className="settings-info-value">v2.3.5</span>
+                <span className="settings-info-value">v2.3.6</span>
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">数据存储</span>

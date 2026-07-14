@@ -1,8 +1,9 @@
-import { useApp } from '../context/AppContext';
+import { useApp, fmtModel } from '../context/AppContext';
 
 export default function WelcomeScreen() {
-  const { currentModel, systemPrompt, setSetting, availableModels, modelGroups, switchCurrentModel, currentProjectId } = useApp();
+  const { currentModel, systemPrompt, setSetting, availableModels, modelGroups, switchCurrentModel, currentProjectId, model: legacyModel } = useApp();
   const hasModels = Object.keys(modelGroups).length > 0 || availableModels.length > 0;
+  const displayModel = fmtModel(currentModel, modelGroups, legacyModel);
 
   return (
     <div className="welcome">
@@ -18,7 +19,7 @@ export default function WelcomeScreen() {
           {Object.keys(modelGroups).length > 0 ? (
             Object.entries(modelGroups).map(([id, g]) => (
               <optgroup key={id} label={`----${g.name}----`}>
-                {g.models.map(m => <option key={m} value={m}>{m}</option>)}
+                {g.models.map(m => <option key={m} value={`${id}/${m}`}>{m}</option>)}
               </optgroup>
             ))
           ) : availableModels.length > 0 ? (

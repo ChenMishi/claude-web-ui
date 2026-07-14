@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, fmtModel } from '../context/AppContext';
 import { abortSession, listSkills, uploadChatAttachment } from '../api';
 import { getFileIcon } from '../utils/fileIcons';
 import ExecutionBar from './ExecutionBar';
@@ -49,6 +49,7 @@ export function InputSelectsCard({ activeSkill, onSkillChange, activeAgent, onAg
     setView, currentProjectId, projects,
     availableModels, currentModel, switchCurrentModel, displayMode, modelGroups } = useApp();
   const hasModels = Object.keys(modelGroups).length > 0 || availableModels.length > 0;
+  const displayModel = fmtModel(currentModel, modelGroups, model);
   const skillsRef = useRef(null);
   const skillsContainerRef = useRef(null);
   const modelDropdownRef = useRef(null);
@@ -96,14 +97,14 @@ export function InputSelectsCard({ activeSkill, onSkillChange, activeAgent, onAg
             <button
               className="input-select input-select-model"
               onClick={() => hasModels && setShowModelDropdown(!showModelDropdown)}
-              style={{ background: 'transparent', border: 'none', color: hasModels ? 'var(--text-primary)' : 'var(--text-muted)', cursor: hasModels ? 'pointer' : 'default', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{hasModels ? (currentModel || model) : '无模型可用'}</span></button>
+              style={{ background: 'transparent', border: 'none', color: hasModels ? 'var(--text-primary)' : 'var(--text-muted)', cursor: hasModels ? 'pointer' : 'default', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{hasModels ? (displayModel || model) : '无模型可用'}</span></button>
             {showModelDropdown && (
               <div className="input-dropdown-panel">
                 {Object.keys(modelGroups).length > 0 ? (
                   Object.entries(modelGroups).map(([id, g]) => [
                     <div key={`h-${id}`} className="input-dropdown-group-header">----{g.name}----</div>,
                     ...(g.models || []).map(m => {
-                      const fullName = g.name + '/' + m;
+                      const fullName = id + '/' + m;
                       return (
                       <div
                         key={id + ':' + m}
@@ -243,8 +244,9 @@ export function InputSelectsCard({ activeSkill, onSkillChange, activeAgent, onAg
 export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, activeAgent, onAgentChange, queuedMessages, onRemoveQueued, onPrioritize }) {
   const { isStreaming, currentSessionId, execStatus, setSetting,
     setView, setMessages, currentProjectId, selectProject, theme, chatMessages,
-    availableModels, model, permissionLevel, projects, currentModel, switchCurrentModel, displayMode, modelGroups } = useApp();
+    availableModels, model, permissionLevel, projects, currentModel, switchCurrentModel, displayMode, modelGroups, newChat } = useApp();
   const hasModels = Object.keys(modelGroups).length > 0 || availableModels.length > 0;
+  const displayModel = fmtModel(currentModel, modelGroups, model);
   const inputRef = useRef(null);
   const cmdListRef = useRef(null);
   const skillChipRef = useRef(null);
@@ -458,7 +460,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
     switch (cmd.action) {
       case 'help':
         el.value = '/help'; break;
-      case 'new': selectProject(currentProjectId); setView('chat'); break;
+      case 'new': newChat(); setView('chat'); break;
       case 'clear': setMessages([]); break;
       case 'init': el.value = '请帮我初始化这个项目，创建 CLAUDE.md 文档'; handleSend(); return;
       case 'compact': el.value = '请帮我压缩对话上下文'; handleSend(); return;
@@ -705,14 +707,14 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
             <button
               className="input-select input-select-model"
               onClick={() => hasModels && setShowModelDropdown(!showModelDropdown)}
-              style={{ background: 'transparent', border: 'none', color: hasModels ? 'var(--text-primary)' : 'var(--text-muted)', cursor: hasModels ? 'pointer' : 'default', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{hasModels ? (currentModel || model) : '无模型可用'}</span></button>
+              style={{ background: 'transparent', border: 'none', color: hasModels ? 'var(--text-primary)' : 'var(--text-muted)', cursor: hasModels ? 'pointer' : 'default', fontSize: 12, padding: '4px 2px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', width: 110 }}><span className="input-select-model-text">{hasModels ? (displayModel || model) : '无模型可用'}</span></button>
             {showModelDropdown && (
               <div className="input-dropdown-panel">
                 {Object.keys(modelGroups).length > 0 ? (
                   Object.entries(modelGroups).map(([id, g]) => [
                     <div key={`h-${id}`} className="input-dropdown-group-header">----{g.name}----</div>,
                     ...(g.models || []).map(m => {
-                      const fullName = g.name + '/' + m;
+                      const fullName = id + '/' + m;
                       return (
                       <div
                         key={id + ':' + m}
