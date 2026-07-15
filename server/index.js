@@ -1,3 +1,4 @@
+const logTs = () => new Date().toLocaleString("sv-SE");
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -19,9 +20,10 @@ function createApp() {
     try {
       const fs = require('fs');
       const path = require('path');
-      const logDir = require('./config').LOG_DIR || '/tmp';
+      const logDir = path.resolve(__dirname, 'logs');
+      if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
       fs.appendFileSync(path.join(logDir, 'access.log'),
-        `${new Date().toISOString()} ${req.method} ${req.originalUrl.slice(0, 120)} ${req.headers['user-agent']?.slice(0, 60) || '-'}\n`);
+        `${logTs()} ${req.method} ${req.originalUrl.slice(0, 120)} ${req.headers['user-agent']?.slice(0, 60) || '-'}\n`);
     } catch {}
     next();
   });
@@ -144,10 +146,10 @@ function startServer(opts = {}) {
   // Prevent server crashes from uncaught errors — log to disk and keep running
   const crashLog = (label, err) => {
     try {
-      const dir = require('./config').LOG_DIR || '/tmp';
+      const dir = path.resolve(__dirname, 'logs');
       require('fs').mkdirSync(dir, { recursive: true });
       require('fs').appendFileSync(`${dir}/crash.log`,
-        `${new Date().toISOString()} ${label} ${err?.message || err}\n${err?.stack || ''}\n\n`);
+        `${logTs()} ${label} ${err?.message || err}\n${err?.stack || ''}\n\n`);
     } catch {}
   };
   process.on('uncaughtException', (err) => {

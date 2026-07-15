@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { deleteSession, renameSession, getSessionMessages, getProjectSessions, getProjects } from '../api';
+import { deleteSession, renameSession, pinSession, getSessionMessages, getProjectSessions, getProjects } from '../api';
 
 export default function SessionList() {
   const {
@@ -13,6 +13,11 @@ export default function SessionList() {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const [confirmDel, setConfirmDel] = useState(null); // { id, x, y }
+  const [pinnedCollapsed, setPinnedCollapsed] = useState(false);
+
+  const pinnedSessions = sessions.filter(s => s.pinned);
+  const unpinnedSessions = sessions.filter(s => !s.pinned);
+  const hasManyPinned = pinnedSessions.length > 3;
 
   const handleSelect = (id) => {
     selectSession(id, isStreaming);
@@ -56,6 +61,14 @@ export default function SessionList() {
     setEditingId(null);
   };
 
+  const handlePin = async (e, id, pinned) => {
+    e.stopPropagation();
+    try {
+      await pinSession(id, !pinned);
+      getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
+    } catch {}
+  };
+
   const formatDate = (ts) => {
     if (!ts) return '';
     const d = new Date(ts);
@@ -65,44 +78,70 @@ export default function SessionList() {
     return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
   };
 
+  const renderSessionItem = (s) => (
+    <div
+      key={s.id}
+      className={`session-item ${s.id === currentSessionId ? 'active' : ''}`}
+      onClick={() => handleSelect(s.id)}
+    >
+      {editingId === s.id ? (
+        <input
+          value={editTitle}
+          onChange={e => setEditTitle(e.target.value)}
+          onBlur={e => handleRenameSubmit(e, s.id)}
+          onKeyDown={e => { if (e.key === 'Enter') handleRenameSubmit(e, s.id); if (e.key === 'Escape') setEditingId(null); }}
+          onClick={e => e.stopPropagation()}
+          autoFocus
+          style={{
+            width: '100%', padding: '4px 8px', background: 'var(--bg-primary)',
+            border: '1px solid var(--accent)', borderRadius: 4, color: 'var(--text-primary)',
+            fontSize: 13, outline: 'none',
+          }}
+        />
+      ) : (
+        <>
+          <div className="session-item-title">{s.title}</div>
+          <div className="session-item-meta">
+            {s.pinned && <span className="session-pin-icon" title="已置顶">📌</span>}
+            <span>{formatDate(s.lastModified)}</span>
+            {busySessions?.has(s.id) && <span className="session-busy-dot" title="执行中" />}
+            {!busySessions?.has(s.id) && pendingTaskSessions?.has(s.id) && <span className="session-task-dot" title="有新的定时任务结果" />}
+          </div>
+          <div className="session-item-actions">
+            <button className="pin" onClick={(e) => handlePin(e, s.id, s.pinned)} title={s.pinned ? '取消置顶' : '置顶'}>
+              {s.pinned ? '📌' : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="5 17 12 10 19 17" />
+                  <polyline points="5 9 12 2 19 9" />
+                </svg>
+              )}
+            </button>
+            <button onClick={(e) => handleRenameStart(e, s.id, s.title)} title="重命名">✏</button>
+            <button className="danger" onClick={(e) => handleDelClick(e, s.id)} title="删除">✕</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="session-list">
-      {sessions.map(s => (
-        <div
-          key={s.id}
-          className={`session-item ${s.id === currentSessionId ? 'active' : ''}`}
-          onClick={() => handleSelect(s.id)}
-        >
-          {editingId === s.id ? (
-            <input
-              value={editTitle}
-              onChange={e => setEditTitle(e.target.value)}
-              onBlur={e => handleRenameSubmit(e, s.id)}
-              onKeyDown={e => { if (e.key === 'Enter') handleRenameSubmit(e, s.id); if (e.key === 'Escape') setEditingId(null); }}
-              onClick={e => e.stopPropagation()}
-              autoFocus
-              style={{
-                width: '100%', padding: '4px 8px', background: 'var(--bg-primary)',
-                border: '1px solid var(--accent)', borderRadius: 4, color: 'var(--text-primary)',
-                fontSize: 13, outline: 'none',
-              }}
-            />
-          ) : (
-            <>
-              <div className="session-item-title">{s.title}</div>
-              <div className="session-item-meta">
-                <span>{formatDate(s.lastModified)}</span>
-                {busySessions?.has(s.id) && <span className="session-busy-dot" title="执行中" />}
-                {!busySessions?.has(s.id) && pendingTaskSessions?.has(s.id) && <span className="session-task-dot" title="有新的定时任务结果" />}
-              </div>
-              <div className="session-item-actions">
-                <button onClick={(e) => handleRenameStart(e, s.id, s.title)}>✏</button>
-                <button className="danger" onClick={(e) => handleDelClick(e, s.id)}>✕</button>
-              </div>
-            </>
+      {/* ── Pinned sessions ── */}
+      {pinnedSessions.length > 0 && (
+        <>
+          {hasManyPinned && (
+            <div className="session-pinned-toggle" onClick={() => setPinnedCollapsed(!pinnedCollapsed)}>
+              <span>{pinnedCollapsed ? '▶' : '▼'}</span>
+              <span>置顶会话 ({pinnedSessions.length})</span>
+            </div>
           )}
-        </div>
-      ))}
+          {(!hasManyPinned || !pinnedCollapsed) && pinnedSessions.map(renderSessionItem)}
+        </>
+      )}
+
+      {/* ── Unpinned sessions ── */}
+      {unpinnedSessions.map(renderSessionItem)}
+
       {sessions.length === 0 && (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: 20 }}>
           暂无会话

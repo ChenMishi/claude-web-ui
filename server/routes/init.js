@@ -1,3 +1,4 @@
+const logTs = () => new Date().toLocaleString("sv-SE");
 const { Router } = require('express');
 const { execSync, spawn } = require('child_process');
 const fs = require('fs');
@@ -59,14 +60,14 @@ const VISION_STATUS = checkVisionInstalled();
 function logInit(msg, err) {
   try {
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(`${LOG_DIR}/init.log`, `${new Date().toISOString()} ${msg} ${err?.message || err || ''}\n`);
+    fs.appendFileSync(`${LOG_DIR}/init.log`, `${logTs()} ${msg} ${err?.message || err || ''}\n`);
   } catch {}
 }
 
 function logProxy(msg, err) {
   try {
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(`${LOG_DIR}/proxy.log`, `${new Date().toISOString()} ${msg} ${err?.message || err || ''}\n`);
+    fs.appendFileSync(`${LOG_DIR}/proxy.log`, `${logTs()} ${msg} ${err?.message || err || ''}\n`);
   } catch {}
 }
 
@@ -951,7 +952,7 @@ router.post('/init/log-error', (req, res) => {
     const { message, stack, url } = req.body || {};
     const logDir = path.join(PROJECT_DIR, 'logs');
     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-    const line = `${new Date().toISOString()} [${url || 'unknown'}] ${message}\n${stack || ''}\n`;
+    const line = `${logTs()} [${url || 'unknown'}] ${message}\n${stack || ''}\n`;
     fs.appendFileSync(path.join(logDir, 'frontend-error.log'), line);
     res.json({ ok: true });
   } catch { res.json({ ok: false }); }
@@ -967,31 +968,48 @@ router.get('/init/log-errors', async (req, res) => {
       try {
         const p = path.join(PROJECT_DIR, 'logs', name);
         const data = await fsPromises.readFile(p, 'utf8');
-        return data.split('\n').filter(Boolean).slice(-30);
+        return data.split('\n').filter(Boolean).slice(-100);
       } catch { return []; }
     };
 
     const syslog = () => new Promise((resolve) => {
-      const p = '/var/log/syslog';
-      try {
-        if (!require('fs').existsSync(p)) return resolve([]);
-        exec(`tail -30 "${p}"`, { encoding: 'utf8', timeout: 3000 }, (err, stdout) => {
-          if (err) return resolve([]);
-          resolve(stdout.split('\n').filter(Boolean));
-        });
-      } catch { resolve([]); }
+      const candidates = ['/var/log/syslog', '/var/log/messages'];
+      const p = candidates.find(c => { try { return require('fs').existsSync(c); } catch { return false; } });
+      if (!p) return resolve([]);
+      exec(`tail -30 "${p}"`, { encoding: 'utf8', timeout: 3000 }, (err, stdout) => {
+        if (err) return resolve([]);
+        resolve(stdout.split('\n').filter(Boolean));
+      });
     });
 
-    const [server, frontend, init, proxy, sys] = await Promise.all([
+    const [server, frontend, init, proxy, access, crash, sys] = await Promise.all([
       readLog('server-error.log'),
       readLog('frontend-error.log'),
       readLog('init.log'),
       readLog('proxy.log'),
+      readLog('access.log'),
+      readLog('crash.log'),
       syslog(),
     ]);
 
-    res.json({ server, frontend, init, proxy, syslog: sys });
+    res.json({ server, frontend, init, proxy, access, crash, syslog: sys });
   } catch { res.json({ frontend: [], server: [], init: [], proxy: [], syslog: [] }); }
+});
+
+// Clear all logs
+router.post('/init/log-clear', (req, res) => {
+  try {
+    const logDir = path.join(PROJECT_DIR, 'logs');
+    if (!fs.existsSync(logDir)) return res.json({ ok: true });
+    const files = ['server-error.log', 'frontend-error.log', 'init.log', 'proxy.log'];
+    for (const f of files) {
+      const p = path.join(logDir, f);
+      if (fs.existsSync(p)) fs.writeFileSync(p, '');
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Model listing & switching (from provider-config.json) ──

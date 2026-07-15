@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeLog, getUpgradeStatus } from '../api';
+import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeLog, getUpgradeStatus, getVersionHistory, rollbackVersion } from '../api';
 
 export default function VersionPanel() {
   const { setSetting, setUpdateAvailable } = useApp();
@@ -17,15 +17,6 @@ export default function VersionPanel() {
   const [upgradeLog, setUpgradeLog] = useState('');
   const logRef = useRef(null);
 
-  // Auto-scroll log to bottom
-  useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [upgradeLog]);
-  const [checkInterval, setCheckInterval] = useState(() => {
-    return parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0;
-  });
-  const pollRef = useRef(null);
-
   // Clear update badge when user opens this page
   useEffect(() => {
     setUpdateAvailable(false);
@@ -38,19 +29,6 @@ export default function VersionPanel() {
       setRemote(d.remote || '');
     }).catch(() => {});
   }, []);
-
-  // Periodic check
-  useEffect(() => {
-    if (checkInterval <= 0) return;
-    const timer = setInterval(() => {
-      checkVersion({ remote }).then(d => {
-        setCheckResult(d);
-        if (d.hasUpdate) setUpdateAvailable(true);
-        localStorage.setItem('claude-ui:lastCheck', JSON.stringify(d));
-      }).catch(() => {});
-    }, checkInterval * 60000);
-    return () => clearInterval(timer);
-  }, [checkInterval, remote]);
 
   // Poll upgrade log + status during upgrade
   useEffect(() => {
@@ -114,10 +92,55 @@ export default function VersionPanel() {
     }
   }, [remote]);
 
-  const handleIntervalChange = (v) => {
-    setCheckInterval(v);
-    localStorage.setItem('claude-ui:checkInterval', String(v));
-  };
+  // ── Rollback ──
+  const [versions, setVersions] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [rollingBack, setRollingBack] = useState(false);
+  const [confirmTag, setConfirmTag] = useState(null);
+
+  const handleLoadHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const data = await getVersionHistory();
+      setVersions(data.versions || []);
+    } catch (err) {
+      setUpgradeError('加载版本历史失败: ' + err.message);
+    }
+    setLoadingHistory(false);
+  }, []);
+
+  const handleRollback = useCallback(async (tag) => {
+    setConfirmTag(null);
+    flushSync(() => {
+      setUpgrading(true);
+      setUpgradeProgress(0);
+      setUpgradeMsg('启动回滚...');
+      setUpgradeDone(false);
+      setUpgradeError(null);
+      setUpgradeLog('');
+      setRollingBack(true);
+    });
+
+    try {
+      const data = await rollbackVersion(tag);
+      if (!data.ok) {
+        setUpgradeError(data.error || '启动失败');
+        setUpgrading(false);
+        setRollingBack(false);
+      }
+    } catch (err) {
+      setUpgradeError(`启动失败: ${err.message}`);
+      setUpgrading(false);
+      setRollingBack(false);
+    }
+  }, []);
+
+  // Reset rollback flag on done/error
+  useEffect(() => {
+    if (!upgrading && (upgradeDone || upgradeError)) {
+      setRollingBack(false);
+    }
+  }, [upgrading, upgradeDone, upgradeError]);
 
   return (
     <div className="version-panel">
@@ -228,20 +251,78 @@ export default function VersionPanel() {
             )}
           </>
         )}
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+          系统每 2 小时自动检测是否有新版本
+        </div>
       </div>
 
-      {/* Schedule check */}
+      {/* Version rollback */}
       <div className="settings-group">
-        <label>定时检测</label>
-        <select value={checkInterval} onChange={e => handleIntervalChange(parseInt(e.target.value))}>
-          <option value={0}>关闭</option>
-          <option value={1}>每 1 分钟（测试）</option>
-          <option value={30}>每 30 分钟</option>
-          <option value={60}>每 1 小时</option>
-          <option value={360}>每 6 小时</option>
-          <option value={720}>每 12 小时</option>
-          <option value={1440}>每 24 小时</option>
-        </select>
+        <label>版本回滚</label>
+        {!rollingBack ? (
+          <>
+            <button
+              className="version-btn version-btn-check"
+              onClick={handleLoadHistory}
+              disabled={loadingHistory}
+            >
+              {loadingHistory ? '加载中...' : '加载历史版本'}
+            </button>
+
+            {versions.length > 0 && (
+              <div className="version-update-commits" style={{ marginTop: 8 }}>
+                {versions.map((v) => (
+                  <div key={v.tag} className="version-commit-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                    <div>
+                      <span className={`version-commit-tag tag-${v.current ? '版本' : '其他'}`}>
+                        {v.current ? '当前' : v.tag}
+                      </span>
+                      <code>{v.commit}</code>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>{v.date}</span>
+                    </div>
+                    {!v.current && (
+                      <button
+                        className="version-btn version-btn-upgrade"
+                        style={{ fontSize: 11, padding: '2px 10px' }}
+                        onClick={() => setConfirmTag(v.tag)}
+                      >
+                        回滚
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {confirmTag && (
+              <div style={{ marginTop: 10, padding: 10, border: '1px solid var(--border-color)', borderRadius: 6, background: 'var(--input-bg)' }}>
+                <div style={{ fontSize: 12, marginBottom: 8 }}>
+                  确定回滚到 <strong>{confirmTag}</strong>？服务将短暂中断。
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="version-btn version-btn-upgrade"
+                    onClick={() => handleRollback(confirmTag)}
+                    style={{ fontSize: 12 }}
+                  >
+                    确认回滚
+                  </button>
+                  <button
+                    className="version-btn version-btn-check"
+                    onClick={() => setConfirmTag(null)}
+                    style={{ fontSize: 12 }}
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+            回滚进行中，请查看上方进度
+          </div>
+        )}
       </div>
     </div>
   );

@@ -219,4 +219,151 @@ router.get('/version/upgrade/log', (_req, res) => {
   }
 });
 
+// ── Recent version changelogs (last 3 tags) ──
+
+router.get('/version/recent-changelogs', (req, res) => {
+  try {
+    try { execSync('git fetch --tags --quiet', { cwd: PROJECT_DIR, timeout: 10000 }); } catch {}
+
+    const raw = execSync('git tag -l --sort=-creatordate', {
+      cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
+    }).trim();
+
+    if (!raw) return res.json({ changelogs: [] });
+
+    const tags = raw.split('\n').filter(Boolean).slice(0, 4); // need 4 to get 3 intervals
+    const changelogs = [];
+
+    for (let i = 0; i < tags.length - 1 && changelogs.length < 3; i++) {
+      const curTag = tags[i];
+      const prevTag = tags[i + 1];
+      try {
+        const log = execSync(`git log ${prevTag}..${curTag} --no-merges --format="%h||%s"`, {
+          cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
+        }).trim();
+
+        let ver = curTag.replace(/^v/, '');
+        try {
+          ver = execSync(`git show "${curTag}:VERSION"`, {
+            cwd: PROJECT_DIR, encoding: 'utf8', timeout: 3000
+          }).trim().replace(/\n/g, '');
+        } catch {}
+
+        const commits = log ? log.split('\n').map(line => {
+          const [hash, ...rest] = line.split('||');
+          return { hash, message: rest.join('||') };
+        }) : [];
+
+        const date = execSync(`git log -1 --format=%ai "${curTag}"`, {
+          cwd: PROJECT_DIR, encoding: 'utf8', timeout: 3000
+        }).trim().slice(0, 10);
+
+        if (commits.length > 0) {
+          changelogs.push({ tag: curTag, version: ver, date, commits });
+        }
+      } catch {}
+    }
+
+    res.json({ changelogs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Version history (git tags) ──
+
+router.get('/version/history', (req, res) => {
+  try {
+    // Ensure we have the latest tags
+    try { execSync('git fetch --tags --quiet', { cwd: PROJECT_DIR, timeout: 10000 }); } catch {}
+
+    // List tags sorted by creation date, newest first
+    const raw = execSync('git tag -l --sort=-creatordate', {
+      cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
+    }).trim();
+
+    if (!raw) return res.json({ versions: [] });
+
+    const versions = [];
+    const tags = raw.split('\n').filter(Boolean);
+    const currentVer = getCurrentVersion();
+
+    for (const tag of tags.slice(0, 30)) { // max 30 entries
+      try {
+        const hash = execSync(`git rev-list -n 1 "${tag}"`, {
+          cwd: PROJECT_DIR, encoding: 'utf8', timeout: 3000
+        }).trim().slice(0, 8);
+
+        const date = execSync(`git log -1 --format=%ai "${tag}"`, {
+          cwd: PROJECT_DIR, encoding: 'utf8', timeout: 3000
+        }).trim().slice(0, 10);
+
+        // Read VERSION from tag
+        let ver = tag.replace(/^v/, '');
+        try {
+          const tagVer = execSync(`git show "${tag}:VERSION"`, {
+            cwd: PROJECT_DIR, encoding: 'utf8', timeout: 3000
+          }).trim().replace(/\n/g, '');
+          if (tagVer) ver = tagVer;
+        } catch {}
+
+        versions.push({
+          tag,
+          version: ver,
+          commit: hash,
+          date,
+          current: ver === currentVer || tag === `v${currentVer}`,
+        });
+      } catch {}
+    }
+
+    res.json({ versions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Version rollback ──
+
+router.post('/version/rollback', (req, res) => {
+  const { tag } = req.body || {};
+  if (!tag) return res.status(400).json({ error: 'tag is required' });
+
+  const curState = readUpgradeState();
+  if (curState && curState.status === 'running') {
+    return res.status(409).json({ error: '升级/回滚已在执行中' });
+  }
+
+  const rollbackScript = path.join(PROJECT_DIR, 'rollback.sh');
+  if (!fs.existsSync(rollbackScript)) {
+    return res.status(500).json({ error: 'rollback.sh 脚本不存在' });
+  }
+
+  // Verify tag exists
+  try {
+    execSync(`git rev-parse "${tag}"`, { cwd: PROJECT_DIR, encoding: 'utf8', timeout: 3000 });
+  } catch {
+    return res.status(400).json({ error: `版本 ${tag} 不存在` });
+  }
+
+  // Reset state
+  const state = { status: 'running', progress: 0, message: `正在回滚到 ${tag}...` };
+  writeUpgradeState(state);
+
+  const logFile = '/tmp/claude-web-ui-upgrade.log';
+  const pidFile = '/tmp/claude-web-ui-upgrade.pid';
+  fs.writeFileSync(logFile, '');
+
+  const child = spawn('nohup', ['stdbuf', '-oL', 'bash', rollbackScript, tag], {
+    cwd: PROJECT_DIR,
+    env: { ...process.env, PORT: process.env.PORT || '3000' },
+    stdio: ['ignore', fs.openSync(logFile, 'a'), fs.openSync(logFile, 'a')],
+    detached: true,
+  });
+  child.unref();
+  fs.writeFileSync(pidFile, String(child.pid));
+
+  res.json({ ok: true, message: `回滚到 ${tag} 已启动` });
+});
+
 module.exports = router;

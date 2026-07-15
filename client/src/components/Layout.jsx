@@ -16,26 +16,23 @@ export default function Layout() {
   const { sidebarOpen, activeView, toggleSidebar, setUpdateAvailable, user, authLoading } = useApp();
   const isAdmin = user?.role === 'admin';
 
-  // Global periodic version check (runs regardless of active page)
+  // Global periodic version check — fixed 2-hour interval, runs regardless of active page
   useEffect(() => {
-    const getInterval = () => {
-      try { return parseInt(localStorage.getItem('claude-ui:checkInterval') || '0') || 0; }
-      catch { return 0; }
-    };
-    let interval = getInterval();
-    if (interval <= 0) return;
+    const INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
     const check = () => {
       checkVersion({}).then(d => {
         if (d.hasUpdate) {
           setUpdateAvailable(true);
-          localStorage.setItem('claude-ui:lastCheck', JSON.stringify(d));
         }
+        localStorage.setItem('claude-ui:lastCheck', JSON.stringify(d));
       }).catch(() => {});
     };
 
-    const timer = setInterval(check, interval * 60000);
-    return () => clearInterval(timer);
+    // Initial check after 10 seconds
+    const initialTimer = setTimeout(check, 10000);
+    const timer = setInterval(check, INTERVAL_MS);
+    return () => { clearTimeout(initialTimer); clearInterval(timer); };
   }, []);
 
   if (authLoading) {

@@ -962,7 +962,7 @@ export default function ChatView() {
       onToolConfirm: ({ tool, action, input }) => {
         setToolConfirm({ tool, action, input });
       },
-      onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency, artifactFiles }) => {
+      onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency, artifactFiles, aborted, error }) => {
         streamSessionIdRef.current = null;
         isActiveStream.current = false;
         const realSid = mySessionId === 'new' ? (newSessionIdRef.current || mySessionId) : mySessionId;
@@ -977,6 +977,14 @@ export default function ChatView() {
 
         // 仅最后一个完成的会话更新全局 UI（避免 flickering）
         if (allAbortsRef.current.size > 0) return;
+
+        // done 事件携带 error/aborted 标记时，由 onError 已处理的错误接管 UI
+        if (aborted || error) {
+          finalizeStreaming();
+          stopTimer();
+          setTimeout(() => execReset(), 5000);
+          return;
+        }
 
         finalizeStreaming();  // 原子操作: 关闭所有 streaming + 保存缓存 + 设置 isStreaming=false
         stopTimer();

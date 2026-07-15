@@ -144,6 +144,7 @@ log "拉取最新代码..."
 
 # 强制重置到 origin/master，丢弃所有本地改动（升级场景应始终使用最新代码）
 git fetch origin master 2>&1 | tail -3
+git fetch --tags --quiet 2>/dev/null || true
 git reset --hard origin/master 2>&1 || {
     err "代码拉取失败，请检查网络或仓库地址"
     exit 1

@@ -113,6 +113,9 @@ export const getVersionInfo = () => fetchJSON('/version/info');
 export const upgradeVersion = (opts = {}) => fetchJSON('/version/upgrade', { method: 'POST', body: JSON.stringify(opts) });
 export const getUpgradeLog = () => fetchJSON('/version/upgrade/log');
 export const getUpgradeStatus = () => fetchJSON('/version/upgrade/status');
+export const getVersionHistory = () => fetchJSON('/version/history');
+export const rollbackVersion = (tag) => fetchJSON('/version/rollback', { method: 'POST', body: JSON.stringify({ tag }) });
+export const getRecentChangelogs = () => fetchJSON('/version/recent-changelogs');
 
 // Init
 export const getInitStatus = () => fetchJSON('/init/status');
@@ -251,6 +254,7 @@ export function downloadFile(filePath, onProgress) {
 export const getSessionInfo = (id) => fetchJSON(`/session/${id}`);
 export const deleteSession = (id) => fetchJSON(`/session/${id}`, { method: 'DELETE' });
 export const renameSession = (id, title) => fetchJSON(`/session/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) });
+export const pinSession = (id, pinned) => fetchJSON(`/session/${id}/pin`, { method: 'POST', body: JSON.stringify({ pinned }) });
 export const abortSession = (id) => fetchJSON(`/session/${id}/abort`, { method: 'POST' });
 export const generateTitle = (id, prompt, cwd) => fetchJSON(`/session/${id}/title`, { method: 'POST', body: JSON.stringify({ prompt, cwd }) });
 export const reconnectSession = (id) => fetch(`${BASE}/session/${id}/stream`, {

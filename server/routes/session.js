@@ -76,11 +76,12 @@ function sseWrite(res, ev) {
 
 function logError(msg, err) {
   try {
-    const { LOG_DIR } = require('../config');
+    const path = require('path');
     const fs = require('fs');
-    const dir = LOG_DIR || '/tmp';
+    const dir = path.resolve(__dirname, '..', '..', 'logs');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(`${dir}/server-error.log`, `${new Date().toISOString()} ${msg} ${err?.message || err}\n`);
+    const ts = new Date().toLocaleString('sv-SE');
+    fs.appendFileSync(`${dir}/server-error.log`, `${ts} ${msg} ${err?.message || err}\n`);
   } catch {}
 }
 
@@ -422,6 +423,7 @@ const SOURCE_EXTS = new Set([
   '.cs', '.swift', '.kt', '.kts', '.scala',
   '.vue', '.svelte', '.css', '.scss', '.less', '.sass',
   '.sql', '.graphql', '.proto',
+  '.sh', '.bash', '.zsh', '.fish',
 ]);
 
 function isOutputExtension(filePath) {
@@ -643,8 +645,10 @@ async function finalizeArtifacts(runtime, extractedPaths, authUser) {
   // 1. Collect paths from Bash tools (already filtered by extractBashFilePaths + filterArtifactPaths)
   for (const [, paths] of Object.entries(extractedPaths || {})) {
     for (const p of paths) {
-      // Secondary filter: skip temp/dev/test files
+      // Skip temp/dev/test files
       if (/[._-](?:tmp|temp|test|test_|spec|mock|fixture)/i.test(path.basename(p))) continue;
+      // Skip source files — Bash-modified .js/.py/.sh etc. are project code, not user-facing artifacts
+      if (isSourceExtension(p)) continue;
       if (!allFiles.has(p)) {
         try {
           if (fs.existsSync(p) && fs.statSync(p).isFile()) {
@@ -1101,6 +1105,21 @@ function buildSDKOptions(runtime, body, authUser) {
     // GLM models don't support extended thinking — force disable to avoid
     // "content[].thinking must be passed back" errors from non-conformant APIs
     ...(/^glm/i.test(agentOptions.model || '') ? { thinking: { type: 'disabled' } } : {}),
+    // Non-DeepSeek-native providers (ApiRouter etc) can't pass reasoning_content
+    // back through Anthropic-format proxies — force disable thinking to avoid 400 errors
+    ...((() => {
+      if (agentOptions.model && agentOptions.model.includes('/')) {
+        const pId = agentOptions.model.slice(0, agentOptions.model.lastIndexOf('/'));
+        try {
+          const cfg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'provider-config.json'), 'utf8'));
+          const cp = (cfg.providers || []).find(p => p.id === pId);
+          if (cp && !/deepseek\.com/i.test(cp.baseUrl)) {
+            return { thinking: { type: 'disabled' } };
+          }
+        } catch {}
+      }
+      return {};
+    })()),
     stream_options: { include_usage: true },
     ...runtime.abort ? { abortController: runtime.abort } : {},
   };
@@ -1485,6 +1504,28 @@ router.patch('/session/:id', (req, res) => {
   const metaPath = path.join(realDir, `${id}.meta.json`);
   fs.writeFileSync(metaPath, JSON.stringify({ title }), 'utf8');
   res.json({ ok: true });
+});
+
+// Toggle pin status (sidecar .meta.json)
+router.post('/session/:id/pin', (req, res) => {
+  const { id } = req.params;
+  const pinned = !!req.body?.pinned;
+  const sessionInfo = findSessionFile(id, req.user);
+  if (!sessionInfo) return res.status(404).json({ error: 'Session not found' });
+  let realDir = sessionInfo.entryDir;
+  try {
+    if (fs.lstatSync(sessionInfo.file).isSymbolicLink()) {
+      realDir = path.dirname(fs.realpathSync(sessionInfo.file));
+    }
+  } catch {}
+  const metaPath = path.join(realDir, `${id}.meta.json`);
+  let meta = {};
+  if (fs.existsSync(metaPath)) {
+    try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch {}
+  }
+  meta.pinned = pinned;
+  fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
+  res.json({ ok: true, pinned });
 });
 
 // Get session messages
@@ -2001,6 +2042,59 @@ router.post('/session/:id/message', async (req, res) => {
     const allMessages = [];
     let compactRetried = false;  // 防止死循环 — 只压缩一次
 
+    // ── Proactive: strip incompatible fields from JSONL before every request ──
+    // reasoning_content is DeepSeek-specific. It MUST be preserved for DeepSeek-native
+    // providers (api.deepseek.com), but stripped for middlemen like ApiRouter.
+    // "type: thinking" blocks are GLM-specific and always incompatible cross-provider.
+    try {
+      const sessionData = findSessionFile(runtime.sessionId, req.user);
+      if (sessionData) {
+        let realPath = sessionData.file;
+        try { if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath); } catch {}
+        const fileContent = fs.readFileSync(realPath, 'utf8');
+        const lines = fileContent.split('\n').filter(Boolean);
+        let cleaned = 0;
+
+        // Check if current model belongs to a DeepSeek-native provider
+        let currentProviderId = '';
+        if (runtime.model && runtime.model.includes('/')) {
+          currentProviderId = runtime.model.slice(0, runtime.model.lastIndexOf('/'));
+        }
+        let isDeepSeekNative = false;
+        try {
+          const providerConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'provider-config.json'), 'utf8'));
+          const cp = (providerConfig.providers || []).find(p => p.id === currentProviderId);
+          isDeepSeekNative = cp?.baseUrl && /deepseek\.com/i.test(cp.baseUrl);
+        } catch {}
+
+        let cleanedLines = lines.map(line => {
+          try {
+            const obj = JSON.parse(line);
+            let changed = false;
+            // Always strip "type: thinking" blocks (GLM-specific)
+            const msgContent = obj.message?.content;
+            if (Array.isArray(msgContent)) {
+              const filtered = msgContent.filter(b => b.type !== 'thinking');
+              if (filtered.length !== msgContent.length) {
+                obj.message = { ...obj.message, content: filtered };
+                changed = true;
+              }
+            }
+            // Strip reasoning_content unless provider is DeepSeek-native
+            if (!isDeepSeekNative) {
+              if (obj.reasoning_content !== undefined) { delete obj.reasoning_content; changed = true; }
+              if (obj.message?.reasoning_content !== undefined) { delete obj.message.reasoning_content; changed = true; }
+            }
+            if (changed) cleaned++;
+            return JSON.stringify(obj);
+          } catch { return line; }
+        });
+        if (cleaned > 0) {
+          fs.writeFileSync(realPath, cleanedLines.join('\n') + '\n', 'utf8');
+        }
+      }
+    } catch (e) { /* non-fatal */ }
+
     // Outer retry loop: compact on ContextWindowExceededError and retry
     while (true) {
     // ── Try strategies in priority order, retry on image_error ──
@@ -2085,7 +2179,7 @@ router.post('/session/:id/message', async (req, res) => {
                 compactRetried = true;
                 logError('Context window exceeded, auto-compacting', errText);
                 try {
-                  const sessionData = findSessionFile(runtime.sessionId, authUser);
+                  const sessionData = findSessionFile(runtime.sessionId, req.user);
                   if (sessionData) {
                     let realPath = sessionData.file;
                     try { if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath); } catch {}
@@ -2115,7 +2209,7 @@ router.post('/session/:id/message', async (req, res) => {
                 compactRetried = true;
                 logError('Thinking block pollution detected, stripping from JSONL', errText);
                 try {
-                  const sessionData = findSessionFile(runtime.sessionId, authUser);
+                  const sessionData = findSessionFile(runtime.sessionId, req.user);
                   if (sessionData) {
                     let realPath = sessionData.file;
                     try { if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath); } catch {}
@@ -2125,10 +2219,14 @@ router.post('/session/:id/message', async (req, res) => {
                     const cleanedLines = lines.map(line => {
                       try {
                         const obj = JSON.parse(line);
-                        const content = obj.message?.content;
-                        if (Array.isArray(content)) {
-                          obj.message = { ...obj.message, content: content.filter(b => b.type !== 'thinking') };
-                          cleaned++;
+                        // Strip thinking blocks from message content
+                        const msgContent = obj.message?.content;
+                        if (Array.isArray(msgContent)) {
+                          const filtered = msgContent.filter(b => b.type !== 'thinking');
+                          if (filtered.length !== msgContent.length) {
+                            obj.message = { ...obj.message, content: filtered };
+                            cleaned++;
+                          }
                         }
                         return JSON.stringify(obj);
                       } catch { return line; }
@@ -2139,10 +2237,18 @@ router.post('/session/:id/message', async (req, res) => {
                 } catch (e) { console.error('[SESSION] Strip thinking error:', e.message); }
                 allMessages.length = 0;
                 runtime.buffer = [];
+                result = null;  // reset so while loop retries
                 broadcast(runtime, 'system_notice', {
                   text: '⚠️ 检测到不兼容的 thinking 数据，已自动清理后重试...'
                 });
                 break;
+              }
+              // ── reasoning_content missing: API needs it but provider changed ──
+              // This is a genuine compatibility issue — pass through as error, don't strip
+              if (!compactRetried && /reasoning_content.*must be passed/i.test(errText)) {
+                logError('Reasoning content mismatch — model requires reasoning_content from prior turns', errText);
+                // Don't retry; the model genuinely needs data we can't provide across providers
+                result = { error: errText };
               }
               logError('SDK result error', errText);
               result = { error: errText };
@@ -2168,6 +2274,11 @@ router.post('/session/:id/message', async (req, res) => {
     if (wantsStream) {
       // 如果 abort controller 已被替换，说明新执行已接管，跳过广播
       if (runtime.abort !== abortCtrl) return;
+
+      // ── 非 catch 路径的 SDK 错误：发送 error 事件，避免前端误显"已完成" ──
+      if (result?.error) {
+        broadcast(runtime, 'error', { message: result.error });
+      }
 
       // If we have a pending title from before and now know the sessionId, store it
       if (runtime.pendingTitle && runtime.sessionId && isNew) {

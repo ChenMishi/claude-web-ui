@@ -299,15 +299,20 @@ function collectSessionsFromDir(dirPath, cwd, excludeIds) {
       if (fs.lstatSync(filePath).isSymbolicLink() && !fs.existsSync(filePath)) return null;
     } catch { return null; }
     let title = null;
+    let pinned = false;
     const metaPath = path.join(dirPath, `${sessionId}.meta.json`);
     if (fs.existsSync(metaPath)) {
-      try { title = JSON.parse(fs.readFileSync(metaPath, 'utf8')).title; } catch {}
+      try {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+        title = meta.title;
+        pinned = !!meta.pinned;
+      } catch {}
     }
     if (!title) title = parseTitleFromJsonl(filePath);
     if (!title) title = sessionId.slice(0, 8);
     let lastModified = 0;
     try { lastModified = fs.statSync(filePath).mtimeMs; } catch {}
-    return { id: sessionId, title, cwd, lastModified };
+    return { id: sessionId, title, cwd, lastModified, pinned };
   }).filter(Boolean);
 }
 
@@ -327,7 +332,10 @@ router.get('/project/:id/session', (req, res) => {
     sessions.push(...collectSessionsFromDir(legacyPath, cwd, existingIds));
   }
 
-  sessions.sort((a, b) => b.lastModified - a.lastModified);
+  sessions.sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;  // pinned first
+    return b.lastModified - a.lastModified;
+  });
   res.json(sessions);
 });
 

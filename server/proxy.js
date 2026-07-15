@@ -14,6 +14,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+const logTs = () => new Date().toLocaleString("sv-SE");
 const PROJECT_DIR = path.resolve(__dirname, '..');
 const CONFIG_FILE = path.join(PROJECT_DIR, 'provider-config.json');
 
@@ -27,7 +28,7 @@ try {
 function proxyLog(msg) {
   if (!logFile) return;
   try {
-    fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`);
+    fs.appendFileSync(logFile, `${logTs()} ${msg}\n`);
   } catch {}
 }
 
