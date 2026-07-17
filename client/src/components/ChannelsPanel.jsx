@@ -26,6 +26,19 @@ export default function ChannelsPanel() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Auto-refresh on channel status change (WebSocket connect/disconnect)
+  useEffect(() => {
+    let es = null, rt = null;
+    const connect = () => {
+      try { es = new EventSource('/api/channels/events'); }
+      catch { rt = setTimeout(connect, 10000); return; }
+      es.addEventListener('channel-status', () => load());
+      es.onerror = () => { es.close(); rt = setTimeout(connect, 10000); };
+    };
+    connect();
+    return () => { if (es) es.close(); if (rt) clearTimeout(rt); };
+  }, [load]);
+
   const handleSave = async () => {
     if (!editing) return;
     try {

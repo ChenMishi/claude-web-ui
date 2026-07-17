@@ -62,7 +62,7 @@ function createApp() {
 
   // Auth gate — applied to all remaining /api routes
   app.use('/api', (req, res, next) => {
-    if (req.path === '/health' || req.path.startsWith('/auth') || req.path === '/channels/events') return next();
+    if (req.path === '/health' || req.path.startsWith('/auth') || req.path.startsWith('/channels')) return next();
     // Bot internal requests bypass auth with shared token
     if (req.headers['x-internal-token']) {
       try {

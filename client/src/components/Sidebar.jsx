@@ -178,10 +178,10 @@ export default function Sidebar() {
     return () => { cancelled = true; };
   }, [currentSessionId]);
 
-  // 切换项目时自动加载新项目下的会话列表
+  // 切换项目时自动加载新项目下的会话列表 + 同步 bot 工作目录
   useEffect(() => {
     if (!currentProjectId) return;
-    if (!projectLoadedRef.current) return;  // 跳过初始加载中
+    if (!projectLoadedRef.current) return;
     if (streamingRef.current) return;
 
     let cancelled = false;
@@ -189,11 +189,20 @@ export default function Sidebar() {
     getProjectSessions(currentProjectId).then(sessions => {
       if (cancelled) return;
       setSessions(sessions);
-      // 自动选中第一个会话（如果当前没有选中）
       if (sessions.length > 0) {
         selectSession(sessions[0].id);
       }
     }).catch(() => {});
+
+    // Sync cwd to bot channels
+    const project = projects.find(p => p.id === currentProjectId);
+    if (project?.cwd) {
+      fetch('/api/channels/sync-cwd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cwd: project.cwd }),
+      }).catch(() => {});
+    }
 
     return () => { cancelled = true; };
   }, [currentProjectId]);
@@ -250,6 +259,13 @@ export default function Sidebar() {
           }
         } catch {}
       });
+      es.addEventListener('channel-status', () => {
+        try {
+          const pid = currentProjectIdRef.current;
+          getProjects().then(setProjects).catch(() => {});
+          if (pid) getProjectSessions(pid).then(setSessions).catch(() => {});
+        } catch {}
+      });
       es.onerror = () => { es.close(); rt = setTimeout(connect, 10000); };
     };
     connect();
@@ -266,7 +282,7 @@ export default function Sidebar() {
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${sidebarMinimal ? 'minimal' : ''} ${sidebarUpCollapsed ? 'up-collapsed' : ''} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
         <h2>{sidebarMinimal ? 'AI' : 'AI IntelliWork Hub'}</h2>
-        {!sidebarMinimal && <div className="sidebar-version">v2.3.8</div>}
+        {!sidebarMinimal && <div className="sidebar-version">v2.3.9</div>}
       </div>
 
       {!sidebarMinimal && (

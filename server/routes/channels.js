@@ -141,4 +141,20 @@ router.get('/channels/events', (req, res) => {
   });
 });
 
+// ── Sync current project cwd for bot channels ──
+
+router.post('/channels/sync-cwd', (req, res) => {
+  try {
+    const { cwd } = req.body || {};
+    if (!cwd) return res.status(400).json({ error: 'cwd required' });
+    const f = require('path').join(require('os').homedir(), '.claude-web-ui', 'bot-current-project.json');
+    const d = require('path').dirname(f);
+    if (!require('fs').existsSync(d)) require('fs').mkdirSync(d, { recursive: true });
+    require('fs').writeFileSync(f, JSON.stringify({ cwd, ts: Date.now() }), 'utf8');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

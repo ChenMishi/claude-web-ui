@@ -215,9 +215,17 @@ export default memo(function ChatMessage({ message }) {
   const safeContent = typeof content === 'string' ? content : '';
   const messageBody = useMemo(() => (
     <div className="message-content">
-      <MarkdownRenderer content={safeContent} streaming={streaming} />
+      {role === 'user' ? (
+        <div className="user-plain-text">
+          {safeContent.split('\n').map((line, i) =>
+            <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>
+          )}
+        </div>
+      ) : (
+        <MarkdownRenderer content={safeContent} streaming={streaming} />
+      )}
     </div>
-  ), [safeContent, streaming]);
+  ), [safeContent, streaming, role]);
 
   // Artifact summary — files created during the session (all modes)
   if (role === 'artifacts') {
@@ -345,7 +353,11 @@ export default memo(function ChatMessage({ message }) {
       })()}
       {isLongUserMsg && !userExpanded ? (
         <div className="message-content message-collapsed-inline" onClick={() => setUserExpanded(true)}>
-          <MarkdownRenderer content={safeContent.split('\n').slice(0, COLLAPSE_LINES).join('\n')} />
+          <div className="user-plain-text">
+            {safeContent.split('\n').slice(0, COLLAPSE_LINES).map((line, i) =>
+              <Fragment key={i}>{i > 0 && <br />}{line}</Fragment>
+            )}
+          </div>
           <span className="message-expand-inline">... 展开 ▼</span>
         </div>
       ) : (

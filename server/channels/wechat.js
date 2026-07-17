@@ -127,9 +127,11 @@ class WechatChannel extends ChannelBase {
         this.status = 'running';
         this.reconnectDelay = RECONNECT_MIN;
         this.startHeartbeat();
+        this.emitStatusChange();
       } else {
         console.error('[wecom-bot] Subscribe failed:', msg.errmsg, '(code:', msg.errcode, ')');
         this.status = 'error';
+        this.emitStatusChange();
         try { this.ws.close(); } catch {}
       }
       return;
@@ -215,6 +217,12 @@ class WechatChannel extends ChannelBase {
   }
 
   // ── Lifecycle ──
+
+  emitStatusChange() {
+    const { getChannelManager } = require('./index');
+    const mgr = getChannelManager();
+    mgr.notifyFrontend('channel-status', { channelId: this.id, status: this.status });
+  }
 
   async start() {
     this.shouldReconnect = true;

@@ -16,43 +16,65 @@ function tok() { const f = path.join(os.homedir(), '.claude-web-ui', '.internal-
 function load() { try { return fs.existsSync(MAP) ? JSON.parse(fs.readFileSync(MAP, 'utf8')) : {}; } catch { return {}; }}
 function save(m) { const d = path.dirname(MAP); if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(MAP, JSON.stringify(m, null, 2), 'utf8'); }
 
-function sessionExists(id) {
+/** 从项目目录读取当前活跃工作目录（扫描最近修改的项目） */
+function getDefaultCwd() {
+  // Prefer explicit sync file set by Web UI
+  const f = path.join(os.homedir(), '.claude-web-ui', 'bot-current-project.json');
+  try {
+    if (fs.existsSync(f)) {
+      const d = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (d.cwd && fs.existsSync(d.cwd)) return d.cwd;
+    }
+  } catch {}
+  return os.homedir();
+}
+
+/** session map key: {channelType}:{userId}:{cwdHash} — each project has its own session */
+function mapKey(channelType, userId, cwd) {
+  const h = require('crypto').createHash('md5').update(cwd).digest('hex').slice(0, 8);
+  return `${channelType}:${userId}:${h}`;
+}
+
+function sessionExists(id, cwd) {
   if (id === 'new' || !id) return false;
   if (!fs.existsSync(C_PROJ)) return false;
   for (const e of fs.readdirSync(C_PROJ, { withFileTypes: true })) {
     if (!e.isDirectory()) continue;
+    const cf = path.join(C_PROJ, e.name, '.cwd');
+    let dcwd = '';
+    try { if (fs.existsSync(cf)) dcwd = fs.readFileSync(cf, 'utf8').trim(); } catch {}
+    if (dcwd !== cwd) continue;  // Only match current project
     if (fs.existsSync(path.join(C_PROJ, e.name, `${id}.jsonl`))) return true;
   }
   return false;
 }
 
-/** 列出当前项目所有会话 */
+
+/** 列出当前活跃项目目录下的所有会话 */
 function listSessions() {
   const result = [];
+  const currentCwd = getDefaultCwd();
   if (!fs.existsSync(C_PROJ)) return result;
-  const homedir = os.homedir();
-  // Find the matching project dir for homedir
-  let rootDir = null;
   for (const e of fs.readdirSync(C_PROJ, { withFileTypes: true })) {
     if (!e.isDirectory()) continue;
-    const cwdFile = path.join(C_PROJ, e.name, '.cwd');
+    const cf = path.join(C_PROJ, e.name, '.cwd');
     let cwd = '';
-    try { if (fs.existsSync(cwdFile)) cwd = fs.readFileSync(cwdFile, 'utf8').trim(); } catch {}
-    if (cwd === homedir || (!cwd && e.name === '-root')) { rootDir = path.join(C_PROJ, e.name); break; }
-  }
-  if (!rootDir) return result;
-  for (const f of fs.readdirSync(rootDir)) {
-    if (!f.endsWith('.jsonl')) continue;
-    const sid = f.replace('.jsonl', '');
-    const jp = path.join(rootDir, f);
-    let title = sid.slice(0, 8), channelName = null;
-    const mp = path.join(rootDir, `${sid}.meta.json`);
-    if (fs.existsSync(mp)) {
-      try { const m = JSON.parse(fs.readFileSync(mp, 'utf8')); if (m.title) title = m.title; channelName = m.channelName || null; } catch {}
+    try { if (fs.existsSync(cf)) cwd = fs.readFileSync(cf, 'utf8').trim(); } catch {}
+    if (cwd !== currentCwd) continue;
+    const pDir = path.join(C_PROJ, e.name);
+    for (const f of fs.readdirSync(pDir)) {
+      if (!f.endsWith('.jsonl')) continue;
+      const sid = f.replace('.jsonl', '');
+      const jp = path.join(pDir, f);
+      let title = sid.slice(0, 8), channelName = null;
+      const mp = path.join(pDir, `${sid}.meta.json`);
+      if (fs.existsSync(mp)) {
+        try { const m = JSON.parse(fs.readFileSync(mp, 'utf8')); if (m.title) title = m.title; channelName = m.channelName || null; } catch {}
+      }
+      if (channelName && !title.startsWith(`${channelName}:`)) title = `${channelName}: ${title}`;
+      let ts = 0; try { ts = fs.statSync(jp).mtimeMs; } catch {}
+      result.push({ id: sid, title, ts });
     }
-    if (channelName && !title.startsWith(`${channelName}:`)) title = `${channelName}: ${title}`;
-    let ts = 0; try { ts = fs.statSync(jp).mtimeMs; } catch {}
-    result.push({ id: sid, title, ts });
   }
   result.sort((a, b) => b.ts - a.ts);
   return result;
@@ -131,16 +153,17 @@ async function botMessage(channelType, userId, text, channelCfg) {
   }
   if (!model) return { reply: 'Provider 未配置模型，请在 Web UI 中先拉取并选择模型' };
 
+  const workCwd = getDefaultCwd();
   const map = load();
-  const key = `${channelType}:${userId}`;
+  const key = mapKey(channelType, userId, workCwd);
   const saved = map[key];
-  const sid = (saved && sessionExists(saved)) ? saved : 'new';
+  const sid = (saved && sessionExists(saved, workCwd)) ? saved : 'new';
 
   // ── 命令: 切换会话 / 会话列表 ──
   if (/^(切换会话|会话列表|切换|列表|ls|sessions)/i.test(text.trim())) {
     const sessions = listSessions();
     if (sessions.length === 0) return { reply: '暂无可用会话', sessionId: sid };
-    const current = (saved && sessionExists(saved)) ? saved : null;
+    const current = (saved && sessionExists(saved, workCwd)) ? saved : null;
     let resp = '📋 会话列表（回复编号选择）：\n';
     for (let i = 0; i < Math.min(sessions.length, 15); i++) {
       const s = sessions[i];
@@ -173,9 +196,10 @@ async function botMessage(channelType, userId, text, channelCfg) {
   }
 
   // ── 正常对话 ──
+
   const body = {
-    prompt: text, cwd: os.homedir(),
-    options: { model: c.model || '', systemPrompt: channelCfg.systemPrompt || '', permissionLevel: 'auto' },
+    prompt: text, cwd: workCwd,
+    options: { model, systemPrompt: channelCfg.systemPrompt || '', permissionLevel: 'auto' },
   };
 
   try {
@@ -221,6 +245,8 @@ async function botMessage(channelType, userId, text, channelCfg) {
           fs.writeFileSync(mp, JSON.stringify(existing), 'utf8');
         }
       } catch {}
+    } else {
+      // Existing session — no need to update cwd, always read from getDefaultCwd()
     }
     return { reply: reply || '未生成回复', sessionId: newSid || sid };
   } catch (err) {
@@ -233,8 +259,14 @@ module.exports = {
   botMessage, getInternalToken: tok,
   sessionToUser(sessionId) {
     const map = load();
-    for (const [key, sid] of Object.entries(map)) {
-      if (sid === sessionId) { const [ct, uid] = key.split(':'); return { userId: uid, channelType: ct }; }
+    for (const [key, val] of Object.entries(map)) {
+      const sid = typeof val === 'string' ? val : (val?.sid || val?.sessionId);
+      if (sid === sessionId) {
+        // key format: channelType:userId or channelType:userId:cwdHash
+        const [ct, ...rest] = key.split(':');
+        const uid = rest.length > 1 ? rest[0] : rest.join('');
+        return { userId: uid, channelType: ct };
+      }
     }
     return null;
   },
