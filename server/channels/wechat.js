@@ -55,6 +55,7 @@ class WechatChannel extends ChannelBase {
 
     this.ws.on('open', () => {
       console.log('[wecom-bot] Connected, sending subscribe...');
+      this.status = 'connecting';
       this.send({
         cmd: 'aibot_subscribe',
         headers: { req_id: this.reqId() },
@@ -218,6 +219,7 @@ class WechatChannel extends ChannelBase {
   async start() {
     this.shouldReconnect = true;
     this.reconnectDelay = RECONNECT_MIN;
+    this.status = 'connecting';
     this.connect();
   }
 

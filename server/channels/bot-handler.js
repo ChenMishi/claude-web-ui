@@ -119,7 +119,17 @@ function cleanPending() {
 /** @returns {{ reply: string, sessionId: string|null }} */
 async function botMessage(channelType, userId, text, channelCfg) {
   const c = cfg();
-  if (!c || !c.model) return { reply: 'Provider 未配置' };
+  if (!c) return { reply: 'Provider 配置文件不存在，请先在设置→初始化中配置 Provider' };
+
+  // Fallback: use first available provider if model is not set
+  let model = c.model || '';
+  if (!model && c.providers && c.providers.length > 0) {
+    const p = c.providers[0];
+    const firstModel = ((c.providerModels || {})[p.id] || {}).selected?.[0]
+      || ((c.providerModels || {})[p.id] || {}).available?.[0];
+    model = firstModel ? `${p.id}/${firstModel}` : '';
+  }
+  if (!model) return { reply: 'Provider 未配置模型，请在 Web UI 中先拉取并选择模型' };
 
   const map = load();
   const key = `${channelType}:${userId}`;

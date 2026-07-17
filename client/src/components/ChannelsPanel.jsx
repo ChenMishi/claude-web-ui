@@ -74,7 +74,7 @@ export default function ChannelsPanel() {
                   <div className="channel-card-meta">
                     <span className="channel-card-type">{typeLabel(ch.type)}</span>
                     <span className={`channel-card-status ${ch.status}`}>
-                      {ch.status === 'running' ? '● 运行中' : '○ 已停止'}
+                      {ch.status === 'running' ? '● 运行中' : ch.status === 'connecting' ? '◎ 连接中' : ch.status === 'error' ? '✕ 连接失败' : '○ 已停止'}
                     </span>
                   </div>
                 </div>
@@ -133,18 +133,14 @@ export default function ChannelsPanel() {
         </div>
       </div>
 
-      {/* ── Card: 接入指引 ── */}
-      <div className="settings-card">
-        <div className="settings-card-header"><IconPuzzle/> 企业微信接入指引</div>
-        <div className="settings-card-body">
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            1. 企微客户端 → 工作台 → 智能机器人 → 手动创建<br />
-            2. 选择 <strong>API 模式</strong>创建，连接方式选<strong>「使用长连接」</strong><br />
-            3. 获取 <strong>Bot ID</strong> 和 <strong>Secret</strong>（Secret 仅显示一次）<br />
-            4. 填入上方表单，保存并启用即可<br />
-            5. 无需公网域名、HTTPS 证书或 CorpID
-          </div>
-        </div>
+      {/* ── 接入指引 ── */}
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.8, marginTop: 16 }}>
+        <strong>企业微信接入指引：</strong><br />
+        1. 企微客户端 → 工作台 → 智能机器人 → 手动创建<br />
+        2. 选择 <strong>API 模式</strong>创建，连接方式选<strong>「使用长连接」</strong><br />
+        3. 获取 <strong>Bot ID</strong> 和 <strong>Secret</strong>（Secret 仅显示一次）<br />
+        4. 填入上方表单，保存并启用即可<br />
+        5. 无需公网域名、HTTPS 证书或 CorpID
       </div>
 
       {/* Inline confirmation popup */}
