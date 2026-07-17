@@ -325,6 +325,36 @@ function startServer(opts = {}) {
     const mgr = getChannelManager();
     const { botMessage } = require('./channels/bot-handler');
 
+    // Auto-init bot-current-project.json on startup
+    try {
+      const f = path.join(os.homedir(), '.claude-web-ui', 'bot-current-project.json');
+      if (!fs.existsSync(f)) {
+        // Scan projects for the most recently active cwd
+        const projDir = path.join(os.homedir(), '.claude', 'projects');
+        let bestCwd = os.homedir(), bestTs = 0;
+        if (fs.existsSync(projDir)) {
+          for (const e of fs.readdirSync(projDir, { withFileTypes: true })) {
+            if (!e.isDirectory()) continue;
+            const cf = path.join(projDir, e.name, '.cwd');
+            let cwd = '';
+            try { if (fs.existsSync(cf)) cwd = fs.readFileSync(cf, 'utf8').trim(); } catch {}
+            if (!cwd) continue;
+            for (const ff of fs.readdirSync(path.join(projDir, e.name))) {
+              if (!ff.endsWith('.jsonl')) continue;
+              try {
+                const ts = fs.statSync(path.join(projDir, e.name, ff)).mtimeMs;
+                if (ts > bestTs) { bestTs = ts; bestCwd = cwd; }
+              } catch {}
+            }
+          }
+        }
+        const d = path.dirname(f);
+        if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+        fs.writeFileSync(f, JSON.stringify({ cwd: bestCwd, ts: Date.now() }), 'utf8');
+        console.log('[channels] Auto-init bot cwd:', bestCwd);
+      }
+    } catch {}
+
     mgr.messageHandler = async (userId, text, channelId) => {
       try {
         const cfg = mgr.loadConfig();
