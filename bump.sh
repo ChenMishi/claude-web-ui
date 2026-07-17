@@ -55,8 +55,4 @@ $SED -i "s/version: '$VPAT'/version: '$NEW'/" "$PROJECT_DIR/server/routes/health
 echo "构建前端..."
 cd "$PROJECT_DIR/client" && npm run build
 
-# 7. Create git tag for version rollback, push to remote
-git -C "$PROJECT_DIR" tag -a "v$NEW" -m "v$NEW" 2>/dev/null || true
-git -C "$PROJECT_DIR" push origin "v$NEW" 2>/dev/null || true
-
 echo "v$OLD → v$NEW  版本号已全部同步并构建完成"

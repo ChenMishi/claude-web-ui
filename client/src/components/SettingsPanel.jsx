@@ -98,11 +98,11 @@ export default function SettingsPanel() {
           <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}><IconZap/> 初始化</button>
           <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}><IconClipboard/> 日志</button>
           <button className={settingsTab === 'stats' ? 'active' : ''} onClick={() => setSettingsTab('stats')}><IconBarChart/> 统计</button>
+          <button className={settingsTab === 'channels' ? 'active' : ''} onClick={() => setSettingsTab('channels')}><IconPuzzle/> 渠道</button>
           <button className={settingsTab === 'upgrade' ? 'active' : ''} onClick={() => { setSettingsTab('upgrade'); setUpgradeCheckTrigger(c => c + 1); }}>
             <IconRefresh/> 升级
             {updateAvailable && <span className="settings-tab-badge" />}
           </button>
-          <button className={settingsTab === 'channels' ? 'active' : ''} onClick={() => setSettingsTab('channels')}><IconPuzzle/> 渠道</button>
         </div>
 
         <div className="settings-tab-body">      {settingsTab === 'general' ? (

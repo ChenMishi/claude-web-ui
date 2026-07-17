@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeStatus, getVersionHistory, rollbackVersion, getRecentChangelogs } from '../api';
+import { checkVersion, getVersionInfo, upgradeVersion, getUpgradeStatus, rollbackVersion, getRecentChangelogs } from '../api';
 import { IconTag, IconRocket } from './icons';
 
 export default function VersionCard({ triggerCheck }) {
@@ -16,17 +16,15 @@ export default function VersionCard({ triggerCheck }) {
   const [upgradeDone, setUpgradeDone] = useState(false);
   const [upgradeError, setUpgradeError] = useState(null);
   const [changelogs, setChangelogs] = useState([]);
+  const [confirmRollback, setConfirmRollback] = useState(null);
 
   useEffect(() => {
     getVersionInfo().then(d => { setInfo(d); setRemote(d.remote || ''); }).catch(() => {});
     getRecentChangelogs().then(d => setChangelogs(d.changelogs || [])).catch(() => {});
   }, []);
 
-  // Auto-check when user clicks upgrade tab
-  useEffect(() => {
-    if (triggerCheck > 0) handleCheck();
-  }, [triggerCheck]);
-  // Periodic check every 6 hours
+  useEffect(() => { if (triggerCheck > 0) handleCheck(); }, [triggerCheck]);
+
   useEffect(() => {
     const t = setInterval(() => {
       checkVersion({ remote }).then(d => {
@@ -73,42 +71,20 @@ export default function VersionCard({ triggerCheck }) {
     catch (err) { setUpgradeError(`启动失败: ${err.message}`); setUpgrading(false); }
   }, [remote]);
 
-  // ── Rollback ──
-  const [rollbackVersions, setRollbackVersions] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [rollingBack, setRollingBack] = useState(false);
-  const [confirmRollback, setConfirmRollback] = useState(null);
-
-  const handleLoadHistory = useCallback(async () => {
-    setLoadingHistory(true);
-    try {
-      const data = await getVersionHistory();
-      setRollbackVersions(data.versions || []);
-    } catch (err) {
-      setUpgradeError('加载版本历史失败: ' + err.message);
-    }
-    setLoadingHistory(false);
-  }, []);
-
-  const handleRollback = useCallback(async (tag) => {
+  const handleRollback = useCallback(async (version) => {
+    const tag = `v${version}`;
     setConfirmRollback(null);
     flushSync(() => {
-      setUpgrading(true);
-      setUpgradeProgress(0);
-      setUpgradeMsg(`正在回滚到 ${tag}...`);
-      setUpgradeDone(false);
-      setUpgradeError(null);
-      setRollingBack(true);
+      setUpgrading(true); setUpgradeProgress(0); setUpgradeMsg(`正在回滚到 ${tag}...`);
+      setUpgradeDone(false); setUpgradeError(null);
     });
     try {
       const d = await rollbackVersion(tag);
-      if (!d.ok) { setUpgradeError(d.error || '启动失败'); setUpgrading(false); setRollingBack(false); }
-    } catch (err) { setUpgradeError(`启动失败: ${err.message}`); setUpgrading(false); setRollingBack(false); }
+      if (!d.ok) { setUpgradeError(d.error || '启动失败'); setUpgrading(false); }
+    } catch (err) { setUpgradeError(`启动失败: ${err.message}`); setUpgrading(false); }
   }, []);
 
-  useEffect(() => {
-    if (!upgrading && (upgradeDone || upgradeError)) setRollingBack(false);
-  }, [upgrading, upgradeDone, upgradeError]);
+  const currentVer = info?.version || '';
 
   return (
     <div className="settings-card">
@@ -121,32 +97,10 @@ export default function VersionCard({ triggerCheck }) {
           </div>
         )}
 
-        {/* ── Recent changelogs ── */}
-        {changelogs.length > 0 && (
-          <div style={{ marginTop: 12, marginBottom: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>最近更新</div>
-            {changelogs.map((cl, i) => (
-              <div key={cl.tag} style={{ marginBottom: i < changelogs.length - 1 ? 10 : 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 2 }}>
-                  v{cl.version} <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>{cl.date}</span>
-                </div>
-                {cl.commits.map((c, j) => (
-                  <div key={j} style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 10, lineHeight: '1.6' }}>
-                    <code style={{ fontSize: 10, marginRight: 4 }}>{c.hash}</code>
-                    {c.message}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-
         <div className="settings-row">
           <label>Git 仓库地址</label>
           <input
-            type="text"
-            value={remote}
-            onChange={e => setRemote(e.target.value)}
+            type="text" value={remote} onChange={e => setRemote(e.target.value)}
             placeholder="https://github.com/user/repo.git"
             style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 4, background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
           />
@@ -156,9 +110,7 @@ export default function VersionCard({ triggerCheck }) {
             style={{ padding: '6px 14px', fontSize: 12, borderRadius: 6, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer' }}>
             {checking ? '检测中...' : '检测新版本'}
           </button>
-          {checkResult?.error && (
-            <span style={{ fontSize: 12, color: 'var(--danger)', marginLeft: 8, alignSelf: 'center' }}>{checkResult.error}</span>
-          )}
+          {checkResult?.error && <span style={{ fontSize: 12, color: 'var(--danger)', marginLeft: 8, alignSelf: 'center' }}>{checkResult.error}</span>}
         </div>
         {checkResult && !checkResult.error && (
           <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: checkResult.hasUpdate ? 'rgba(255,183,77,0.1)' : 'rgba(76,175,80,0.1)', border: `1px solid ${checkResult.hasUpdate ? 'rgba(255,183,77,0.3)' : 'rgba(76,175,80,0.2)'}` }}>
@@ -197,58 +149,57 @@ export default function VersionCard({ triggerCheck }) {
         )}
         {upgradeError && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{upgradeError}</div>}
 
-        {/* ── Version rollback ── */}
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>版本回滚</div>
-          {!rollingBack ? (
-            <>
-              <button onClick={handleLoadHistory} disabled={loadingHistory}
-                style={{ padding: '6px 14px', fontSize: 12, borderRadius: 6, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer' }}>
-                {loadingHistory ? '加载中...' : '加载历史版本'}
-              </button>
-
-              {rollbackVersions.length > 0 && (
-                <div className="version-update-commits" style={{ marginTop: 8 }}>
-                  {rollbackVersions.map((v) => (
-                    <div key={v.tag} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', fontSize: 12 }}>
-                      <div>
-                        <span style={{ color: v.current ? 'var(--accent)' : 'var(--text-muted)' }}>
-                          {v.current ? '● 当前' : `v${v.version}`}
-                        </span>
-                        <code style={{ marginLeft: 8 }}>{v.commit}</code>
-                        <span style={{ marginLeft: 6, color: 'var(--text-muted)', fontSize: 11 }}>{v.date}</span>
-                      </div>
-                      {!v.current && (
-                        <button onClick={() => setConfirmRollback(v.tag)}
-                          style={{ padding: '3px 12px', fontSize: 11, borderRadius: 4, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer' }}>
-                          回滚
-                        </button>
-                      )}
+        {/* ── 最近更新 + 版本回滚（融合） ── */}
+        {changelogs.length > 0 && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>最近更新</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>系统每 2 小时自动检测</div>
+            </div>
+            {changelogs.map((cl, i) => (
+              <div key={cl.version || i} className="changelog-block" style={{ marginBottom: i < changelogs.length - 1 ? 12 : 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: cl.version === currentVer ? 'var(--accent)' : 'var(--text-primary)' }}>
+                        {cl.version === currentVer ? '● ' : ''}v{cl.version}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{cl.date}</span>
                     </div>
-                  ))}
-                </div>
-              )}
-
-              {confirmRollback && (
-                <div style={{ marginTop: 10, padding: 10, borderRadius: 6, background: 'rgba(255,183,77,0.1)', border: '1px solid rgba(255,183,77,0.3)', fontSize: 12 }}>
-                  <div style={{ marginBottom: 8 }}>确定回滚到 <strong>{confirmRollback}</strong>？服务将短暂中断。</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => handleRollback(confirmRollback)}
-                      style={{ padding: '4px 14px', fontSize: 12, borderRadius: 6, background: '#c06400', color: '#fff', border: 'none', cursor: 'pointer' }}>
-                      确认回滚
-                    </button>
-                    <button onClick={() => setConfirmRollback(null)}
-                      style={{ padding: '4px 14px', fontSize: 12, borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-                      取消
-                    </button>
+                    {cl.commits.map((c, j) => (
+                      <div key={j} style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 4, lineHeight: '1.6' }}>
+                        <code style={{ fontSize: 10, marginRight: 4 }}>{c.hash.slice(0, 8)}</code>
+                        {c.message}
+                      </div>
+                    ))}
                   </div>
+                  {cl.version !== currentVer && !upgrading && (
+                    <button onClick={() => setConfirmRollback(cl.version)}
+                      style={{ padding: '1px 8px', fontSize: 10, borderRadius: 3, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0, marginLeft: 8 }}>
+                      回滚
+                    </button>
+                  )}
                 </div>
-              )}
-            </>
-          ) : (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>回滚进行中，请查看上方进度</div>
-          )}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {confirmRollback && (
+          <div className="changelog-block" style={{ marginTop: 10, padding: 10, borderRadius: 6, background: 'rgba(255,183,77,0.1)', border: '1px solid rgba(255,183,77,0.3)', fontSize: 12 }}>
+            <div style={{ marginBottom: 8 }}>确定回滚到 <strong>v{confirmRollback}</strong>？服务将短暂中断。</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => handleRollback(confirmRollback)}
+                style={{ padding: '4px 14px', fontSize: 12, borderRadius: 6, background: '#c06400', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                确认回滚
+              </button>
+              <button onClick={() => setConfirmRollback(null)}
+                style={{ padding: '4px 14px', fontSize: 12, borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                取消
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

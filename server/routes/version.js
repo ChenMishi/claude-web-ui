@@ -223,41 +223,33 @@ router.get('/version/upgrade/log', (_req, res) => {
 
 router.get('/version/recent-changelogs', (req, res) => {
   try {
-    try { execSync('git fetch --tags --quiet', { cwd: PROJECT_DIR, timeout: 10000 }); } catch {}
-
-    const raw = execSync('git tag -l --sort=-creatordate', {
+    const log = execSync('git log --no-merges --format="%h||%ai||%s" -200', {
       cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
     }).trim();
 
-    if (!raw) return res.json({ changelogs: [] });
+    if (!log) return res.json({ changelogs: [] });
 
-    const tags = raw.split('\n').filter(Boolean).slice(0, 4); // need 4 to get 3 intervals
-    const changelogs = [];
+    const entries = log.split('\n').map(line => {
+      const [hash, date, ...rest] = line.split('||');
+      return { hash, date: date.slice(0, 10), message: rest.join('||') };
+    });
 
-    for (let i = 0; i < tags.length - 1 && changelogs.length < 3; i++) {
-      const curTag = tags[i];
-      const prevTag = tags[i + 1];
-      try {
-        const log = execSync(`git log ${prevTag}..${curTag} --no-merges --format="%h||%s"`, {
-          cwd: PROJECT_DIR, encoding: 'utf8', timeout: 5000
-        }).trim();
-
-        let ver = curTag.replace(/^v/, '');
-
-        const commits = log ? log.split('\n').map(line => {
-          const [hash, ...rest] = line.split('||');
-          return { hash, message: rest.join('||') };
-        }) : [];
-
-        const date = execSync(`git log -1 --format=%ai "${curTag}"`, {
-          cwd: PROJECT_DIR, encoding: 'utf8', timeout: 3000
-        }).trim().slice(0, 10);
-
-        if (commits.length > 0) {
-          changelogs.push({ tag: curTag, version: ver, date, commits });
-        }
-      } catch {}
+    // Group by version prefix in commit message
+    const groups = [];
+    let current = null;
+    for (const e of entries) {
+      const verMatch = e.message.match(/^v?(\d+\.\d+\.\d+)/);
+      const ver = verMatch ? verMatch[1] : null;
+      if (ver && (!current || ver !== current.version)) {
+        if (current && current.commits.length > 0) groups.push(current);
+        current = { version: ver, date: e.date, commits: [] };
+      }
+      if (current) current.commits.push({ hash: e.hash, message: e.message });
     }
+    if (current && current.commits.length > 0) groups.push(current);
+
+    // Return first 3 groups (newest versions)
+    const changelogs = groups.slice(0, 3);
 
     res.json({ changelogs });
   } catch (err) {
