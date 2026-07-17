@@ -243,11 +243,6 @@ router.get('/version/recent-changelogs', (req, res) => {
         }).trim();
 
         let ver = curTag.replace(/^v/, '');
-        try {
-          ver = execSync(`git show "${curTag}:VERSION"`, {
-            cwd: PROJECT_DIR, encoding: 'utf8', timeout: 3000
-          }).trim().replace(/\n/g, '');
-        } catch {}
 
         const commits = log ? log.split('\n').map(line => {
           const [hash, ...rest] = line.split('||');
@@ -328,11 +323,6 @@ router.get('/version/history', (req, res) => {
 router.post('/version/rollback', (req, res) => {
   const { tag } = req.body || {};
   if (!tag) return res.status(400).json({ error: 'tag is required' });
-
-  const curState = readUpgradeState();
-  if (curState && curState.status === 'running') {
-    return res.status(409).json({ error: '升级/回滚已在执行中' });
-  }
 
   const rollbackScript = path.join(PROJECT_DIR, 'rollback.sh');
   if (!fs.existsSync(rollbackScript)) {

@@ -220,7 +220,7 @@ export default function VersionCard({ triggerCheck }) {
                       </div>
                       {!v.current && (
                         <button onClick={() => setConfirmRollback(v.tag)}
-                          style={{ padding: '2px 10px', fontSize: 11, borderRadius: 4, background: 'transparent', color: 'var(--warning)', border: '1px solid var(--warning)', cursor: 'pointer' }}>
+                          style={{ padding: '3px 12px', fontSize: 11, borderRadius: 4, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer' }}>
                           回滚
                         </button>
                       )}
@@ -234,7 +234,7 @@ export default function VersionCard({ triggerCheck }) {
                   <div style={{ marginBottom: 8 }}>确定回滚到 <strong>{confirmRollback}</strong>？服务将短暂中断。</div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => handleRollback(confirmRollback)}
-                      style={{ padding: '4px 14px', fontSize: 12, borderRadius: 6, background: 'var(--warning)', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                      style={{ padding: '4px 14px', fontSize: 12, borderRadius: 6, background: '#c06400', color: '#fff', border: 'none', cursor: 'pointer' }}>
                       确认回滚
                     </button>
                     <button onClick={() => setConfirmRollback(null)}
