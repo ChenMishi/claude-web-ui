@@ -9,7 +9,7 @@ import StatsPanel from './StatsPanel';
 import ChannelsPanel from './ChannelsPanel';
 import BackupCard from './BackupCard';
 import StorageCard from './StorageCard';
-import { IconSettings, IconUsers, IconZap, IconClipboard, IconBarChart, IconRefresh, IconChat, IconDollar, IconLock } from './icons';
+import { IconSettings, IconUsers, IconZap, IconClipboard, IconBarChart, IconRefresh, IconChat, IconDollar, IconLock, IconPuzzle } from './icons';
 
 export default function SettingsPanel() {
   const { model, systemPrompt, permissionLevel, setSetting, projects, currentProjectId, user,
@@ -102,7 +102,7 @@ export default function SettingsPanel() {
             <IconRefresh/> 升级
             {updateAvailable && <span className="settings-tab-badge" />}
           </button>
-          <button className={settingsTab === 'channels' ? 'active' : ''} onClick={() => setSettingsTab('channels')}><IconZap/> 渠道</button>
+          <button className={settingsTab === 'channels' ? 'active' : ''} onClick={() => setSettingsTab('channels')}><IconPuzzle/> 渠道</button>
         </div>
 
         <div className="settings-tab-body">      {settingsTab === 'general' ? (
