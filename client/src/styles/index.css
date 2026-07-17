@@ -3111,7 +3111,7 @@ html, body, #root {
 
 /* Settings tabs — header row inside the card */
 .settings-tabs {
-  display: flex;
+  display: flex; flex-wrap: wrap;
   gap: 0;
   border-bottom: 1px solid var(--border);
   padding: 6px 8px 0;
@@ -5844,3 +5844,45 @@ html, body, #root {
 .storage-password-actions button {
   padding: 8px 20px !important; font-size: 13px !important; border-radius: 8px !important;
 }
+
+/* ── Channels Panel ── */
+.channels-panel h2 { font-size: 18px; margin-bottom: 16px; }
+.channel-card {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 12px; margin-bottom: 6px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-secondary);
+}
+.channel-card-info { flex: 1; }
+.channel-card-name { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+.channel-card-meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 10px; align-items: center; }
+.channel-card-type { }
+.channel-card-status { }
+.channel-card-status.running { color: var(--success); }
+.channel-card-status.stopped { color: var(--text-muted); }
+.channel-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.channel-card-actions button {
+  padding: 4px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+}
+.channel-card-actions button:hover { color: var(--text-primary); border-color: var(--accent); }
+.channel-toggle.on { border-color: var(--success); color: var(--success); }
+.channel-toggle.off { border-color: var(--text-muted); color: var(--text-muted); }
+.channel-del:hover { border-color: var(--danger) !important; color: var(--danger) !important; }
+
+.channel-form {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px;
+}
+.channel-form-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.channel-form-row label {
+  width: 130px; flex-shrink: 0; font-size: 12px; color: var(--text-muted); text-align: right;
+}
+.channel-form-row input {
+  flex: 1; padding: 5px 10px; font-size: 12px;
+  background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-primary); outline: none;
+}
+.channel-form-row input:focus { border-color: var(--accent); }

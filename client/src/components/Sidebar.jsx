@@ -22,9 +22,14 @@ export default function Sidebar() {
     updateAvailable, user, logout, isStreaming,
     restartStatus, restartError, triggerRestart, dismissRestart,
     needInit, setNeedInit,
+    notifyTaskOutput,
   } = useApp();
   const isAdmin = user?.role === 'admin';
   const [menuOpen, setMenuOpen] = useState(false);
+  const currentProjectIdRef = useRef(currentProjectId);
+  currentProjectIdRef.current = currentProjectId;
+  const currentSessionIdRef = useRef(currentSessionId);
+  currentSessionIdRef.current = currentSessionId;
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(null); // { x, y } or null
   const [sidebarMinimal, setSidebarMinimal] = useState(false);
@@ -200,6 +205,57 @@ export default function Sidebar() {
     }).catch(() => {});
   }, [isAdmin]);
 
+  // ── Bot channel SSE: auto-reload sessions & messages when bot receives messages ──
+  useEffect(() => {
+    let es = null, rt = null;
+    const connect = () => {
+      try { es = new EventSource('/api/channels/events'); }
+      catch { rt = setTimeout(connect, 10000); return; }
+      es.addEventListener('session-update', async (evt) => {
+        try {
+          let data = {};
+          try { data = JSON.parse(evt.data); } catch {}
+          const botSid = data.sessionId;
+          const pid = currentProjectIdRef.current;
+
+          // 1. Reload project list and sessions
+          getProjects().then(setProjects).catch(() => {});
+          if (pid) getProjectSessions(pid).then(setSessions).catch(() => {});
+
+          // 2. Load bot session messages and store in cache
+          if (botSid && pid) {
+            const msgs = await getSessionMessages(botSid);
+            if (msgs?.length) {
+              const chatMsgs = [];
+              for (const m of msgs) {
+                const content = m.message?.content;
+                const ts = m.timestamp ? new Date(m.timestamp).getTime() : null;
+                if (typeof content === 'string' && content.trim()) {
+                  chatMsgs.push({ role: m.type, content, ...(ts && { timestamp: ts }) });
+                } else if (Array.isArray(content)) {
+                  const textBlocks = content.filter(c => c.type === 'text');
+                  if (textBlocks.length > 0) {
+                    chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: textBlocks.map(c => c.text).join(''), ...(ts && { timestamp: ts }) });
+                  }
+                }
+              }
+              if (chatMsgs.length > 0) {
+                // Store in messageCache first, then selectSession restores from cache
+                setMessages(chatMsgs, botSid);
+                if (currentSessionIdRef.current !== botSid) {
+                  selectSession(botSid);
+                }
+              }
+            }
+          }
+        } catch {}
+      });
+      es.onerror = () => { es.close(); rt = setTimeout(connect, 10000); };
+    };
+    connect();
+    return () => { if (es) es.close(); if (rt) clearTimeout(rt); };
+  }, []);
+
   const handleRestart = () => {
     setConfirmRestart(null);
     setMenuOpen(false);
@@ -210,7 +266,7 @@ export default function Sidebar() {
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${sidebarMinimal ? 'minimal' : ''} ${sidebarUpCollapsed ? 'up-collapsed' : ''} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
         <h2>{sidebarMinimal ? 'AI' : 'AI IntelliWork Hub'}</h2>
-        {!sidebarMinimal && <div className="sidebar-version">v2.3.7</div>}
+        {!sidebarMinimal && <div className="sidebar-version">v2.3.8</div>}
       </div>
 
       {!sidebarMinimal && (

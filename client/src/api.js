@@ -649,3 +649,25 @@ export async function compactSession(sessionId, keepCount = 6) {
     body: JSON.stringify({ keepCount }),
   });
 }
+
+// ── Channels API ──
+
+export async function getChannelTypes() {
+  return fetchJSON('/channels/types');
+}
+
+export async function getChannelStatus() {
+  return fetchJSON('/channels/status');
+}
+
+export async function saveChannel(channel) {
+  return fetchJSON('/channels/save', { method: 'POST', body: JSON.stringify({ channel }) });
+}
+
+export async function toggleChannel(id) {
+  return fetchJSON(`/channels/${encodeURIComponent(id)}/toggle`, { method: 'POST' });
+}
+
+export async function deleteChannel(id) {
+  return fetchJSON(`/channels/${encodeURIComponent(id)}/delete`, { method: 'POST' });
+}

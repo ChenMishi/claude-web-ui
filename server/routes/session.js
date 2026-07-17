@@ -1501,8 +1501,18 @@ router.patch('/session/:id', (req, res) => {
       realDir = path.dirname(fs.realpathSync(sessionInfo.file));
     }
   } catch {}
+  // Write to both locations: real dir for persistence, entryDir for session list reading
   const metaPath = path.join(realDir, `${id}.meta.json`);
   fs.writeFileSync(metaPath, JSON.stringify({ title }), 'utf8');
+  // Also write to entryDir in case no symlink exists (defect A in ensureProjectSymlinks)
+  if (realDir !== sessionInfo.entryDir) {
+    const linkMeta = path.join(sessionInfo.entryDir, `${id}.meta.json`);
+    // If already a symlink, skip; otherwise write directly to projects dir
+    try {
+      if (fs.lstatSync(linkMeta).isSymbolicLink()) { /* symlink exists */ }
+      else { fs.writeFileSync(linkMeta, JSON.stringify({ title }), 'utf8'); }
+    } catch { fs.writeFileSync(linkMeta, JSON.stringify({ title }), 'utf8'); }
+  }
   res.json({ ok: true });
 });
 
@@ -1525,6 +1535,14 @@ router.post('/session/:id/pin', (req, res) => {
   }
   meta.pinned = pinned;
   fs.writeFileSync(metaPath, JSON.stringify(meta), 'utf8');
+  // Also write to entryDir in case no symlink exists
+  if (realDir !== sessionInfo.entryDir) {
+    const linkMeta = path.join(sessionInfo.entryDir, `${id}.meta.json`);
+    try {
+      if (fs.lstatSync(linkMeta).isSymbolicLink()) { /* symlink exists */ }
+      else { fs.writeFileSync(linkMeta, JSON.stringify(meta), 'utf8'); }
+    } catch { fs.writeFileSync(linkMeta, JSON.stringify(meta), 'utf8'); }
+  }
   res.json({ ok: true, pinned });
 });
 
@@ -2337,6 +2355,26 @@ router.post('/session/:id/message', async (req, res) => {
             currency: result.currency || '$',
           }) + '\n';
           fs.appendFileSync(statsFile, record);
+        }
+      } catch {}
+
+      // ── Bot session: push reply from Web UI back to WeChat user ──
+      try {
+        const { sessionToUser, pushToUser } = require('../channels/bot-handler');
+        const botUser = sessionToUser(runtime.sessionId);
+        if (botUser) {
+          // Collect latest assistant text from runtime buffer
+          const reply = (runtime.buffer || [])
+            .filter(m => m.event === 'message' && m.data?.type === 'assistant')
+            .map(m => {
+              const blocks = m.data?.message?.content || [];
+              return blocks.filter(c => c.type === 'text').map(c => c.text).join('');
+            })
+            .join('');
+          if (reply && !req.headers['x-internal-token']) {
+            // Web UI user sent this message, not bot — only push when it's a human action
+            pushToUser(runtime.sessionId, reply, null).catch(() => {});
+          }
         }
       } catch {}
 

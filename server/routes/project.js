@@ -298,18 +298,21 @@ function collectSessionsFromDir(dirPath, cwd, excludeIds) {
     try {
       if (fs.lstatSync(filePath).isSymbolicLink() && !fs.existsSync(filePath)) return null;
     } catch { return null; }
-    let title = null;
-    let pinned = false;
+    let title = null, pinned = false, channelName = null;
     const metaPath = path.join(dirPath, `${sessionId}.meta.json`);
     if (fs.existsSync(metaPath)) {
       try {
         const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
         title = meta.title;
         pinned = !!meta.pinned;
+        channelName = meta.channelName || null;
       } catch {}
     }
     if (!title) title = parseTitleFromJsonl(filePath);
     if (!title) title = sessionId.slice(0, 8);
+    if (channelName && title && !title.startsWith(`${channelName}:`)) {
+      title = `${channelName}: ${title}`;
+    }
     let lastModified = 0;
     try { lastModified = fs.statSync(filePath).mtimeMs; } catch {}
     return { id: sessionId, title, cwd, lastModified, pinned };

@@ -6,6 +6,7 @@ import AgentSdkCard from './AgentSdkCard';
 import InitPanel from './InitPanel';
 import LogPanel from './LogPanel';
 import StatsPanel from './StatsPanel';
+import ChannelsPanel from './ChannelsPanel';
 import BackupCard from './BackupCard';
 import StorageCard from './StorageCard';
 import { IconSettings, IconUsers, IconZap, IconClipboard, IconBarChart, IconRefresh, IconChat, IconDollar, IconLock } from './icons';
@@ -16,7 +17,7 @@ export default function SettingsPanel() {
   const displayModel = fmtModel(currentModel, modelGroups, model);
   const isAdmin = user?.role === 'admin';
   const project = projects.find(p => p.id === currentProjectId);
-  const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'users' | 'init' | 'logs' | 'upgrade'
+  const [settingsTab, setSettingsTab] = useState('general'); // 'general' | 'init' | 'logs' | 'stats' | 'upgrade' | 'channels'
   const [upgradeCheckTrigger, setUpgradeCheckTrigger] = useState(0);
 
   const [users, setUsers] = useState([]);
@@ -94,9 +95,6 @@ export default function SettingsPanel() {
       <div className="settings-tab-card">
         <div className="settings-tabs">
           <button className={settingsTab === 'general' ? 'active' : ''} onClick={() => setSettingsTab('general')}><IconSettings/> 常规设置</button>
-          {isAdmin && (
-            <button className={settingsTab === 'users' ? 'active' : ''} onClick={() => setSettingsTab('users')}><IconUsers/> 用户管理</button>
-          )}
           <button className={settingsTab === 'init' ? 'active' : ''} onClick={() => setSettingsTab('init')}><IconZap/> 初始化</button>
           <button className={settingsTab === 'logs' ? 'active' : ''} onClick={() => setSettingsTab('logs')}><IconClipboard/> 日志</button>
           <button className={settingsTab === 'stats' ? 'active' : ''} onClick={() => setSettingsTab('stats')}><IconBarChart/> 统计</button>
@@ -104,6 +102,7 @@ export default function SettingsPanel() {
             <IconRefresh/> 升级
             {updateAvailable && <span className="settings-tab-badge" />}
           </button>
+          <button className={settingsTab === 'channels' ? 'active' : ''} onClick={() => setSettingsTab('channels')}><IconZap/> 渠道</button>
         </div>
 
         <div className="settings-tab-body">      {settingsTab === 'general' ? (
@@ -235,6 +234,42 @@ export default function SettingsPanel() {
           {/* Card: 存储管理 (admin only) */}
           {isAdmin && <StorageCard />}
 
+          {/* Card: 用户管理 (admin only) */}
+          {isAdmin && (
+            <div className="settings-card">
+              <div className="settings-card-header"><IconUsers/> 用户管理</div>
+              <div className="settings-card-body">
+                {users.length > 0 && (
+                  <table className="settings-table">
+                    <thead><tr><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
+                    <tbody>
+                      {users.map(u => (
+                        <tr key={u.id}>
+                          <td>{u.username}</td>
+                          <td>{u.role === 'admin' ? '管理员' : '用户'}</td>
+                          <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString('zh-CN') : '-'}</td>
+                          <td>{u.id !== user?.id && <button className="user-mgmt-del-btn" onClick={() => handleDeleteUser(u.id)}>删除</button>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <div className="settings-add-user">
+                  <input type="text" placeholder="用户名" value={newUsername} onChange={e => setNewUsername(e.target.value)} />
+                  <input type="password" placeholder="密码" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
+                  <select value={newRole} onChange={e => setNewRole(e.target.value)}>
+                    <option value="user">普通用户</option>
+                    <option value="admin">管理员</option>
+                  </select>
+                  <button className="user-mgmt-add-btn" onClick={handleCreateUser} disabled={mgmtLoading}>
+                    {mgmtLoading ? '创建中...' : '创建用户'}
+                  </button>
+                </div>
+                {mgmtError && <div className="user-mgmt-error">{mgmtError}</div>}
+              </div>
+            </div>
+          )}
+
           {/* Card: 系统信息 */}
           <div className="settings-card">
             <div className="settings-card-header"><IconBarChart/> 系统信息</div>
@@ -249,7 +284,7 @@ export default function SettingsPanel() {
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">版本</span>
-                <span className="settings-info-value">v2.3.7</span>
+                <span className="settings-info-value">v2.3.8</span>
               </div>
               <div className="settings-info-row">
                 <span className="settings-info-label">数据存储</span>
@@ -258,39 +293,6 @@ export default function SettingsPanel() {
             </div>
           </div>
         </>
-      ) : settingsTab === 'users' ? (
-        <div className="settings-card">
-          <div className="settings-card-header"><IconUsers/> 用户管理</div>
-          <div className="settings-card-body">
-            {users.length > 0 && (
-              <table className="settings-table">
-                <thead><tr><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
-                <tbody>
-                  {users.map(u => (
-                    <tr key={u.id}>
-                      <td>{u.username}</td>
-                      <td>{u.role === 'admin' ? '管理员' : '用户'}</td>
-                      <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString('zh-CN') : '-'}</td>
-                      <td>{u.id !== user?.id && <button className="user-mgmt-del-btn" onClick={() => handleDeleteUser(u.id)}>删除</button>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <div className="settings-add-user">
-              <input type="text" placeholder="用户名" value={newUsername} onChange={e => setNewUsername(e.target.value)} />
-              <input type="password" placeholder="密码" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
-              <select value={newRole} onChange={e => setNewRole(e.target.value)}>
-                <option value="user">普通用户</option>
-                <option value="admin">管理员</option>
-              </select>
-              <button className="user-mgmt-add-btn" onClick={handleCreateUser} disabled={mgmtLoading}>
-                {mgmtLoading ? '创建中...' : '创建用户'}
-              </button>
-            </div>
-            {mgmtError && <div className="user-mgmt-error">{mgmtError}</div>}
-          </div>
-        </div>
       ) : settingsTab === 'init' ? (
         <InitPanel />
       ) : settingsTab === 'upgrade' ? (
@@ -300,6 +302,8 @@ export default function SettingsPanel() {
         </>
       ) : settingsTab === 'stats' ? (
         <StatsPanel />
+      ) : settingsTab === 'channels' ? (
+        <ChannelsPanel />
       ) : (
         <LogPanel />
       )}

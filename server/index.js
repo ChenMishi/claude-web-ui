@@ -62,7 +62,17 @@ function createApp() {
 
   // Auth gate — applied to all remaining /api routes
   app.use('/api', (req, res, next) => {
-    if (req.path === '/health' || req.path.startsWith('/auth')) return next();
+    if (req.path === '/health' || req.path.startsWith('/auth') || req.path === '/channels/events') return next();
+    // Bot internal requests bypass auth with shared token
+    if (req.headers['x-internal-token']) {
+      try {
+        const expected = require('./channels/bot-handler').getInternalToken();
+        if (req.headers['x-internal-token'] === expected) {
+          req.user = { userId: 'bot', username: 'bot', role: 'admin' };
+          return next();
+        }
+      } catch {}
+    }
     // authModeCheck handles disabled/optional/required decision
     const enabled = require('./middleware/auth').isAuthEnabled();
     if (!enabled) return next();
@@ -98,6 +108,7 @@ function createApp() {
 app.use('/api', require('./routes/backup'));
 app.use('/api', require('./routes/storage'));
 app.use('/api', require('./routes/scheduled-task').router);
+app.use('/api', require('./routes/channels'));
 
   // Swagger docs
   try {
@@ -307,6 +318,26 @@ function startServer(opts = {}) {
 
   // Start scheduled task scheduler
   try { require('./scheduler').start(); } catch (err) { console.log('[scheduler] start failed:', err.message); }
+
+  // Start message channels (WeChat, etc.)
+  try {
+    const { getChannelManager } = require('./channels');
+    const mgr = getChannelManager();
+    const { botMessage } = require('./channels/bot-handler');
+
+    mgr.messageHandler = async (userId, text, channelId) => {
+      try {
+        const cfg = mgr.loadConfig();
+        const channelCfg = (cfg.channels || []).find(c => c.id === channelId) || {};
+        const channelType = channelCfg.type || 'wechat';
+        return await botMessage(channelType, userId, text, channelCfg);
+      } catch (err) {
+        console.error('[channels] Handler error:', err.message);
+        return '处理请求时出错，请稍后重试';
+      }
+    };
+    mgr.startAll().catch(err => console.log('[channels] startAll error:', err.message));
+  } catch (err) { console.log('[channels] start failed:', err.message); }
 
   // Sync Claude global memory rules to ALL human users (auto-installs on every startup)
   try {
