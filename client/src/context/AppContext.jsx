@@ -49,7 +49,9 @@ const initialState = {
   sessionExecStatus: {},   // 每个会话的执行状态 { sessionId: { phase, detail } }
   scheduledTasks: [],      // 定时任务列表
   pendingTaskSessions: new Set(), // 有未读定时任务结果的会话 ID（黄色呼吸灯）
+  unreadSessions: new Set(),         // 有未读新消息的会话 ID（绿色常亮灯）
   taskOutputTick: 0,       // 递增计数器，定时任务有新输出时触发聊天刷新
+  searchScrollTarget: null, // { sessionId, keyword } — search result jump
   sidebarOpen: true,
   updateAvailable: false,  // always reset on page load
   activeView: 'chat',
@@ -277,8 +279,23 @@ function reducer(state, action) {
       next = { ...state, pendingTaskSessions: pts2 };
       break;
     }
+    case 'ADD_UNREAD_SESSION': {
+      const us2 = new Set(state.unreadSessions);
+      us2.add(action.payload);
+      next = { ...state, unreadSessions: us2 };
+      break;
+    }
+    case 'MARK_UNREAD_SESSION': {
+      const us3 = new Set(state.unreadSessions);
+      us3.delete(action.payload);
+      next = { ...state, unreadSessions: us3 };
+      break;
+    }
     case 'NOTIFY_TASK_OUTPUT':
       next = { ...state, taskOutputTick: state.taskOutputTick + 1 };
+      break;
+    case 'SEARCH_SCROLL_TO':
+      next = { ...state, searchScrollTarget: action.payload };
       break;
     case 'SET_VIEW':
       next = { ...state, activeView: action.payload }; break;
@@ -425,7 +442,10 @@ export function AppContextProvider({ children }) {
   const setScheduledTasks = useCallback((tasks) => dispatch({ type: 'SET_SCHEDULED_TASKS', payload: tasks }), []);
   const markTaskSessionRead = useCallback((sid) => dispatch({ type: 'MARK_TASK_SESSION_READ', payload: sid }), []);
   const addPendingTaskSession = useCallback((sid) => dispatch({ type: 'ADD_PENDING_TASK_SESSION', payload: sid }), []);
+  const addUnreadSession = useCallback((sid) => dispatch({ type: 'ADD_UNREAD_SESSION', payload: sid }), []);
+  const markUnreadSession = useCallback((sid) => dispatch({ type: 'MARK_UNREAD_SESSION', payload: sid }), []);
   const notifyTaskOutput = useCallback(() => dispatch({ type: 'NOTIFY_TASK_OUTPUT' }), []);
+  const searchScrollTo = useCallback((payload) => dispatch({ type: 'SEARCH_SCROLL_TO', payload }), []);
   const setView = useCallback((v) => dispatch({ type: 'SET_VIEW', payload: v }), []);
   const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), []);
   const setUpdateAvailable = useCallback((v) => dispatch({ type: 'SET_UPDATE', payload: v }), []);
@@ -562,6 +582,7 @@ export function AppContextProvider({ children }) {
     setMessages, appendMessage, updateLastMessage, setStreaming,
     streamStart, streamEnd, setSessionExecStatus,
     setScheduledTasks, markTaskSessionRead, addPendingTaskSession, notifyTaskOutput,
+    addUnreadSession, markUnreadSession, searchScrollTo,
     setView, toggleSidebar, setSetting,
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, bindTaskId, updateTask, clearTasks, setMainTask, updateMainTask,

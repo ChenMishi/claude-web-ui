@@ -22,7 +22,8 @@ export default function Sidebar() {
     updateAvailable, user, logout, isStreaming,
     restartStatus, restartError, triggerRestart, dismissRestart,
     needInit, setNeedInit,
-    notifyTaskOutput,
+    notifyTaskOutput, addPendingTaskSession, addUnreadSession, markUnreadSession,
+    taskOutputTick,
   } = useApp();
   const isAdmin = user?.role === 'admin';
   const [menuOpen, setMenuOpen] = useState(false);
@@ -226,34 +227,17 @@ export default function Sidebar() {
           try { data = JSON.parse(evt.data); } catch {}
           const botSid = data.sessionId;
           const pid = currentProjectIdRef.current;
+          const cid = currentSessionIdRef.current;
 
-          // 1. Reload project list and sessions
           getProjects().then(setProjects).catch(() => {});
-          if (pid) getProjectSessions(pid).then(setSessions).catch(() => {});
-
-          // 2. Load bot session messages and store in cache
-          if (botSid && pid) {
-            const msgs = await getSessionMessages(botSid);
-            if (msgs?.length) {
-              const chatMsgs = [];
-              for (const m of msgs) {
-                const content = m.message?.content;
-                const ts = m.timestamp ? new Date(m.timestamp).getTime() : null;
-                if (typeof content === 'string' && content.trim()) {
-                  chatMsgs.push({ role: m.type, content, ...(ts && { timestamp: ts }) });
-                } else if (Array.isArray(content)) {
-                  const textBlocks = content.filter(c => c.type === 'text');
-                  if (textBlocks.length > 0) {
-                    chatMsgs.push({ role: m.type === 'user' ? 'user' : 'assistant', content: textBlocks.map(c => c.text).join(''), ...(ts && { timestamp: ts }) });
-                  }
-                }
-              }
-              if (chatMsgs.length > 0) {
-                // Store in messageCache first, then selectSession restores from cache
-                setMessages(chatMsgs, botSid);
-                if (currentSessionIdRef.current !== botSid) {
-                  selectSession(botSid);
-                }
+          if (pid) {
+            getProjectSessions(pid).then(setSessions).catch(() => {});
+            // If viewing the bot session, auto-load new messages; otherwise mark unread
+            if (botSid) {
+              if (cid === botSid) {
+                notifyTaskOutput();
+              } else {
+                addUnreadSession(botSid);
               }
             }
           }
@@ -282,7 +266,7 @@ export default function Sidebar() {
     <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'} ${sidebarMinimal ? 'minimal' : ''} ${sidebarUpCollapsed ? 'up-collapsed' : ''} ${activeView === 'chat' ? '' : 'compact'}`}>
       <div className="sidebar-header">
         <h2>{sidebarMinimal ? 'AI' : 'AI IntelliWork Hub'}</h2>
-        {!sidebarMinimal && <div className="sidebar-version">v2.3.9</div>}
+        {!sidebarMinimal && <div className="sidebar-version">v2.4.0</div>}
       </div>
 
       {!sidebarMinimal && (

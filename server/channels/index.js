@@ -20,8 +20,7 @@ const CONFIG_FILE = path.join(PROJECT_DIR, 'channel-config.json');
 // 内置渠道类型注册表
 const CHANNEL_TYPES = {
   wechat: require('./wechat'),
-  // qq: require('./qq'),       // 后续加入
-  // email: require('./email'),  // 后续加入
+  email: require('./email'),
 };
 
 class ChannelManager extends EventEmitter {
@@ -127,7 +126,9 @@ class ChannelManager extends EventEmitter {
         }
       }
     }
-    this.notifyFrontend('session-update', { channelId, userId, sessionId, timestamp: Date.now() });
+    if (sessionId) {
+      this.notifyFrontend('session-update', { channelId, userId, sessionId, timestamp: Date.now() });
+    }
   }
 
   /** 获取渠道实例 */
@@ -148,7 +149,7 @@ class ChannelManager extends EventEmitter {
   getChannelTypes() {
     return Object.entries(CHANNEL_TYPES).map(([type, Cls]) => ({
       type,
-      label: type === 'wechat' ? '企业微信' : type,
+      label: type === 'wechat' ? '企业微信' : type === 'email' ? '邮箱' : type,
       configSchema: Cls.configSchema || [],
     }));
   }

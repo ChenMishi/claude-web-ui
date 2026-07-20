@@ -73,6 +73,20 @@ export default function ChannelsPanel() {
     <div className="channels-panel">
       <h2><IconPuzzle/> 消息渠道</h2>
 
+      {/* ── 功能提示 ── */}
+      <div className="settings-card" style={{ marginBottom: 14 }}>
+        <div className="settings-card-body" style={{ padding: '12px 16px', gap: 6 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+            💡 <strong>快捷命令</strong>（在企微中发送）：
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.8, paddingLeft: 12 }}>
+            · <strong>切换目录</strong> — 切换工作目录并列出该目录会话<br />
+            · <strong>切换会话</strong> — 列出当前目录会话，回复编号绑定<br />
+            · <strong>直接发消息</strong> — 自动检测已有会话并绑定，无则新建
+          </div>
+        </div>
+      </div>
+
       {/* ── 已配置的渠道 ── */}
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, marginTop: 4 }}><IconPuzzle/> 已配置的渠道</div>
       {loading
@@ -154,6 +168,14 @@ export default function ChannelsPanel() {
         3. 获取 <strong>Bot ID</strong> 和 <strong>Secret</strong>（Secret 仅显示一次）<br />
         4. 填入上方表单，保存并启用即可<br />
         5. 无需公网域名、HTTPS 证书或 CorpID
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.8, marginTop: 12 }}>
+        <strong>邮箱接入指引：</strong><br />
+        1. 准备一个邮箱账号（QQ邮箱/163/Gmail等）<br />
+        2. 开启 <strong>IMAP/SMTP</strong> 服务，获取<strong>授权码</strong>（非登录密码）<br />
+        3. 填入 IMAP/SMTP 服务器地址和授权码<br />
+        4. 保存后系统每 60 秒检查一次新邮件，自动回复并标记已读
       </div>
 
       {/* Inline confirmation popup */}

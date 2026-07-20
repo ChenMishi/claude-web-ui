@@ -7,8 +7,8 @@ export default function SessionList() {
   const {
     sessions, currentSessionId, selectSession, isStreaming,
     currentProjectId, setMessages, setStreaming,
-    setSessions, setProjects, busySessions, pendingTaskSessions,
-    markTaskSessionRead,
+    setSessions, setProjects, busySessions, pendingTaskSessions, unreadSessions,
+    markTaskSessionRead, markUnreadSession,
   } = useApp();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -22,6 +22,7 @@ export default function SessionList() {
   const handleSelect = (id) => {
     selectSession(id, isStreaming);
     if (pendingTaskSessions?.has(id)) markTaskSessionRead(id);
+    if (unreadSessions?.has(id)) markUnreadSession(id);
   };
 
   const handleDelClick = (e, id) => {
@@ -105,7 +106,8 @@ export default function SessionList() {
             {s.pinned && <span className="session-pin-icon" title="已置顶">📌</span>}
             <span>{formatDate(s.lastModified)}</span>
             {busySessions?.has(s.id) && <span className="session-busy-dot" title="执行中" />}
-            {!busySessions?.has(s.id) && pendingTaskSessions?.has(s.id) && <span className="session-task-dot" title="有新的定时任务结果" />}
+            {!busySessions?.has(s.id) && unreadSessions?.has(s.id) && <span className="session-unread-dot" title="有新消息" />}
+            {!busySessions?.has(s.id) && !unreadSessions?.has(s.id) && pendingTaskSessions?.has(s.id) && <span className="session-task-dot" title="定时任务有新结果" />}
           </div>
           <div className="session-item-actions">
             <button className="pin" onClick={(e) => handlePin(e, s.id, s.pinned)} title={s.pinned ? '取消置顶' : '置顶'}>

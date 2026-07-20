@@ -75,11 +75,14 @@ export default function ChatView() {
     execStart, execPhase, execTick, execTokens, execDone, execReset,
     addTask, bindTaskId, updateTask, setMainTask, updateMainTask, execStatus,
     currentModel, finishAllStreaming, finalizeStreaming, streamStart, streamEnd, setSessionExecStatus,
-    busySessions, taskOutputTick,
+    busySessions, taskOutputTick, notifyTaskOutput, addUnreadSession,
+    searchScrollTarget,
     availableModels, modelGroups,
   } = useApp();
   const busyRef = useRef(busySessions);
   busyRef.current = busySessions;
+  const currentSessionIdRef = useRef(currentSessionId);
+  currentSessionIdRef.current = currentSessionId;
   const containerRef = useRef(null);
   const hasAssistantText = useRef(false);
   const textAccum = useRef('');
@@ -668,6 +671,35 @@ export default function ChatView() {
     }).catch(() => {});
   }, [taskOutputTick]); // eslint-disable-line
 
+  // ── Search result jump: scroll to specific matching message ──
+  useEffect(() => {
+    if (!searchScrollTarget || !currentSessionId) return;
+    if (searchScrollTarget.sessionId !== currentSessionId) return;
+    const kw = searchScrollTarget.keyword?.toLowerCase();
+    if (!kw || chatMessages.length === 0) return;
+    // Always scroll, even if already on this session
+    const t = setTimeout(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const msgs = el.querySelectorAll('.message');
+      const matches = [];
+      for (const msg of msgs) {
+        if (msg.textContent?.toLowerCase().includes(kw)) matches.push(msg);
+      }
+      if (matches.length === 0) return;
+      const matchIdx = searchScrollTarget.matchIdx || 0;
+      const total = searchScrollTarget.totalMatches || 1;
+      const domIdx = Math.max(0, matches.length - 1 - Math.min(matchIdx, total - 1));
+      const target = matches[domIdx];
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.add('search-highlight');
+        setTimeout(() => target.classList.remove('search-highlight'), 5000);
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [searchScrollTarget, currentSessionId, chatMessages]);
+
   const handleCompact = useCallback(() => {
     if (!currentSessionId || compacting || isStreaming) return;
     // 复用 /compact 的完整逻辑：发消息 → Claude 总结 → 自动裁剪
@@ -970,6 +1002,11 @@ export default function ChatView() {
         streamEnd(realSid);
         lbExecUpdate('done', '');
         sendingRef.current = false;
+
+        // 普通请求完成 → 非当前会话标未读
+        if (realSid !== currentSessionIdRef.current) {
+          addUnreadSession(realSid);
+        }
 
         // 同会话重发时忽略旧的 done 事件
         if (execIdMapRef.current.get(mySessionId) !== myExecId) return;

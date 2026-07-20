@@ -1560,7 +1560,7 @@ function readLastTextRecords(jsonlPath, textOffset, textLimit) {
     let pos = stat.size;
     let leftover = '';
 
-    while (pos > 0 && results.length < textLimit) {
+    while (pos > 0 && (textLimit > 0 ? results.length < textLimit : true)) {
       const readSize = Math.min(CHUNK_SIZE, pos);
       pos -= readSize;
       const buf = Buffer.alloc(readSize);
@@ -1584,7 +1584,7 @@ function readLastTextRecords(jsonlPath, textOffset, textLimit) {
               textCount++;
               if (textCount > textOffset) {
                 results.unshift(rec);
-                if (results.length >= textLimit) break;
+                if (textLimit > 0 && results.length >= textLimit) break;
               }
             }
           }
@@ -1593,7 +1593,7 @@ function readLastTextRecords(jsonlPath, textOffset, textLimit) {
     }
 
     // 文件开头剩余的第一行
-    if (leftover.trim() && results.length < textLimit) {
+    if (leftover.trim() && (textLimit <= 0 || results.length < textLimit)) {
       try {
         const rec = JSON.parse(leftover);
         if (rec.type === 'user' || rec.type === 'assistant') {
@@ -1674,7 +1674,6 @@ function readLastUserAssistantRecords(jsonlPath, needed) {
 
 router.get('/session/:id/message', (req, res) => {
   const { id } = req.params;
-  const TEXT_LIMIT = 20;
   const sessionInfo = findSessionFile(id, req.user);
   const jsonlPath = sessionInfo ? sessionInfo.file : null;
   if (!jsonlPath) return res.json([]);
@@ -1683,8 +1682,8 @@ router.get('/session/:id/message', (req, res) => {
   try {
     const reqOffset = req.query.offset !== undefined ? parseInt(req.query.offset) : null;
     const textOffset = reqOffset !== null && !isNaN(reqOffset) ? reqOffset : 0;
-    // 从文件末尾倒读，按文本消息数分页，每次返回固定 20 条
-    const msgRecords = readLastTextRecords(jsonlPath, textOffset, TEXT_LIMIT);
+    // 0 = unlimited, load all messages
+    const msgRecords = readLastTextRecords(jsonlPath, textOffset, 0);
     messages.push(...msgRecords);
   } catch {}
   res.json(messages);

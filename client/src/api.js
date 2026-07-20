@@ -95,6 +95,7 @@ export const unlinkProject = (id) => fetchJSON(`/project/${id}`, { method: 'DELE
 export const getProjectSessions = (id) => fetchJSON(`/project/${id}/session`);
 export const getProjectTree = (id, path = '/') => fetchJSON(`/project/${id}/tree?path=${encodeURIComponent(path)}`);
 export const readFile = (id, path) => fetchJSON(`/project/${id}/file?path=${encodeURIComponent(path)}`);
+export const searchSessions = (projectId, keyword) => fetchJSON(`/project/${projectId}/search`, { method: 'POST', body: JSON.stringify({ keyword }) });
 
 // Auth
 export const login = (username, password) => fetchJSON('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });

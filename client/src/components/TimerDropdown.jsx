@@ -5,7 +5,9 @@ import { authHeaders } from '../api';
 
 export default function TimerDropdown() {
   const { scheduledTasks, setScheduledTasks, currentSessionId,
-    addPendingTaskSession, markTaskSessionRead, notifyTaskOutput, appendMessage, sessions } = useApp();
+    addPendingTaskSession, markTaskSessionRead, notifyTaskOutput, appendMessage, sessions,
+    addUnreadSession,
+  } = useApp();
   const [show, setShow] = useState(false);
   const [tick, setTick] = useState(Date.now());
   const [confirmDel, setConfirmDel] = useState(null); // { id, name, x, y }
@@ -19,6 +21,7 @@ export default function TimerDropdown() {
   const containerRef = useRef(null);
   const popupRef = useRef(null);
   const lastOutputRef = useRef({}); // taskId → outputVersion, for detecting new results
+  const firstPollRef = useRef(true); // skip first poll to avoid false new-output detection
   const clickFlag = useRef(false);    // true when mousedown happened inside this component
   // Clean up stale references when tasks are deleted
   useEffect(() => {
@@ -39,13 +42,34 @@ export default function TimerDropdown() {
         .then(r => r.json()).then(d => {
           setScheduledTasks(d.tasks || []);
           if (currentSessionId) markTaskSessionRead(currentSessionId);
+          // First poll: seed lastOutputRef so existing output isn't treated as new
+          if (firstPollRef.current) {
+            firstPollRef.current = false;
+            for (const task of d.tasks || []) {
+              if (task.lastOutput && task.outputVersion) {
+                lastOutputRef.current[task.id] = task.outputVersion;
+              }
+            }
+            // Still need to light up active-task yellow dots
+            const activeSids = new Set();
+            for (const task of d.tasks || []) {
+              if (task.status !== 'stopped' && task.sessionId) activeSids.add(task.sessionId);
+            }
+            for (const sid of activeSids) addPendingTaskSession(sid);
+            return; // skip new-output detection on first poll
+          }
           for (const task of d.tasks || []) {
-            // Detect new output for the current session → append directly to chat
-            if (task.lastOutput && task.sessionId === currentSessionId) {
+            // Detect new output — append to chat if viewing, or mark green unread dot
+            if (task.lastOutput && task.sessionId) {
               const prevVer = lastOutputRef.current[task.id] || 0;
               if ((task.outputVersion || 0) > prevVer) {
                 lastOutputRef.current[task.id] = task.outputVersion;
-                appendMessage({ role: 'assistant', content: `⏰ [定时任务: ${task.name}]\n${task.lastOutput}`, timestamp: Date.now() });
+                if (task.sessionId === currentSessionId) {
+                  appendMessage({ role: 'assistant', content: `⏰ [定时任务: ${task.name}]\n${task.lastOutput}`, timestamp: Date.now() });
+                } else {
+                  // New timer output for a session user is not viewing → green dot
+                  addUnreadSession(task.sessionId);
+                }
               }
             }
           }

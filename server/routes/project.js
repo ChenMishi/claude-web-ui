@@ -386,6 +386,69 @@ router.get('/project/:id/tree', (req, res) => {
 });
 
 // Read file content
+// ── Search sessions by keyword ──
+
+router.post('/project/:id/search', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { keyword, maxResults } = req.body || {};
+    if (!keyword || keyword.trim().length < 2) return res.json({ results: [] });
+
+    const dirPath = resolveProjectPath(id, req.user);
+    if (!fs.existsSync(dirPath)) return res.json({ results: [] });
+
+    const kw = keyword.toLowerCase();
+    const results = [];
+
+    for (const f of fs.readdirSync(dirPath)) {
+      if (!f.endsWith('.jsonl')) continue;
+
+      const sessionId = f.replace('.jsonl', '');
+      const filePath = path.join(dirPath, f);
+
+      try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        const lines = content.split('\n').filter(Boolean);
+
+        // Read title from meta
+        let title = sessionId.slice(0, 8);
+        const metaPath = path.join(dirPath, `${sessionId}.meta.json`);
+        if (fs.existsSync(metaPath)) {
+          try { const m = JSON.parse(fs.readFileSync(metaPath, 'utf8')); if (m.title) title = m.title; } catch {}
+        }
+
+        const matches = [];
+        for (let i = lines.length - 1; i >= 0 && matches.length < 5; i--) {
+          try {
+            const obj = JSON.parse(lines[i]);
+            const msgContent = obj.message?.content;
+            let text = '';
+            if (typeof msgContent === 'string') text = msgContent;
+            else if (Array.isArray(msgContent)) text = msgContent.filter(c => c.type === 'text').map(c => c.text).join('');
+
+            if (text.toLowerCase().includes(kw)) {
+              const snippet = text.slice(Math.max(0, text.toLowerCase().indexOf(kw) - 30), text.toLowerCase().indexOf(kw) + kw.length + 60);
+              matches.push({
+                preview: snippet,
+                role: obj.type || (obj.message?.role),
+                timestamp: obj.timestamp || null,
+              });
+            }
+          } catch {}
+        }
+
+        if (matches.length > 0) {
+          results.push({ sessionId, title, matches });
+        }
+      } catch {}
+    }
+
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/project/:id/file', (req, res) => {
   const { id } = req.params;
   const cwd = dirNameToCwd(id);

@@ -155,6 +155,18 @@ class WechatChannel extends ChannelBase {
             this.onMessage(userId, content, { reqId, chatid }).catch(e =>
               console.error('[wecom-bot] onMessage error:', e.message));
           }
+        } else if (b.msgtype === 'image' && b.image?.url) {
+          const userId = b.from?.userid || 'unknown';
+          const reqId = (msg.headers || {}).req_id || '';
+          const chatid = b.chatid || '';
+          const imageUrl = b.image.url;
+          console.log(`[wecom-bot] Image from ${userId}: ${imageUrl}`);
+          // Send image URL as text context so Claude knows about it
+          // Claude models that support vision can analyze the image
+          if (this.onMessage) {
+            this.onMessage(userId, `[用户发送了一张图片：${imageUrl}]`, { reqId, chatid }).catch(e =>
+              console.error('[wecom-bot] onMessage error:', e.message));
+          }
         }
         break;
       }
@@ -176,28 +188,15 @@ class WechatChannel extends ChannelBase {
       console.error('[wecom-bot] No reqId for reply');
       return false;
     }
-
-    // Split into chunks for streaming effect
-    const maxChars = 2000;
-    const chunks = [];
-    let remain = text;
-    while (remain.length > 0) {
-      chunks.push(remain.slice(0, maxChars));
-      remain = remain.slice(maxChars);
-    }
-
-    for (let i = 0; i < chunks.length; i++) {
-      const isLast = i === chunks.length - 1;
-      this.send({
-        cmd: 'aibot_respond_msg',
-        headers: { req_id: ctx.reqId },
-        body: {
-          msgtype: 'stream',
-          stream: { id: ctx.reqId, content: chunks[i], finish: isLast, feedback: isLast ? { id: `reply_${Date.now()}` } : undefined },
-        },
-      });
-      if (!isLast) await new Promise(r => setTimeout(r, 200));
-    }
+    // Send full reply as a single finished stream — chunking loses all but the last chunk
+    this.send({
+      cmd: 'aibot_respond_msg',
+      headers: { req_id: ctx.reqId },
+      body: {
+        msgtype: 'stream',
+        stream: { id: ctx.reqId, content: text.slice(0, 4096), finish: true, feedback: { id: `reply_${Date.now()}` } },
+      },
+    });
     return true;
   }
 

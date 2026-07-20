@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { getDirs, linkProject, unlinkProject, mkdir } from '../api';
-import { IconFolder } from './icons';
+import { getDirs, linkProject, unlinkProject, mkdir, searchSessions } from '../api';
+import { IconFolder, IconSearch } from './icons';
 
 export default function ProjectSelector({ projects, currentProjectId, onSelect, onLink }) {
-  const { user, setView, newChat } = useApp();
+  const { user, setView, newChat, selectSession, searchScrollTo } = useApp();
   const isAdmin = user?.role === 'admin';
   const [showDialog, setShowDialog] = useState(false);
   const [currentPath, setCurrentPath] = useState(user?.role !== 'admin' ? (user?.homeDir || '/root') : '/root');
@@ -14,6 +14,37 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null); // { id, x, y }
   const dropdownRef = useRef(null);
+
+  // ── Search ──
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchKw, setSearchKw] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const searchRef = useRef(null);
+
+  // Debounced auto-search on keystroke
+  useEffect(() => {
+    const kw = searchKw.trim();
+    if (kw.length < 2) { setSearchResults([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const d = await searchSessions(currentProjectId, kw);
+        setSearchResults(d.results || []);
+      } catch { setSearchResults([]); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchKw, currentProjectId]);
+
+  // Clear results when popup closes
+  const closeSearch = () => { setSearchOpen(false); setSearchResults([]); setSearchKw(''); };
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const handler = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [searchOpen]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -127,9 +158,56 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
         <button className="new-chat-btn-inline" onClick={() => { newChat(); setView('chat'); }}>
           + 新建对话
         </button>
+        <button className="search-sessions-btn" onClick={() => setSearchOpen(!searchOpen)} title="搜索会话内容"><IconSearch/></button>
       </div>
 
-      {/* Inline confirmation popup — rendered via Portal to avoid backdrop-filter stacking context */}
+      {/* ── Search modal (portal to body) ── */}
+      {searchOpen && createPortal(
+        <div className="dialog-overlay" onClick={closeSearch}>
+          <div className="search-modal" onClick={e => e.stopPropagation()} ref={searchRef}>
+            <div className="search-popup-input-row">
+              <input
+                type="text"
+                value={searchKw}
+                onChange={e => setSearchKw(e.target.value)}
+                placeholder="输入关键字搜索会话内容…"
+                autoFocus
+              />
+              <button className="search-popup-close" onClick={closeSearch}>✕</button>
+            </div>
+            {searchResults.length > 0 ? (
+              <div className="search-popup-results">
+                {searchResults.map((r, i) => (
+                  <div key={i} className="search-result-item">
+                    <div className="search-result-title" onClick={() => {
+                      selectSession(r.sessionId);
+                      closeSearch();
+                    }}>📁 {r.title}</div>
+                    <div className="search-result-matches">
+                      {r.matches.map((m, j) => (
+                        <div key={j} className="search-result-snippet"
+                          onClick={() => {
+                            searchScrollTo({ sessionId: r.sessionId, matchIdx: j, totalMatches: r.matches.length, keyword: searchKw.trim(), _ts: Date.now() });
+                            selectSession(r.sessionId);
+                            closeSearch();
+                          }}
+                        >
+                          <span className={`search-result-role ${m.role}`}>{m.role === 'user' ? '👤' : '🤖'}</span>
+                          <span>{m.preview}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {searchResults.length === 0 && searchKw.trim().length >= 2 && (
+              <div className="search-popup-empty">未找到匹配的会话</div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
       {confirmDel && createPortal(
         <div
           className="confirm-popup-overlay"
