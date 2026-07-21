@@ -61,6 +61,8 @@ function createApp() {
   app.use('/api', require('./routes/auth'));
 
   // Auth gate — applied to all remaining /api routes
+  // Email attachments are static files, accessible without auth for inline images
+  app.use('/api/channels/email-attachments', (req, res, next) => { next(); });
   app.use('/api', (req, res, next) => {
     if (req.path === '/health' || req.path.startsWith('/auth') || req.path.startsWith('/channels')) return next();
     // Bot internal requests bypass auth with shared token

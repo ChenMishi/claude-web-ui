@@ -237,8 +237,48 @@ async function botMessage(channelType, userId, text, channelCfg) {
   const uid = channelType === 'email' ? 'all' : userId;
   const key = mapKey(channelType, uid, workCwd);
 
-  // ── 邮件渠道：直接展示，不调 Claude ──
-  if (channelType === 'email') return displayEmail(text, channelCfg, workCwd, map, key, channelType);
+  // ── 邮件渠道直接展示，但命令优先 ──
+  if (channelType === 'email') {
+    const { getChannelManager } = require('./index');
+    const mgr = getChannelManager();
+    const emailCh = [...mgr.channels.values()].find(c => c.constructor.type === 'email');
+    const senders = emailCh?.recentSenders || [];
+    const saved = map[key];
+    const sid = (saved && sessionExists(saved, workCwd)) ? saved : 'new';
+
+    // "回复邮件" → 列出所有未读邮件发件人
+    const replyListCmd = /^(回复邮件|查看未读邮件|未读邮件|邮件列表)$/.test(text.trim());
+    // "回复 N 内容" → 回复给编号N的发件人（两种格式都支持）
+    const replyNumCmd = text.trim().match(/^(\d+)\s+(.+)$/s);
+    const replyNumCmdAlt = text.trim().match(/^回复\s*(\d+)\s+(.+)$/s);
+    const replyMatch = replyNumCmd || replyNumCmdAlt;
+
+    if (replyListCmd) {
+      if (senders.length === 0) return { reply: '暂无可回复的未读邮件', sessionId: sid };
+      let resp = '📧 未读邮件列表（回复 编号 内容，或 回复 N 内容）：\n';
+      for (let i = 0; i < senders.length; i++) {
+        const s = senders[i];
+        resp += `[${i + 1}] ${s.from} — ${s.subject}\n`;
+      }
+      return { reply: resp, sessionId: sid };
+    }
+
+    if (replyMatch) {
+      const idx = parseInt(replyMatch[1]) - 1;
+      const replyText = replyMatch[2].trim();
+      if (!replyText) return { reply: '请输入要回复的内容', sessionId: sid };
+      if (!emailCh) return { reply: '邮件渠道未启动', sessionId: sid };
+      const sender = emailCh.pickSender(idx);
+      if (!sender) {
+        const total = senders.length;
+        return { reply: `请输入 1-${total} 之间的编号，或发送"回复邮件"查看`, sessionId: sid };
+      }
+      const sent = await emailCh.sendText(sender.from, replyText);
+      return { reply: sent ? `✅ 已回复 ${sender.from}` : '❌ 邮件发送失败', sessionId: sid };
+    }
+
+    return displayEmail(text, channelCfg, workCwd, map, key, channelType);
+  }
   const saved = map[key];
   const sid = (saved && sessionExists(saved, workCwd)) ? saved : 'new';
 
@@ -380,28 +420,32 @@ async function botMessage(channelType, userId, text, channelCfg) {
   }
 }
 
+/** Get channel user info for a session ID */
+function sessionToUser(sessionId) {
+  const map = load();
+  for (const [key, val] of Object.entries(map)) {
+    const sid = typeof val === 'string' ? val : (val?.sid || val?.sessionId);
+    if (sid === sessionId) {
+      const [ct, ...rest] = key.split(':');
+      const uid = rest.length > 1 ? rest[0] : rest.join('');
+      return { userId: uid, channelType: ct };
+    }
+  }
+  return null;
+}
+
+/** Push a reply from Web UI back to the channel user */
+async function pushToUser(sessionId, text, channelId) {
+  const user = sessionToUser(sessionId);
+  if (!user) return false;
+  const { getChannelManager } = require('./index');
+  const mgr = getChannelManager();
+  const ch = channelId ? mgr.get(channelId) : [...mgr.channels.values()].find(c => c.constructor.type === user.channelType);
+  if (!ch) return false;
+  return ch.sendText(user.userId, text);
+}
+
 module.exports = {
   botMessage, getInternalToken: tok,
-  sessionToUser(sessionId) {
-    const map = load();
-    for (const [key, val] of Object.entries(map)) {
-      const sid = typeof val === 'string' ? val : (val?.sid || val?.sessionId);
-      if (sid === sessionId) {
-        // key format: channelType:userId or channelType:userId:cwdHash
-        const [ct, ...rest] = key.split(':');
-        const uid = rest.length > 1 ? rest[0] : rest.join('');
-        return { userId: uid, channelType: ct };
-      }
-    }
-    return null;
-  },
-  async pushToUser(sessionId, text, channelId) {
-    const user = this.sessionToUser(sessionId);
-    if (!user) return false;
-    const { getChannelManager } = require('./index');
-    const mgr = getChannelManager();
-    const ch = channelId ? mgr.get(channelId) : [...mgr.channels.values()].find(c => c.constructor.type === user.channelType);
-    if (!ch) return false;
-    return ch.sendText(user.userId, text);
-  },
+  sessionToUser, pushToUser,
 };

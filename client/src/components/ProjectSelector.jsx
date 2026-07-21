@@ -187,7 +187,7 @@ export default function ProjectSelector({ projects, currentProjectId, onSelect, 
                       {r.matches.map((m, j) => (
                         <div key={j} className="search-result-snippet"
                           onClick={() => {
-                            searchScrollTo({ sessionId: r.sessionId, matchIdx: j, totalMatches: r.matches.length, keyword: searchKw.trim(), _ts: Date.now() });
+                            searchScrollTo({ sessionId: r.sessionId, textLineIdx: m.textLineIdx, keyword: searchKw.trim(), _ts: Date.now() });
                             selectSession(r.sessionId);
                             closeSearch();
                           }}

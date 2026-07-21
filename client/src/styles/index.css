@@ -135,6 +135,7 @@ html {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.10);
 }
 
+[data-theme="dark"] .settings-card:hover,
 [data-theme="dark"] .stats-card:hover,
 [data-theme="dark"] .stats-chart-card:hover,
 [data-theme="dark"] .login-card:hover,
@@ -143,6 +144,7 @@ html {
   box-shadow: 0 6px 28px rgba(0, 0, 0, 0.50);
 }
 
+[data-theme="warm"] .settings-card:hover,
 [data-theme="warm"] .stats-card:hover,
 [data-theme="warm"] .stats-chart-card:hover,
 [data-theme="warm"] .login-card:hover,

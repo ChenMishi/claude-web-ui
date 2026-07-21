@@ -79,7 +79,15 @@
 - **原因**: 两套系统独立：CLI cron 写 `<cwd>/.claude/scheduled_tasks.json`，Web UI 读 `~/.claude-web-ui/scheduled_tasks.json`
 - **解决**: MEMORY.md 顶层 `🚨 STOP: 禁止使用 CronCreate 工具`，TimerDropdown 的 GET API 同时桥接 CLI 文件（从项目目录名反推 cwd）
 
-### 8. 会话 binding 的正确方式
+### 8. 压缩对话上下文的正确方式
+- **问题**: 直接用 `curl` 调 `POST /api/session/:id/compact` 跳过了总结步骤，直接删了 JSONL 记录
+- **正确流程**: 压缩必须是两阶段：
+  1. **先总结**：通过聊天输入框发送"请帮我压缩对话上下文"，让 Claude 生成总结回复
+  2. **后裁剪**：前端 ChatView 的 `onDone` 检测到 compact 触发后自动调后端 API 裁剪 JSONL
+- **🚨 绝对禁止直接用 curl/httpie 调 `/api/session/:id/compact`** — 必须走前端聊天流程
+- **禁止用 Bash 工具发 curl 到 compact 端点**，也禁止手动构造 HTTP 请求调该接口
+
+### 9. 会话 binding 的正确方式
 - **问题**: 定时任务结果追加到错误会话、呼吸灯绑定到错误会话
 - **原因**: 硬编码 sessionId，切会话后 ID 对不上
 - **解决**: sessionId 从系统 prompt 路径 `projects/<项目>/<sessionId>.jsonl` 直接提取 UUID，或通过 TimerDropdown 创建表单自动绑定

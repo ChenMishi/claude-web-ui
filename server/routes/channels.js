@@ -105,6 +105,29 @@ router.post('/channels/:id/delete', async (req, res) => {
   }
 });
 
+// ── Serve email attachments ──
+
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const ATTACH_DIR = path.join(os.homedir(), '.claude-web-ui', 'email-attachments');
+
+router.use('/channels/email-attachments', (req, res) => {
+  const raw = path.basename(req.path);
+  const filename = decodeURIComponent(raw);
+  const filePath = path.join(ATTACH_DIR, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
+  const ext = path.extname(filename).toLowerCase();
+  const mimeTypes = {
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif',
+    '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp',
+    '.pdf': 'application/pdf', '.txt': 'text/plain',
+  };
+  res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  fs.createReadStream(filePath).pipe(res);
+});
+
 // ── SSE events: notify frontend when bot sessions get new messages ──
 
 router.get('/channels/events', (req, res) => {

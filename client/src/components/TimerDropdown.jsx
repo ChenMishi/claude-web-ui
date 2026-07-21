@@ -59,7 +59,8 @@ export default function TimerDropdown() {
             return; // skip new-output detection on first poll
           }
           for (const task of d.tasks || []) {
-            // Detect new output — append to chat if viewing, or mark green unread dot
+            // Only detect new output for ACTIVE tasks — completed ones stay quiet
+            if (task.status === 'stopped') continue;
             if (task.lastOutput && task.sessionId) {
               const prevVer = lastOutputRef.current[task.id] || 0;
               if ((task.outputVersion || 0) > prevVer) {
@@ -67,7 +68,6 @@ export default function TimerDropdown() {
                 if (task.sessionId === currentSessionId) {
                   appendMessage({ role: 'assistant', content: `⏰ [定时任务: ${task.name}]\n${task.lastOutput}`, timestamp: Date.now() });
                 } else {
-                  // New timer output for a session user is not viewing → green dot
                   addUnreadSession(task.sessionId);
                 }
               }

@@ -1689,6 +1689,72 @@ router.get('/session/:id/message', (req, res) => {
   res.json(messages);
 });
 
+/**
+ * Handle email commands from Web UI email bot session.
+ * Intercepts email-specific commands (回复邮件, 1 回复内容) and processes them
+ * without going through Claude SDK.
+ */
+async function handleEmailCommand(prompt, sessionId, wantsStream, runtime, res, reqUser) {
+  const { getChannelManager } = require('../channels');
+  const mgr = getChannelManager();
+  const emailCh = [...mgr.channels.values()].find(c => c.constructor.type === 'email');
+  const senders = emailCh?.recentSenders || [];
+
+  // "回复邮件" / "查看未读邮件" / "邮件列表"
+  const listCmd = /^(回复邮件|查看未读邮件|未读邮件|邮件列表)$/.test(prompt.trim());
+  // "1 回复内容"
+  const numCmd = prompt.trim().match(/^(\d+)\s+(.+)$/s);
+
+  let replyText = null;
+
+  if (listCmd) {
+    if (senders.length === 0) replyText = '暂无可回复的未读邮件';
+    else {
+      replyText = '📧 未读邮件列表（回复 编号 内容）：\n';
+      for (let i = 0; i < senders.length; i++) {
+        replyText += `[${i + 1}] ${senders[i].from} — ${senders[i].subject}\n`;
+      }
+    }
+  } else if (numCmd) {
+    const idx = parseInt(numCmd[1]) - 1;
+    const txt = numCmd[2].trim();
+    if (!emailCh) replyText = '邮件渠道未启动';
+    else if (idx < 0 || idx >= senders.length) replyText = `请输入 1-${senders.length} 之间的编号`;
+    else {
+      const sender = emailCh.pickSender(idx);
+      if (sender) {
+        const sent = await emailCh.sendText(sender.from, txt);
+        replyText = sent ? `✅ 已回复 ${sender.from}` : '❌ 邮件发送失败';
+      }
+    }
+  }
+
+  if (replyText !== null) {
+    // Also persist to session JSONL
+    try {
+      const sessionData = findSessionFile(sessionId || runtime.sessionId, reqUser);
+      if (sessionData) {
+        let realPath = sessionData.file;
+        try { if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath); } catch {}
+        const userMsg = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: prompt }] }, timestamp: new Date().toISOString() });
+        const assistantMsg = JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: replyText }] }, model: 'email', timestamp: new Date().toISOString() });
+        fs.appendFileSync(realPath, userMsg + '\n' + assistantMsg + '\n', 'utf8');
+      }
+    } catch {}
+    if (wantsStream) {
+      broadcast(runtime, 'message', {
+        type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: replyText }] },
+        uuid: '', session_id: sessionId,
+      });
+      broadcastDone(runtime, {});
+    } else {
+      res.json({ sessionId, messages: [{ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: replyText }] } }] });
+    }
+    return true;
+  }
+  return false;
+}
+
 // Send message (SSE stream using Agent SDK with full tool calling)
 router.post('/session/:id/message', async (req, res) => {
   const { id } = req.params;
@@ -2038,6 +2104,21 @@ router.post('/session/:id/message', async (req, res) => {
       res.on('close', () => { if (keepalive) clearInterval(keepalive); });
     }
 
+    // ── Email bot session: intercept email commands before SDK ──
+  // ── Email bot session: intercept email commands before SDK ──
+  if (prompt && !isNew) {
+    try {
+      const { sessionToUser } = require('../channels/bot-handler');
+      const botUser = sessionToUser(runtime.sessionId || id);
+      console.log('[email-cmd] prompt:', (prompt||'').slice(0,80), 'sessionId:', runtime.sessionId || id, 'botUser:', JSON.stringify(botUser));
+      if (botUser && botUser.channelType === 'email') {
+        const handled = await handleEmailCommand(prompt, id, wantsStream, runtime, res, req.user);
+        console.log('[email-cmd] handled:', handled);
+        if (handled) return; // command was processed, skip SDK
+      }
+    } catch (e) { console.error('[email-cmd] error:', e.message); }
+  }
+
     // Generate AI title immediately before SDK execution
     // Always broadcast for TaskPanel; only persist to disk for new sessions
     let aiTitle = null;
@@ -2357,12 +2438,12 @@ router.post('/session/:id/message', async (req, res) => {
         }
       } catch {}
 
-      // ── Bot session: push reply from Web UI back to WeChat user ──
+      // ── Bot session: push reply from Web UI back to channel user ──
+      // Email channels are skipped — replies must be manually triggered by the user.
       try {
         const { sessionToUser, pushToUser } = require('../channels/bot-handler');
         const botUser = sessionToUser(runtime.sessionId);
-        if (botUser) {
-          // Collect latest assistant text from runtime buffer
+        if (botUser && botUser.channelType !== 'email') {
           const reply = (runtime.buffer || [])
             .filter(m => m.event === 'message' && m.data?.type === 'assistant')
             .map(m => {
@@ -2371,7 +2452,6 @@ router.post('/session/:id/message', async (req, res) => {
             })
             .join('');
           if (reply && !req.headers['x-internal-token']) {
-            // Web UI user sent this message, not bot — only push when it's a human action
             pushToUser(runtime.sessionId, reply, null).catch(() => {});
           }
         }

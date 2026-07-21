@@ -21,6 +21,7 @@ const CONFIG_FILE = path.join(PROJECT_DIR, 'channel-config.json');
 const CHANNEL_TYPES = {
   wechat: require('./wechat'),
   email: require('./email'),
+  qqbot: require('./qqbot'),
 };
 
 class ChannelManager extends EventEmitter {
@@ -149,7 +150,7 @@ class ChannelManager extends EventEmitter {
   getChannelTypes() {
     return Object.entries(CHANNEL_TYPES).map(([type, Cls]) => ({
       type,
-      label: type === 'wechat' ? '企业微信' : type === 'email' ? '邮箱' : type,
+      label: type === 'wechat' ? '企业微信' : type === 'email' ? '邮箱' : type === 'qqbot' ? 'QQ Bot' : type,
       configSchema: Cls.configSchema || [],
     }));
   }

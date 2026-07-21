@@ -671,30 +671,27 @@ export default function ChatView() {
     }).catch(() => {});
   }, [taskOutputTick]); // eslint-disable-line
 
-  // ── Search result jump: scroll to specific matching message ──
+  // ── Search result jump: scroll to specific matching message (by textLineIdx) ──
   useEffect(() => {
-    if (!searchScrollTarget || !currentSessionId) return;
-    if (searchScrollTarget.sessionId !== currentSessionId) return;
+    if (!searchScrollTarget || searchScrollTarget.sessionId !== currentSessionId) return;
     const kw = searchScrollTarget.keyword?.toLowerCase();
+    const textLineIdx = searchScrollTarget.textLineIdx;
     if (!kw || chatMessages.length === 0) return;
-    // Always scroll, even if already on this session
     const t = setTimeout(() => {
       const el = containerRef.current;
       if (!el) return;
-      const msgs = el.querySelectorAll('.message');
-      const matches = [];
-      for (const msg of msgs) {
-        if (msg.textContent?.toLowerCase().includes(kw)) matches.push(msg);
-      }
-      if (matches.length === 0) return;
-      const matchIdx = searchScrollTarget.matchIdx || 0;
-      const total = searchScrollTarget.totalMatches || 1;
-      const domIdx = Math.max(0, matches.length - 1 - Math.min(matchIdx, total - 1));
-      const target = matches[domIdx];
-      if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        target.classList.add('search-highlight');
-        setTimeout(() => target.classList.remove('search-highlight'), 5000);
+      const msgs = el.querySelectorAll('.message.user, .message.assistant');
+      if (msgs.length === 0) return;
+
+      if (textLineIdx != null && textLineIdx > 0) {
+        // textLineIdx=1 means newest message = last DOM node
+        const domIdx = Math.max(0, msgs.length - textLineIdx);
+        const target = msgs[Math.min(domIdx, msgs.length - 1)];
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('search-highlight');
+          setTimeout(() => target.classList.remove('search-highlight'), 5000);
+        }
       }
     }, 800);
     return () => clearTimeout(t);

@@ -418,6 +418,7 @@ router.post('/project/:id/search', (req, res) => {
         }
 
         const matches = [];
+        let textLineIdx = 0; // count of text-bearing lines from the end
         for (let i = lines.length - 1; i >= 0 && matches.length < 5; i--) {
           try {
             const obj = JSON.parse(lines[i]);
@@ -426,12 +427,14 @@ router.post('/project/:id/search', (req, res) => {
             if (typeof msgContent === 'string') text = msgContent;
             else if (Array.isArray(msgContent)) text = msgContent.filter(c => c.type === 'text').map(c => c.text).join('');
 
+            if (text) textLineIdx++; // this is a renderable message
             if (text.toLowerCase().includes(kw)) {
               const snippet = text.slice(Math.max(0, text.toLowerCase().indexOf(kw) - 30), text.toLowerCase().indexOf(kw) + kw.length + 60);
               matches.push({
                 preview: snippet,
                 role: obj.type || (obj.message?.role),
                 timestamp: obj.timestamp || null,
+                textLineIdx, // 1-based from newest message
               });
             }
           } catch {}

@@ -77,12 +77,14 @@ export default function ChannelsPanel() {
       <div className="settings-card" style={{ marginBottom: 14 }}>
         <div className="settings-card-body" style={{ padding: '12px 16px', gap: 6 }}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-            💡 <strong>快捷命令</strong>（在企微中发送）：
+            💡 <strong>快捷命令</strong>（企微/邮件会话中发送）：
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.8, paddingLeft: 12 }}>
             · <strong>切换目录</strong> — 切换工作目录并列出该目录会话<br />
             · <strong>切换会话</strong> — 列出当前目录会话，回复编号绑定<br />
-            · <strong>直接发消息</strong> — 自动检测已有会话并绑定，无则新建
+            · <strong>直接发消息</strong> — 自动检测已有会话并绑定，无则新建<br />
+            · <strong>回复邮件</strong> — 在邮件Bot会话中，列出所有未读邮件发件人<br />
+            · <strong>编号 内容</strong> — 回复指定编号的邮件，如"1 好的收到了"
           </div>
         </div>
       </div>
@@ -175,7 +177,17 @@ export default function ChannelsPanel() {
         1. 准备一个邮箱账号（QQ邮箱/163/Gmail等）<br />
         2. 开启 <strong>IMAP/SMTP</strong> 服务，获取<strong>授权码</strong>（非登录密码）<br />
         3. 填入 IMAP/SMTP 服务器地址和授权码<br />
-        4. 保存后系统每 60 秒检查一次新邮件，自动回复并标记已读
+        4. 保存后系统每 60 秒检查一次新邮件<br />
+        5. 收到邮件后在会话中查看，回复邮件请使用 <strong>回复 邮件内容</strong> 格式
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.8, marginTop: 12 }}>
+        <strong>QQ Bot 接入指引：</strong><br />
+        1. 前往 <strong>QQ 开放平台</strong> (q.qq.com) 创建机器人应用<br />
+        2. 开发设置 → 获取 <strong>App ID</strong> 和 <strong>App Secret</strong><br />
+        3. 填入上方表单，保存并启用即可<br />
+        4. 支持群聊 @消息 和私聊消息，无需公网域名<br />
+        5. 沙箱模式填 <code>true</code> 可在测试环境调试，正式上线前关闭
       </div>
 
       {/* Inline confirmation popup */}
