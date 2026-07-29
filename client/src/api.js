@@ -651,6 +651,16 @@ export async function compactSession(sessionId, keepCount = 6) {
   });
 }
 
+// Token usage info for a session
+export async function getTokenInfo(sessionId, model) {
+  return fetchJSON(`/session/${sessionId}/token-info?model=${encodeURIComponent(model || '')}`);
+}
+
+// Trim oldest 30% of session JSONL (used when context is near full)
+export async function trimSession(sessionId) {
+  return fetchJSON(`/session/${sessionId}/trim`, { method: 'POST' });
+}
+
 // ── Channels API ──
 
 export async function getChannelTypes() {

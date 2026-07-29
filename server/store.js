@@ -107,8 +107,22 @@ function subscribeToStream(runtime, res) {
     } catch {}
   }
   // Subscribe for future messages
+  // Cancel pending auto-abort (user refreshed and is reconnecting)
+  if (runtime._autoAbortTimer) { clearTimeout(runtime._autoAbortTimer); runtime._autoAbortTimer = null; }
   runtime.subscribers.add(res);
-  res.on('close', () => runtime.subscribers.delete(res));
+  res.on('close', () => {
+    runtime.subscribers.delete(res);
+    // Last subscriber gone + session still busy → auto-abort after 3s (allow reconnect window)
+    if (runtime.subscribers.size === 0 && runtime.status === 'busy' && runtime.abort) {
+      console.log('[store] Last subscriber gone, auto-abort in 3s for', runtime.sessionId);
+      runtime._autoAbortTimer = setTimeout(() => {
+        if (runtime.subscribers.size === 0 && runtime.status === 'busy') {
+          console.log('[store] Auto-aborting', runtime.sessionId);
+          runtime.abort.abort();
+        }
+      }, 3000);
+    }
+  });
 }
 
 // Notify all subscribers that the session is done

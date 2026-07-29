@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { runAgent, getProjects, getProjectSessions, abortSession, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages, authHeaders } from '../api';
+import { runAgent, getProjects, getProjectSessions, abortSession, reconnectSession, getSessionInfo, resolveQuestion, getSessionMessages, getTokenInfo, trimSession, authHeaders } from '../api';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import ChatStatusBar from './ChatStatusBar';
@@ -119,6 +119,9 @@ export default function ChatView() {
   const [queuedMessages, setQueuedMessages] = useState([]); // 排队中的消息
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [compacting, setCompacting] = useState(false);
+  const [tokenPercent, setTokenPercent] = useState(null);
+  const tokenPercentRef = useRef(null);
+  tokenPercentRef.current = tokenPercent;
   const [askMode, setAskMode] = useState(() => localStorage.getItem('claude-ui:askUserResumeMode') || 'send');
   // Ref for askMode to avoid stale closure
   const askModeRef = useRef(askMode);
@@ -520,17 +523,33 @@ export default function ChatView() {
                         }
                         if (textBlocks.length > 0) {
                           const text = textBlocks.map(c => c.text).join('');
+                          const prev = textAccum.current;
                           if (!hasAssistantText.current) {
-                            hasAssistantText.current = true;
-                            textAccum.current = text;
-                            bAppend({ role: 'assistant', content: text, streaming: true, timestamp: Date.now() });
+                            if (prev && text.startsWith(prev)) {
+                              // 延续同一个逻辑消息 — 更新
+                              hasAssistantText.current = true;
+                              textAccum.current = text;
+                              if (!throttleRef.current) {
+                                bUpdate(text);
+                                throttleRef.current = setTimeout(() => {
+                                  throttleRef.current = null;
+                                  bUpdate(text);
+                                }, 150);
+                              }
+                            } else {
+                              // 真正的新逻辑消息 — 新建气泡
+                              hasAssistantText.current = true;
+                              textAccum.current = text;
+                              bAppend({ role: 'assistant', content: text, streaming: true, timestamp: Date.now() });
+                            }
                           } else {
-                            textAccum.current += text;
+                            // SDK sends full accumulated text — overwrite
+                            textAccum.current = text;
                             if (!throttleRef.current) {
-                              bUpdate(textAccum.current);
+                              bUpdate(text);
                               throttleRef.current = setTimeout(() => {
                                 throttleRef.current = null;
-                                bUpdate(textAccum.current);
+                                bUpdate(text);
                               }, 150);
                             }
                           }
@@ -697,15 +716,40 @@ export default function ChatView() {
     return () => clearTimeout(t);
   }, [searchScrollTarget, currentSessionId, chatMessages]);
 
-  const handleCompact = useCallback(() => {
+  const handleCompact = useCallback(async () => {
     if (!currentSessionId || compacting || isStreaming) return;
-    // 复用 /compact 的完整逻辑：发消息 → Claude 总结 → 自动裁剪
-    handleSendRef.current?.("请帮我压缩对话上下文");
     setCompacting(true);
+
+    // 上下文已满（≥95%）：先裁剪最旧 30% 腾空间，再走正常压缩流程
+    const pct = tokenPercentRef.current;
+    if (pct != null && pct >= 95) {
+      try {
+        const result = await trimSession(currentSessionId);
+        if (result.trimmed) {
+          // Refresh token info after trim
+          if (currentModel) {
+            getTokenInfo(currentSessionId, currentModel).then(info => {
+              setTokenPercent(info.percent > 0 ? info.percent : null);
+            }).catch(() => {});
+          }
+        }
+      } catch { /* trim failed — proceed with compact anyway */ }
+    }
+
+    handleSendRef.current?.("请帮我压缩对话上下文", null, true);
     // compacting 由 onDone 中的 compactRef 流程自动复位
-    // 这里设一个兜底定时器
     setTimeout(() => setCompacting(false), 30000);
-  }, [currentSessionId, compacting, isStreaming]);
+  }, [currentSessionId, compacting, isStreaming, currentModel]);
+
+  // Fetch token usage percentage for compact button display
+  useEffect(() => {
+    if (!currentSessionId || !currentModel) { setTokenPercent(null); return; }
+    let cancelled = false;
+    getTokenInfo(currentSessionId, currentModel).then(info => {
+      if (!cancelled) setTokenPercent(info.percent > 0 ? info.percent : null);
+    }).catch(() => setTokenPercent(null));
+    return () => { cancelled = true; };
+  }, [currentSessionId, currentModel]);
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -782,8 +826,9 @@ export default function ChatView() {
   }, [stopTimer, updateLastMessage, setStreaming, appendMessage, execReset, clearPendingQueue, finalizeStreaming]);
 
   const compactRef = useRef(false); // true when /compact triggered this send
+  const contextRecoveryRef = useRef(false); // guard against infinite trim-retry loop
 
-  const handleSend = useCallback((text, attachments) => {
+  const handleSend = useCallback((text, attachments, isCompact) => {
     if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
     // 防重入锁 — 防止同一个 handleSend 被并发调用
@@ -877,7 +922,9 @@ export default function ChatView() {
       signal: abort.signal,
       prompt: promptText,
       attachments: attachments || undefined,
-      options: { model: currentModel || model, systemPrompt: systemPrompt || undefined, permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
+      options: { model: currentModel || model, systemPrompt: (isCompact
+        ? (systemPrompt || '') + '\n\n[系统指令] 这是一次对话上下文压缩操作。你只需要用纯文本总结前面的对话要点，不要调用任何工具，不要读取或修改任何文件，直接回复总结即可。'
+        : systemPrompt || undefined), permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
       onThinking: ({ text: thinkingText, usage }) => {
         lbExecPhase({ phase: 'thinking', detail: thinkingText });
         lbExecUpdate('thinking', thinkingText);
@@ -911,18 +958,35 @@ export default function ChatView() {
             getProjectSessions(currentProjectId).then(setSessions).catch(() => {});
           }
         }
+        const prev = textAccum.current;
         if (!hasAssistantText.current) {
-          hasAssistantText.current = true;
-          textAccum.current = content;
-          lbAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
+          // hasAssistantText 可能被 thinking/tool_use 重置。
+          // 如果新内容以旧累积文本开头 → SDK 发了累积全文，延续更新而非新建气泡。
+          if (prev && content.startsWith(prev)) {
+            // 延续同一个逻辑消息 — 更新
+            hasAssistantText.current = true;
+            textAccum.current = content;
+            if (!throttleRef.current) {
+              lbUpdate(content);
+              throttleRef.current = setTimeout(() => {
+                throttleRef.current = null;
+                lbUpdate(content);
+              }, 150);
+            }
+          } else {
+            // 真正的新逻辑消息 — 新建气泡
+            hasAssistantText.current = true;
+            textAccum.current = content;
+            lbAppend({ role: 'assistant', content, streaming: true, timestamp: Date.now() });
+          }
         } else {
-          textAccum.current += content;
-          // 节流：100ms 内最多触发一次 React re-render，避免 MarkdownRenderer 每帧重解析全文
+          // SDK sends full accumulated text — overwrite, don't concatenate
+          textAccum.current = content;
           if (!throttleRef.current) {
-            lbUpdate(textAccum.current);
+            lbUpdate(content);
             throttleRef.current = setTimeout(() => {
               throttleRef.current = null;
-              lbUpdate(textAccum.current);  // flush 最终累积状态
+              lbUpdate(content);  // flush 最终累积状态
             }, 150);
           }
         }
@@ -992,6 +1056,7 @@ export default function ChatView() {
         setToolConfirm({ tool, action, input });
       },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency, artifactFiles, aborted, error }) => {
+        contextRecoveryRef.current = false;  // reset context-recovery guard on any completion
         streamSessionIdRef.current = null;
         isActiveStream.current = false;
         const realSid = mySessionId === 'new' ? (newSessionIdRef.current || mySessionId) : mySessionId;
@@ -1079,7 +1144,7 @@ export default function ChatView() {
       onTitle: ({ title }) => {
         if (title) updateMainTask(title);
       },
-      onError: (err) => {
+      onError: async (err) => {
         streamSessionIdRef.current = null;
         isActiveStream.current = false;
         const realSid = mySessionId === 'new' ? (newSessionIdRef.current || mySessionId) : mySessionId;
@@ -1092,6 +1157,26 @@ export default function ChatView() {
         // AskUserQuestion abort is expected — don't show error
         if (askRef.current) return;
         if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
+
+        // Context length exceeded — auto trim 30% and retry (once only)
+        const errMsg = err.message || '';
+        if (/maximum\s*context\s*length|context\s*length/i.test(errMsg) && !contextRecoveryRef.current) {
+          contextRecoveryRef.current = true;
+          lbAppend({ role: 'system', content: '⚠️ 上下文已满，正在自动裁剪最旧 30% 后重试…', timestamp: Date.now() });
+          try { await trimSession(realSid); } catch {}
+          // Refresh token info
+          if (currentModel) {
+            getTokenInfo(realSid, currentModel).then(info => setTokenPercent(info.percent > 0 ? info.percent : null)).catch(() => {});
+          }
+          // Retry with the original prompt — reset streaming state and re-send
+          setStreaming(false);
+          stopTimer();
+          setTimeout(() => execReset(), 1000);
+          clearPendingQueue();
+          setTimeout(() => { handleSend(promptText); }, 800);
+          return;
+        }
+
         clearPendingQueue();  // 出错时清空排队消息
         setStreaming(false);
         stopTimer();
@@ -1266,7 +1351,7 @@ export default function ChatView() {
               <span className={`compact-icon${compacting ? ' compacting' : ''}`}>
                 <IconCompress />
               </span>
-              <span className="artifact-trigger-label">压缩对话</span>
+              <span className="artifact-trigger-label">压缩对话{tokenPercent != null ? `(约${tokenPercent}%)` : ''}</span>
             </button>
             <button
               className="artifact-trigger-btn"

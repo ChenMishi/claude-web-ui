@@ -1682,8 +1682,8 @@ router.get('/session/:id/message', (req, res) => {
   try {
     const reqOffset = req.query.offset !== undefined ? parseInt(req.query.offset) : null;
     const textOffset = reqOffset !== null && !isNaN(reqOffset) ? reqOffset : 0;
-    // 0 = unlimited, load all messages
-    const msgRecords = readLastTextRecords(jsonlPath, textOffset, 0);
+    // Default to 20 messages, load more on scroll
+    const msgRecords = readLastTextRecords(jsonlPath, textOffset, 20);
     messages.push(...msgRecords);
   } catch {}
   res.json(messages);
@@ -2193,6 +2193,63 @@ router.post('/session/:id/message', async (req, res) => {
       }
     } catch (e) { /* non-fatal */ }
 
+    // ── Pre-compact: count actual tokens, trim BEFORE SDK sees it ──
+    // Uses tiktoken for accurate token counting instead of line-count heuristic.
+    // Without this, the SDK's own context-building exceeds the token limit
+    // and throws before any message processing can happen.
+    try {
+      const sessionData = findSessionFile(runtime.sessionId, req.user);
+      if (sessionData) {
+        let realPath = sessionData.file;
+        try { if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath); } catch {}
+        const content = fs.readFileSync(realPath, 'utf8');
+        const lines = content.split('\n').filter(Boolean);
+
+        // Cheap guard: skip token counting for small sessions
+        if (lines.length > 300) {
+          // Determine encoding and token limit by model
+          const modelLower = (runtime.model || '').toLowerCase();
+          let tokenEncoding = 'chars';       // char-based estimate (works for all models)
+          let tokenLimit = 200000;           // default 200K
+          if (/claude.*(sonnet|opus)/i.test(modelLower))       { tokenLimit = 200000; tokenEncoding = 'cl100k_base'; }
+          else if (/claude.*haiku/i.test(modelLower))          { tokenLimit = 200000; tokenEncoding = 'cl100k_base'; }
+          else if (/gpt-4o/i.test(modelLower))                 { tokenLimit = 128000; tokenEncoding = 'o200k_base'; }
+          else if (/deepseek.*v4/i.test(modelLower))           { tokenLimit = 1048576; }
+          else if (/deepseek.*v3|deepseek.*chat/i.test(modelLower)) { tokenLimit = 128000; }
+          else if (/deepseek.*r1/i.test(modelLower))           { tokenLimit = 64000; }
+          else if (/deepseek/i.test(modelLower))               { tokenLimit = 128000; }
+          else if (/qwen/i.test(modelLower))                   { tokenLimit = 131072; }
+
+          const tokenScript = path.join(__dirname, 'token_count.py');
+          let tokenCount = Infinity;
+          try {
+            const { execFileSync } = require('child_process');
+            const result = execFileSync('python3', [tokenScript, realPath, tokenEncoding], {
+              timeout: 5000, maxBuffer: 1024 * 1024
+            });
+            tokenCount = parseInt(result.toString().trim()) || Infinity;
+          } catch (e) { /* token count failed, skip pre-compact */ }
+
+          if (tokenCount > tokenLimit) {
+            // Keep last 3 user turns
+            const userIndices = [];
+            for (let i = lines.length - 1; i >= 0 && userIndices.length < 3; i--) {
+              try { if (JSON.parse(lines[i]).type === 'user') userIndices.unshift(i); } catch {}
+            }
+            if (userIndices.length > 0 && userIndices[0] > 0) {
+              fs.writeFileSync(realPath, lines.slice(userIndices[0]).join('\n') + '\n', 'utf8');
+              const kept = lines.length - userIndices[0];
+              console.log('[SESSION] Pre-compacted:', tokenCount.toLocaleString(), 'tokens exceeds', tokenLimit.toLocaleString(),
+                '→ trimmed', lines.length, '→', kept, 'lines, session:', runtime.sessionId);
+              broadcast(runtime, 'system_notice', {
+                text: `⚠️ 会话 token 数 (${(tokenCount/1000).toFixed(0)}K) 超过模型上限 (${(tokenLimit/1000).toFixed(0)}K)，已自动裁剪至最近 3 轮对话以确保能正常响应。`
+              });
+            }
+          }
+        }
+      }
+    } catch (e) { /* non-fatal */ }
+
     // Outer retry loop: compact on ContextWindowExceededError and retry
     while (true) {
     // ── Try strategies in priority order, retry on image_error ──
@@ -2266,16 +2323,16 @@ router.post('/session/:id/message', async (req, res) => {
           }
           if (message.type === 'result') {
             if (message.subtype !== 'success') {
-              const errText = (message.errors || []).join('; ') || `SDK result: ${message.subtype}`;
+              const errText = (Array.isArray(message.errors) ? message.errors.join('; ') : message.errors) || `SDK result: ${message.subtype}`;
               // Check if this is an image-related error and we have more strategies to try
               if (strategy === 'native' && /image|unsupported|not.*support/i.test(errText) && promptStrategies.length > 1) {
                 imageError = true;
                 break; // break inner for-await, continue outer loop to next strategy
               }
-              // ── Context window exceeded: auto compact and retry (once) ──
+              // ── Context window exceeded: trim 30% and retry (once) ──
               if (!compactRetried && /context.*window|context.*length|ContextWindowExceeded|maximum.*context|input.*token/i.test(errText) && runtime.sessionId) {
                 compactRetried = true;
-                logError('Context window exceeded, auto-compacting', errText);
+                logError('Context window exceeded, auto-trimming 30%', errText);
                 try {
                   const sessionData = findSessionFile(runtime.sessionId, req.user);
                   if (sessionData) {
@@ -2284,21 +2341,18 @@ router.post('/session/:id/message', async (req, res) => {
                     const content = fs.readFileSync(realPath, 'utf8');
                     const lines = content.split('\n').filter(Boolean);
                     if (lines.length > 0) {
-                      const userIndices = [];
-                      for (let i = lines.length - 1; i >= 0 && userIndices.length < 5; i--) {
-                        try { if (JSON.parse(lines[i]).type === 'user') userIndices.unshift(i); } catch {}
-                      }
-                      if (userIndices.length > 0 && userIndices[0] > 0) {
-                        fs.writeFileSync(realPath, lines.slice(userIndices[0]).join('\n') + '\n', 'utf8');
-                        console.log('[SESSION] Auto-compacted:', lines.length, '→', lines.length - userIndices[0], 'lines for session', runtime.sessionId);
+                      const removeCount = Math.floor(lines.length * 0.3);
+                      if (removeCount > 0) {
+                        fs.writeFileSync(realPath, lines.slice(removeCount).join('\n') + '\n', 'utf8');
+                        console.log('[SESSION] Auto-trimmed 30%:', lines.length, '→', lines.length - removeCount, 'lines for session', runtime.sessionId);
                       }
                     }
                   }
-                } catch (e) { console.error('[SESSION] Auto-compact error:', e.message); }
+                } catch (e) { console.error('[SESSION] Auto-trim error:', e.message); }
                 allMessages.length = 0;
                 runtime.buffer = [];
                 broadcast(runtime, 'system_notice', {
-                  text: '⚠️ 上下文超限，已自动压缩对话历史后重试...'
+                  text: '⚠️ 上下文超限，已自动裁剪 30% 对话历史后重试...'
                 });
                 break;
               }
@@ -2349,6 +2403,7 @@ router.post('/session/:id/message', async (req, res) => {
                 result = { error: errText };
               }
               logError('SDK result error', errText);
+              // compact failed → forward error to frontend for recovery
               result = { error: errText };
             } else {
               result = info;
@@ -2470,8 +2525,37 @@ router.post('/session/:id/message', async (req, res) => {
   } catch (err) {
     console.error('[SESSION] Error details:', err?.message, err?.stack?.split('\n').slice(0,3).join('\n'));
     logError('Session message error', err);
-    // 如果 abort controller 已被新执行替换，说明插队/新请求已接管，跳过广播避免污染新 SSE 连接
     if (runtime.abort !== abortCtrl) return;
+
+    // ── Context window exceeded: auto-compact —─
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (!compactRetried && /context.*length|maximum.*context|input.*token/i.test(errMsg) && runtime.sessionId) {
+      compactRetried = true;
+      logError('Context window exceeded (thrown), auto-trimming 30%', errMsg);
+      try {
+        const sessionData = findSessionFile(runtime.sessionId, req.user);
+        if (sessionData) {
+          let realPath = sessionData.file;
+          try { if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath); } catch {}
+          const content = fs.readFileSync(realPath, 'utf8');
+          const lines = content.split('\n').filter(Boolean);
+          if (lines.length > 0) {
+            const removeCount = Math.floor(lines.length * 0.3);
+            if (removeCount > 0) {
+              fs.writeFileSync(realPath, lines.slice(removeCount).join('\n') + '\n', 'utf8');
+              console.log('[SESSION] Auto-trimmed 30% (catch):', lines.length, '→', lines.length - removeCount, 'lines');
+              try {
+                broadcast(runtime, 'system_notice', { text: '⚠️ 上下文超限，已自动裁剪 30% 对话历史。请重新发送消息。' });
+                broadcast(runtime, 'error', { message: errMsg });
+                broadcastDone(runtime, { error: errMsg, compacted: true });
+              } catch {}
+              return;
+            }
+          }
+        }
+      } catch (e) { console.error('[SESSION] Auto-trim (catch) error:', e.message); }
+    }
+
     if (err.name === 'AbortError') {
       try {
         broadcast(runtime, 'error', { message: '回复超时，已自动结束' });
@@ -2611,6 +2695,71 @@ router.post('/session/:id/compact', requireAuth, (req, res) => {
     res.json({ ok: true, trimmed: true, removed: lines.length - trimmed.length, keptTurns: userIndices.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// Trim oldest ~30% of JSONL lines (called when context is near full before compact)
+router.post('/session/:id/trim', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const sessionInfo = findSessionFile(id, req.user);
+  if (!sessionInfo) return res.status(404).json({ error: 'Session not found' });
+
+  try {
+    let realPath = sessionInfo.file;
+    try {
+      if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath);
+    } catch {}
+    const content = fs.readFileSync(realPath, 'utf8');
+    const lines = content.split('\n').filter(Boolean);
+    if (lines.length === 0) return res.json({ ok: true, trimmed: false });
+
+    // Remove oldest ~30% of lines
+    const removeCount = Math.floor(lines.length * 0.3);
+    if (removeCount === 0) return res.json({ ok: true, trimmed: false });
+
+    const trimmed = lines.slice(removeCount);
+    fs.writeFileSync(realPath, trimmed.join('\n') + '\n', 'utf8');
+    res.json({ ok: true, trimmed: true, removed: removeCount, kept: trimmed.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Token usage info: returns token count and context-window percentage
+router.get('/session/:id/token-info', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const model = (req.query.model || '').toLowerCase();
+  const sessionInfo = findSessionFile(id, req.user);
+  if (!sessionInfo) return res.json({ tokens: 0, limit: 0, percent: 0 });
+
+  try {
+    let realPath = sessionInfo.file;
+    try { if (fs.lstatSync(realPath).isSymbolicLink()) realPath = fs.realpathSync(realPath); } catch {}
+
+    // Determine token encoding and context window limit by model
+    let tokenEncoding = 'chars';       // default: char-based (works for all tokenizers)
+    let tokenLimit = 200000;           // default: 200K (covers most modern models)
+    if (/claude.*(sonnet|opus)/i.test(model))         { tokenEncoding = 'cl100k_base'; tokenLimit = 200000; }
+    else if (/claude.*haiku/i.test(model))              { tokenEncoding = 'cl100k_base'; tokenLimit = 200000; }
+    else if (/gpt-4o/i.test(model))                    { tokenEncoding = 'o200k_base'; tokenLimit = 128000; }
+    else if (/deepseek.*v4/i.test(model))              { tokenLimit = 1048576; }   // 1M context
+    else if (/deepseek.*v3|deepseek.*chat/i.test(model)) tokenLimit = 128000;
+    else if (/deepseek.*r1/i.test(model))              { tokenLimit = 64000; }
+    else if (/deepseek/i.test(model))                  { tokenLimit = 128000; }     // unknown deepseek variant
+    else if (/qwen/i.test(model))                      { tokenLimit = 131072; }     // Qwen 128K
+
+    const tokenScript = path.join(__dirname, 'token_count.py');
+    const { execFileSync } = require('child_process');
+    const result = execFileSync('python3', [tokenScript, realPath, tokenEncoding], {
+      timeout: 5000, maxBuffer: 1024 * 1024
+    });
+    const tokens = parseInt(result.toString().trim()) || 0;
+    const percent = tokenLimit > 0 ? Math.round((tokens / tokenLimit) * 100) : 0;
+
+    res.json({ tokens, limit: tokenLimit, percent });
+  } catch (e) {
+    // Return estimated values — not critical enough to 500
+    res.json({ tokens: 0, limit: 90000, percent: 0, error: e.message });
   }
 });
 
