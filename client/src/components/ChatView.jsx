@@ -807,6 +807,12 @@ export default function ChatView() {
     allAbortsRef.current.delete(currentSessionId);
     streamEnd(currentSessionId);
     ++execIdRef.current;  // bump so stale SSE errors are ignored
+    // ── 清理卡住的缓冲状态（先 flush 缓冲区内容，避免丢失消息）──
+    if (isAskBuffered.current && askBufferRef.current.length > 0) {
+      askBufferRef.current.forEach(msg => appendMessage(msg, currentSessionId));
+    }
+    isAskBuffered.current = false;
+    askBufferRef.current = [];
     clearPendingQueue();  // 清空排队消息
     if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
 
@@ -843,6 +849,15 @@ export default function ChatView() {
       bAppend({ role: 'system', content: '⚠️ 无可用模型，请前往 设置→初始化→Provider配置 配置 API', timestamp: Date.now() });
       return;
     }
+
+    // ── 每次发消息前清理所有卡住的 streaming 标记 ──
+    // 如果上一条消息的 onDone/onError 因 allAbortsRef 残留等原因未执行，
+    // 消息会永远带着 streaming: true，MarkdownRenderer 卡在打字机模式不显示。
+    // 这里做最后一次兜底清理，确保新消息发送时旧消息一定已可见。
+    finishAllStreaming();
+    // 同时清理可能卡住的 AskUserQuestion 缓冲状态（handleStop 中止后残留）
+    isAskBuffered.current = false;
+    askBufferRef.current = [];
 
     // Mark compact trigger
     compactRef.current = text.includes('压缩对话上下文');
@@ -1197,7 +1212,7 @@ export default function ChatView() {
       },
     });
     sendingRef.current = false;  // 释放发送锁，允许其他会话并发发送
-  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, activeAgent, addTask, bindTaskId, updateTask, setMainTask, updateMainTask, modelGroups, availableModels]);
+  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, finishAllStreaming, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, activeAgent, addTask, bindTaskId, updateTask, setMainTask, updateMainTask, modelGroups, availableModels]);
   handleSendRef.current = handleSend;
 
   const handleResolveAsk = useCallback((answers) => {
