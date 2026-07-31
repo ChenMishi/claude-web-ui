@@ -483,7 +483,8 @@ export default function ChatView() {
 
       reconnectSession(currentSessionId).then(response => {
         if (cancelled || !response.ok) {
-          setStreaming(false);
+          updateLastMessage(null, currentSessionId);
+          finalizeStreaming();
           stopTimer();
           execReset();
           return;
@@ -497,8 +498,11 @@ export default function ChatView() {
           if (cancelled) return;
           reader.read().then(({ done, value }) => {
             if (done || cancelled) {
-              setStreaming(false);
+              // ── 关键修复：重连流结束时标记最后消息 streaming: false ──
+              updateLastMessage(null, currentSessionId);
+              finalizeStreaming();
               stopTimer();
+              execReset();
               return;
             }
             if (value) {
@@ -1065,12 +1069,17 @@ export default function ChatView() {
         lbExecUpdate('done', '');
         sendingRef.current = false;
 
+        // ── 关键修复：先标记当前会话最后消息 streaming=false ──
+        // 必须在 execId/allAbortsRef 检查之前，因为这些检查可能提前 return，
+        // 导致 finalizeStreaming 被跳过，MarkdownRenderer 永远卡在打字机模式。
+        updateLastMessage(null, realSid);
+
         // 普通请求完成 → 非当前会话标未读
         if (realSid !== currentSessionIdRef.current) {
           addUnreadSession(realSid);
         }
 
-        // 同会话重发时忽略旧的 done 事件
+        // 同会话重发时忽略旧的 done 事件（只跳过全局 UI 更新，不影响消息标记）
         if (execIdMapRef.current.get(mySessionId) !== myExecId) return;
         if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
 
@@ -1152,6 +1161,8 @@ export default function ChatView() {
         streamEnd(realSid);
         lbExecUpdate('done', '');
         sendingRef.current = false;  // release send lock
+        // ── 同样在 execId 检查前标记消息 streaming=false ──
+        updateLastMessage(null, realSid);
         // Ignore errors from previous (aborted) executions
         if (execIdMapRef.current.get(mySessionId) !== myExecId) return;
         // AskUserQuestion abort is expected — don't show error

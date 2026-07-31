@@ -6,6 +6,7 @@ const os = require('os');
 
 const router = Router();
 const PLUGINS_DIR = path.join(os.homedir(), '.claude-web-ui', 'plugins');
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
 // Ensure plugins directory exists
 if (!fs.existsSync(PLUGINS_DIR)) {
@@ -32,6 +33,11 @@ const BUILTIN_PLUGINS = [
     id: 'andrej-karpathy-skills',
     name: 'Karpathy Skills',
     githubUrl: 'https://github.com/multica-ai/andrej-karpathy-skills',
+  },
+  {
+    id: 'bug-tracker',
+    name: 'Bug Tracker',
+    local: true,  // local plugin bundled with app, not from GitHub
   },
 ];
 
@@ -109,6 +115,8 @@ const KARPATHY_CONTENT = `## 🤖 Karpathy 编码规范（AI Agent 行为准则�
  */
 function autoInstallBuiltinPlugins() {
   for (const plugin of BUILTIN_PLUGINS) {
+    // Skip local plugins (bundled with app, no git clone needed)
+    if (plugin.local) continue;
     const targetDir = path.join(PLUGINS_DIR, plugin.id);
     // Skip only if the clone was successful (has .git directory)
     if (fs.existsSync(targetDir)) {
@@ -181,6 +189,43 @@ function autoInstallBuiltinPlugins() {
     }
   } catch (err) {
     console.error('[plugins] Superpowers auto-registration failed:', err.message);
+  }
+
+  // Deploy local plugins from project source to runtime directory
+  // (Other plugins use git clone, but local plugins are bundled with the app source)
+  const LOCAL_PLUGINS = ['bug-tracker'];
+  for (const lpId of LOCAL_PLUGINS) {
+    const src = path.join(PROJECT_ROOT, 'plugins', lpId);
+    const dst = path.join(PLUGINS_DIR, lpId);
+    try {
+      if (fs.existsSync(src)) {
+        // Copy if not present or if source changed
+        const srcMd = path.join(src, 'SKILL.md');
+        const dstMd = path.join(dst, 'SKILL.md');
+        if (fs.existsSync(srcMd) && (!fs.existsSync(dstMd) || fs.statSync(srcMd).mtimeMs > fs.statSync(dstMd).mtimeMs)) {
+          if (!fs.existsSync(dst)) fs.mkdirSync(dst, { recursive: true });
+          fs.copyFileSync(srcMd, dstMd);
+          console.log(`[plugins] Bug Tracker: deployed from source`);
+        }
+      }
+    } catch (e) { /* non-fatal */ }
+  }
+
+  // Bug Tracker skill sync — always ensure skill file is in ~/.claude/skills/
+  try {
+    const btSource = path.join(PLUGINS_DIR, 'bug-tracker', 'SKILL.md');
+    const btDest = path.join(os.homedir(), '.claude', 'skills', 'bug-tracker.md');
+    if (fs.existsSync(btSource)) {
+      // Only copy if not already present or source is newer
+      if (!fs.existsSync(btDest) || fs.statSync(btSource).mtimeMs > fs.statSync(btDest).mtimeMs) {
+        const skillsDir = path.dirname(btDest);
+        if (!fs.existsSync(skillsDir)) fs.mkdirSync(skillsDir, { recursive: true });
+        fs.copyFileSync(btSource, btDest);
+        console.log('[plugins] Bug Tracker: skill synced');
+      }
+    }
+  } catch (err) {
+    console.error('[plugins] Bug Tracker skill sync failed:', err.message);
   }
 }
 
@@ -553,6 +598,61 @@ router.post('/plugins/superpowers/toggle', (req, res) => {
 });
 
 /**
+ * POST /api/plugins/bug-tracker/toggle
+ * Body: { enabled }
+ * Enable: sync bug-tracker skill to ~/.claude/skills/
+ * Disable: remove skill from ~/.claude/skills/
+ */
+router.post('/plugins/bug-tracker/toggle', (req, res) => {
+  try {
+    const { enabled } = req.body || {};
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled 为必填项 (boolean)' });
+    }
+
+    const claudeSkillsDir = path.join(os.homedir(), '.claude', 'skills');
+    let sourceFile = path.join(PLUGINS_DIR, 'bug-tracker', 'SKILL.md');
+    const destFile = path.join(claudeSkillsDir, 'bug-tracker.md');
+
+    // Fallback: copy from project source to runtime dir on first toggle
+    if (!fs.existsSync(sourceFile)) {
+      const srcFallback = path.join(PROJECT_ROOT, 'plugins', 'bug-tracker', 'SKILL.md');
+      if (fs.existsSync(srcFallback)) {
+        const dstDir = path.dirname(sourceFile);
+        if (!fs.existsSync(dstDir)) fs.mkdirSync(dstDir, { recursive: true });
+        fs.copyFileSync(srcFallback, sourceFile);
+        console.log('[plugins] Bug Tracker: deployed from source (on toggle)');
+      }
+    }
+
+    if (!fs.existsSync(sourceFile)) {
+      return res.status(404).json({ error: 'Bug Tracker 插件文件未找到' });
+    }
+
+    if (enabled) {
+      if (!fs.existsSync(claudeSkillsDir)) {
+        fs.mkdirSync(claudeSkillsDir, { recursive: true });
+      }
+      fs.copyFileSync(sourceFile, destFile);
+      // Ensure bug-records directory exists
+      const recordsDir = path.join(os.homedir(), '.claude-web-ui', 'bug-records');
+      if (!fs.existsSync(recordsDir)) fs.mkdirSync(recordsDir, { recursive: true });
+      console.log('[plugins] Bug Tracker: enabled');
+      res.json({ ok: true, action: 'synced' });
+    } else {
+      if (fs.existsSync(destFile)) {
+        fs.unlinkSync(destFile);
+        console.log('[plugins] Bug Tracker: disabled');
+      }
+      res.json({ ok: true, action: 'removed' });
+    }
+  } catch (err) {
+    console.error('[plugins] bug-tracker toggle error:', err.message);
+    res.status(500).json({ error: `操作失败: ${err.message}` });
+  }
+});
+
+/**
  * GET /api/plugins/status
  * Check actual installation status of built-in plugins (directory exists + has .git).
  * Used by frontend to show true state when auto-install fails on slow networks.
@@ -562,8 +662,12 @@ router.get('/plugins/status', (req, res) => {
     const result = {};
     for (const plugin of BUILTIN_PLUGINS) {
       const targetDir = path.join(PLUGINS_DIR, plugin.id);
-      const dotGit = path.join(targetDir, '.git');
-      result[plugin.id] = fs.existsSync(targetDir) && fs.existsSync(dotGit);
+      if (plugin.local) {
+        result[plugin.id] = fs.existsSync(targetDir);
+      } else {
+        const dotGit = path.join(targetDir, '.git');
+        result[plugin.id] = fs.existsSync(targetDir) && fs.existsSync(dotGit);
+      }
     }
     res.json({ plugins: result });
   } catch (err) {

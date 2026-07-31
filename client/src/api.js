@@ -569,6 +569,12 @@ export async function toggleSuperpowers(enabled) {
   });
 }
 
+export async function toggleBugTracker(enabled) {
+  return fetchJSON('/plugins/bug-tracker/toggle', {
+    method: 'POST', body: JSON.stringify({ enabled }),
+  });
+}
+
 // ── Model API (built-in proxy provider) ──
 
 export async function listModels() {

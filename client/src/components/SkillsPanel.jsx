@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
-import { listSkills, deleteSkillApi, installPlugin, uninstallPlugin as uninstallPluginApi, getPluginInfo, getPluginStatus, toggleKarpathySkills, toggleSuperpowers, authHeaders } from '../api';
+import { listSkills, deleteSkillApi, installPlugin, uninstallPlugin as uninstallPluginApi, getPluginInfo, getPluginStatus, toggleKarpathySkills, toggleSuperpowers, toggleBugTracker, authHeaders } from '../api';
 import SkillEditor from './SkillEditor';
 import { IconPuzzle, IconPackage } from './icons';
 
@@ -44,6 +44,16 @@ const BUILTIN_PLUGINS = [
     githubUrl: 'https://github.com/multica-ai/andrej-karpathy-skills',
     builtin: true,
     karpathy: true,  // special toggle: append/remove CLAUDE.md section
+  },
+  {
+    id: 'bug-tracker',
+    name: 'Bug Tracker',
+    displayName: 'Bug 追踪器',
+    description: '会话级 Bug 记录系统。每个会话自动生成专属 Bug 文档，修复前先查历史记录防止重复造轮子，修复后自动归档根因和方案，让 Bug 有迹可循。',
+    icon: '🐛',
+    author: 'Claude Web UI',
+    builtin: true,
+    local: true,  // local plugin bundled with app
   },
 ];
 
@@ -97,6 +107,15 @@ export default function SkillsPanel() {
     for (const bp of BUILTIN_PLUGINS) {
       const state = pluginState[bp.id];
       const hasExplicitState = state && ('installed' in state);
+      // Local plugins are always installed (bundled with app)
+      if (bp.local) {
+        map.set(bp.id, {
+          ...bp,
+          installed: true,
+          enabled: hasExplicitState ? (state.enabled !== false) : true,
+        });
+        continue;
+      }
       const diskInstalled = pluginDiskStatus[bp.id];
       // Use disk status only when: no explicit state AND disk status is available
       const defaultInstalled = diskInstalled !== undefined ? diskInstalled : true;
@@ -219,6 +238,17 @@ export default function SkillsPanel() {
       setError('');
       try {
         await toggleSuperpowers(newEnabled);
+      } catch (err) {
+        setError(err.message);
+        return;
+      }
+    }
+
+    // Bug Tracker: toggle syncs/removes skill to ~/.claude/skills/
+    if (plugin.id === 'bug-tracker') {
+      setError('');
+      try {
+        await toggleBugTracker(newEnabled);
       } catch (err) {
         setError(err.message);
         return;
@@ -352,9 +382,11 @@ export default function SkillsPanel() {
                   <button className="skill-detail-install" onClick={() => { setPluginDetail(null); handleTogglePlugin(p); }}>
                     {p.enabled ? '禁用' : '启用'}
                   </button>
-                  <button className="skill-detail-install" style={{ background: 'var(--danger)', color: '#fff' }} onClick={() => { setPluginDetail(null); handleUninstallPlugin(p); }} disabled={pluginInstallLoading[p.id]}>
-                    卸载
-                  </button>
+                  {!p.local && (
+                    <button className="skill-detail-install" style={{ background: 'var(--danger)', color: '#fff' }} onClick={() => { setPluginDetail(null); handleUninstallPlugin(p); }} disabled={pluginInstallLoading[p.id]}>
+                      卸载
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -494,9 +526,11 @@ export default function SkillsPanel() {
                           <button className="skills-card-btn" onClick={() => handleTogglePlugin(p)} title={p.enabled ? '禁用' : '启用'}>
                             {p.enabled ? '⏸' : '▶'}
                           </button>
-                          <button className="skills-card-btn skills-card-btn-del" onClick={() => handleUninstallPlugin(p)} title="卸载" disabled={isLoading}>
-                            🗑
-                          </button>
+                          {!p.local && (
+                            <button className="skills-card-btn skills-card-btn-del" onClick={() => handleUninstallPlugin(p)} title="卸载" disabled={isLoading}>
+                              🗑
+                            </button>
+                          )}
                           {!p.builtin && (
                             <button className="skills-card-btn skills-card-btn-del" onClick={(e) => handleDeletePlugin(e, p)} title="删除卡片" style={{ color: 'var(--danger)' }}>
                               ✕
