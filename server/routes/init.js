@@ -1034,8 +1034,13 @@ router.get('/models', async (req, res) => {
     if (cfg.providerModels) {
       for (const [id, val] of Object.entries(cfg.providerModels)) {
         // Use selected if it's explicitly set (even empty), fallback to available only if selected is undefined/null
-        const list = (val && 'selected' in val && Array.isArray(val.selected)) ? val.selected
+        let list = (val && 'selected' in val && Array.isArray(val.selected)) ? val.selected
           : (val?.available || (Array.isArray(val) ? val : []));
+        // 剪除陈旧 selected：不在 available 里的模型 InitPanel 复选框无法展示/取消，
+        // 却会显示在聊天选择器里，导致两处列表不一致（Bug #10）。available 为空时保留 selected（兼容手写配置）
+        if (val && Array.isArray(val.available) && val.available.length > 0 && Array.isArray(list)) {
+          list = list.filter(m => val.available.includes(m));
+        }
         const provider = (cfg.providers || []).find(p => p.id === id);
         const pName = provider?.name || id.slice(0, 8);
         const pModels = [];

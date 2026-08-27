@@ -107,6 +107,46 @@ const KARPATHY_CONTENT = `## 🤖 Karpathy 编码规范（AI Agent 行为准则�
 | 目标驱动执行 | 模糊完成标准、未验证的修改 |
 `;
 
+// ── Bug Tracker content (injected into project CLAUDE.md when enabled) ──
+const BUG_TRACKER_MARKER_START = '<!-- BUG_TRACKER_START -->';
+const BUG_TRACKER_MARKER_END = '<!-- BUG_TRACKER_END -->';
+const BUG_TRACKER_CONTENT = `## 🐛 Bug 追踪器（会话级，全消息激活）
+
+> 由插件 bug-tracker 管理。每次收到用户消息都先读取该会话的历史 Bug 记录，修复后自动归档。
+
+### 每次回复前必须执行
+
+用 Bash 读取当前会话的 Bug 记录文件（session UUID 可从系统提示路径提取）：
+\`\`\`bash
+cat ~/.claude-web-ui/bug-records/<session-uuid>.md 2>/dev/null || echo "（无历史记录）"
+\`\`\`
+
+如果不确定 session UUID，用 \`ls ~/.claude-web-ui/bug-records/\` 查看。
+
+### 修复 Bug 后必须记录
+
+修复完成后追加到记录文件，格式：
+
+\`\`\`markdown
+## Bug #<序号>
+
+- **时间**：<YYYY-MM-DD HH:MM>
+- **问题**：<简要描述>
+- **根因**：<根本原因>
+- **修复**：<方案和关键代码变更>
+- **教训**：<如何防止同类问题>
+- **关联文件**：<涉及的文件路径>
+\`\`\`
+
+同步更新文件顶部的汇总表格。
+
+### 规则
+
+1. **每轮必读** — 每个回复前先读历史 Bug 记录（静默，不告诉用户）
+2. **每 Bug 必录** — 修复即记录
+3. **复用经验** — 同类 Bug 引用历史记录编号
+`;
+
 /**
  * Auto-install built-in plugins on server startup.
  * Clones if missing, pulls if already present.
@@ -149,6 +189,23 @@ function autoInstallBuiltinPlugins() {
     }
   } catch (err) {
     console.error('[plugins] Karpathy guidelines injection failed:', err.message);
+  }
+
+  // Bug Tracker CLAUDE.md injection — idempotent
+  try {
+    const projectRoot = path.resolve(__dirname, '..', '..');
+    const claudeMdPath = path.join(projectRoot, 'CLAUDE.md');
+    if (fs.existsSync(claudeMdPath)) {
+      let content = fs.readFileSync(claudeMdPath, 'utf8');
+      if (!content.includes(BUG_TRACKER_MARKER_START)) {
+        if (!content.endsWith('\n')) content += '\n';
+        content += '\n' + BUG_TRACKER_MARKER_START + '\n' + BUG_TRACKER_CONTENT + '\n' + BUG_TRACKER_MARKER_END + '\n';
+        fs.writeFileSync(claudeMdPath, content, 'utf8');
+        console.log('[plugins] Bug Tracker: injected into CLAUDE.md');
+      }
+    }
+  } catch (err) {
+    console.error('[plugins] Bug Tracker CLAUDE.md injection failed:', err.message);
   }
 
   // Superpowers auto-registration with Claude Code — idempotent
@@ -637,13 +694,38 @@ router.post('/plugins/bug-tracker/toggle', (req, res) => {
       // Ensure bug-records directory exists
       const recordsDir = path.join(os.homedir(), '.claude-web-ui', 'bug-records');
       if (!fs.existsSync(recordsDir)) fs.mkdirSync(recordsDir, { recursive: true });
+
+      // Inject into project CLAUDE.md
+      const claudeMdPath = path.join(PROJECT_ROOT, 'CLAUDE.md');
+      if (fs.existsSync(claudeMdPath)) {
+        let md = fs.readFileSync(claudeMdPath, 'utf8');
+        if (!md.includes(BUG_TRACKER_MARKER_START)) {
+          if (!md.endsWith('\n')) md += '\n';
+          md += '\n' + BUG_TRACKER_MARKER_START + '\n' + BUG_TRACKER_CONTENT + '\n' + BUG_TRACKER_MARKER_END + '\n';
+          fs.writeFileSync(claudeMdPath, md, 'utf8');
+        }
+      }
+
       console.log('[plugins] Bug Tracker: enabled');
       res.json({ ok: true, action: 'synced' });
     } else {
       if (fs.existsSync(destFile)) {
         fs.unlinkSync(destFile);
-        console.log('[plugins] Bug Tracker: disabled');
       }
+      // Remove from project CLAUDE.md
+      const claudeMdPath = path.join(PROJECT_ROOT, 'CLAUDE.md');
+      if (fs.existsSync(claudeMdPath)) {
+        let md = fs.readFileSync(claudeMdPath, 'utf8');
+        if (md.includes(BUG_TRACKER_MARKER_START)) {
+          const si = md.indexOf(BUG_TRACKER_MARKER_START);
+          const ei = md.indexOf(BUG_TRACKER_MARKER_END, si);
+          if (ei > si) {
+            md = (md.slice(0, si - 1) + md.slice(ei + BUG_TRACKER_MARKER_END.length + 1)).replace(/\n{3,}/g, '\n\n');
+            fs.writeFileSync(claudeMdPath, md, 'utf8');
+          }
+        }
+      }
+      console.log('[plugins] Bug Tracker: disabled');
       res.json({ ok: true, action: 'removed' });
     }
   } catch (err) {

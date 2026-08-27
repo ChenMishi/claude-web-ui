@@ -119,12 +119,24 @@ export default function InitPanel() {
   const [fetchingIdx, setFetchingIdx] = useState(-1); // which card is currently pulling // inline status next to pull button
 
   // Toggle model selection for a provider
+  // ⚠️ 必须立即写盘并刷新全局模型列表：聊天窗口模型选择器从服务端 /models 读 selected，
+  // 只改本地 state 不会同步。勾选即保存，避免用户忘了点「保存配置」导致聊天窗口不更新。
   const toggleModel = (providerId, model) => {
     setProviderModels(prev => {
       const entry = prev[providerId] || { available: [], selected: [] };
       const sel = entry.selected.includes(model)
         ? entry.selected.filter(m => m !== model)
         : [...entry.selected, model];
+      if (providerId) {
+        try {
+          fetch('/api/init/provider-models', {
+            method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ providerId, selected: sel, available: entry.available || [] }),
+          })
+            .then(() => { try { loadAvailableModels(); } catch {} })
+            .catch(() => {});
+        } catch {}
+      }
       return { ...prev, [providerId]: { ...entry, selected: sel } };
     });
   };
@@ -498,15 +510,17 @@ export default function InitPanel() {
       const d = await fetchModels(p.baseUrl, p.apiKey);
       if (d.ok) {
         const models = d.models || [];
-        // Save available models to server (preserve existing selected)
+        // 拉取后 available 已被新列表整体替换，selected 必须剪除不在 available 里的陈旧模型，
+        // 否则聊天选择器会显示 InitPanel 复选框里看不到/无法取消的模型（Bug #10）
         const prev = providerModels[pid] || {};
+        const prunedSelected = (prev.selected || []).filter(m => models.includes(m));
         await fetch('/api/init/provider-models', {
           method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ providerId: pid, available: models, selected: prev.selected || [] }),
+          body: JSON.stringify({ providerId: pid, available: models, selected: prunedSelected }),
         });
         setProviderModels(prev => ({
           ...prev,
-          [pid]: { available: models, selected: prev[pid]?.selected || [] },
+          [pid]: { available: models, selected: prunedSelected },
         }));
         return { ok: true };
       }

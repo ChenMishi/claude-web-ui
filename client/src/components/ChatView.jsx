@@ -145,38 +145,19 @@ export default function ChatView() {
   const [atTop, setAtTop] = useState(false);
   const loadedCountRef = useRef(0);
 
-  // Message buffer for AskUserQuestion — hide Claude output until user answers
-  const askBufferRef = useRef([]);
-  const isAskBuffered = useRef(false);
   const appendRef = useRef(appendMessage);
   const updateRef = useRef(updateLastMessage);
   appendRef.current = appendMessage;
   updateRef.current = updateLastMessage;
 
-  // Helper: buffered append/update
-  const bAppend = (msg) => {
-    if (isAskBuffered.current && askRef.current) {
-      askBufferRef.current.push(msg);
-    } else {
-      appendRef.current(msg, streamSessionIdRef.current);
-    }
-  };
-  const bUpdate = (content) => {
-    if (isAskBuffered.current && askRef.current) {
-      const buf = askBufferRef.current;
-      if (buf.length > 0 && buf[buf.length - 1].role === 'assistant') {
-        buf[buf.length - 1] = { ...buf[buf.length - 1], content, streaming: true };
-      }
-    } else {
-      updateRef.current(content, streamSessionIdRef.current);
-    }
-  };
+  // Helper: direct append/update (no buffering — buffering caused message loss)
+  const bAppend = (msg) => appendRef.current(msg, streamSessionIdRef.current);
+  const bUpdate = (content) => updateRef.current(content, streamSessionIdRef.current);
 
   // Auto-scroll when ask dialog or tool confirm appears
   useEffect(() => {
     if ((askUser || toolConfirm) && askRef.current) {
       askRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      isAskBuffered.current = true;
     }
   }, [askUser, toolConfirm]);
 
@@ -807,12 +788,6 @@ export default function ChatView() {
     allAbortsRef.current.delete(currentSessionId);
     streamEnd(currentSessionId);
     ++execIdRef.current;  // bump so stale SSE errors are ignored
-    // ── 清理卡住的缓冲状态（先 flush 缓冲区内容，避免丢失消息）──
-    if (isAskBuffered.current && askBufferRef.current.length > 0) {
-      askBufferRef.current.forEach(msg => appendMessage(msg, currentSessionId));
-    }
-    isAskBuffered.current = false;
-    askBufferRef.current = [];
     clearPendingQueue();  // 清空排队消息
     if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
 
@@ -855,9 +830,6 @@ export default function ChatView() {
     // 消息会永远带着 streaming: true，MarkdownRenderer 卡在打字机模式不显示。
     // 这里做最后一次兜底清理，确保新消息发送时旧消息一定已可见。
     finishAllStreaming();
-    // 同时清理可能卡住的 AskUserQuestion 缓冲状态（handleStop 中止后残留）
-    isAskBuffered.current = false;
-    askBufferRef.current = [];
 
     // Mark compact trigger
     compactRef.current = text.includes('压缩对话上下文');
@@ -1220,13 +1192,6 @@ export default function ChatView() {
     const vals = Object.values(answers.answers || answers);
     const text = vals.filter(Boolean).join('，');
     setAskUser(null);
-    isAskBuffered.current = false;
-    // Flush buffered messages
-    const buf = askBufferRef.current;
-    if (buf.length > 0) {
-      buf.forEach(msg => appendRef.current(msg));
-      askBufferRef.current = [];
-    }
 
     // askMode: 'send' = visible message in chat (default), 'inject' = silent
     if (text) {

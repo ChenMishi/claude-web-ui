@@ -54,3 +54,21 @@ __pycache__/
 # 测试/调试临时产物
 health_check*
 打油诗*
+
+# 运行时敏感数据与用户数据（禁止入库）
+.internal-token
+channel-config.json
+bot-sessions.json
+bot-current-project.json
+scheduled-tasks.json
+.last-backup
+email-attachments/
+bug-records/
+
+# 运行时自动克隆的插件（启动时从 GitHub clone，非源码）
+plugins/superpowers/
+plugins/agency-agents-zh/
+plugins/andrej-karpathy-skills/
+
+# 备份文件
+*.bak

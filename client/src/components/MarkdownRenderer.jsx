@@ -145,7 +145,11 @@ export default function MarkdownRenderer({ content, streaming }) {
     // when SSE delivers more text after the previous loop caught up.
   }, [streaming, fullContent.length]);  // eslint-disable-line
 
-  if (!content || typeof content !== 'string') return null;
+  // ⚠️ 不能在此处 return null：useMemo 在其后调用，React hooks 规则要求每次渲染
+  // hooks 数量恒定。content 从有→无（如 updateLastMessage(null) 清空最后一条消息）
+  // 时，提前 return 会跳过 useMemo，触发 React error #310 "Rendered more hooks
+  // than during the previous render" → 整个应用白屏。
+  const hasContent = typeof content === 'string' && content.length > 0;
 
   const displayContent = streaming ? fullContent.slice(0, revealedLen) : fullContent;
   const isRevealing = streaming && revealedLen < fullContent.length;
@@ -173,6 +177,7 @@ export default function MarkdownRenderer({ content, streaming }) {
   }
 
   const html = useMemo(() => {
+    if (!hasContent) return '';
     try {
       return DOMPurify.sanitize(renderMarkdown(renderContent, !!streaming), {
         ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'h1', 'h2', 'h3', 'h4',
@@ -185,7 +190,10 @@ export default function MarkdownRenderer({ content, streaming }) {
       console.error('MarkdownRenderer render error:', e);
       return '<p style="color:red">⚠️ 渲染错误</p>';
     }
-  }, [renderContent, streaming]);
+  }, [renderContent, streaming, hasContent]);
+
+  // 在 useMemo 之后才能提前 return（React hooks 规则）
+  if (!hasContent) return null;
 
   if (liveCodeBlock) {
     return (

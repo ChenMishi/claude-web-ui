@@ -113,6 +113,9 @@ function reducer(state, action) {
         newCache[saveKey] = state.chatMessages;
         saveCache(newCache);
       }
+      // 清除残留的 'new' 和 __pending__ 缓存，防止旧流片段被合并到新会话
+      delete newCache['new'];
+      delete newCache.__pending__;
       localStorage.removeItem('claude-ui:currentSessionId');
       next = { ...state, currentSessionId: null, chatMessages: [], messageCache: newCache,
         tasks: [], mainTask: null };
@@ -151,11 +154,15 @@ function reducer(state, action) {
         cache2[action.payload] = cache2.__pending__;
         delete cache2.__pending__;
       }
-      const orphanedMsgs = cache2['new'] || [];
+      // 只在当前正在流式传输时合并 'new' 的消息（否则可能是残留的旧流片段）
+      const orphanedMsgs = state.isStreaming ? (cache2['new'] || []) : [];
       if (orphanedMsgs.length > 0) {
         cache2[action.payload] = [...(cache2[action.payload] || []), ...orphanedMsgs];
         delete cache2['new'];
       }
+      // 无论如何都清除 'new' 缓存，防止下次新建对话时残留
+      delete cache2.__pending__;
+      delete cache2['new'];
       saveCache(cache2);
       const merged = orphanedMsgs.length > 0
         ? [...state.chatMessages, ...orphanedMsgs]

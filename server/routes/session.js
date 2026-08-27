@@ -806,11 +806,28 @@ function handleSDKMessage(message, runtime, isStreaming) {
       if (message.message?.usage) {
         console.log('[SDK usage]', JSON.stringify(message.message.usage));
       }
+      // ── GLM5.2 等推理模型兜底：assistant 消息只有 thinking 块、无 text 块时 ──
+      // 将 thinking 提升为 text 广播，避免前端因无 text 块而"收不到回复"。
+      // 正常模型（thinking+text 分两条消息）不受影响：有 text 时保持原样。
+      // ── 过滤 SDK 占位回复 "No response requested."，避免前端显示无意义内容（Bug #12） ──
+      const textBlocks = content.filter(b => b.type === 'text');
+      if (textBlocks.length === 1 && String(textBlocks[0].text || '').trim() === 'No response requested.') {
+        return; // 不广播占位回复
+      }
+      let broadcastMessage = message.message;
+      const hasText = content.some(b => b.type === 'text');
+      const hasThinking = content.some(b => b.type === 'thinking');
+      if (!hasText && hasThinking) {
+        broadcastMessage = {
+          ...message.message,
+          content: content.map(b => (b.type === 'thinking' ? { type: 'text', text: b.thinking || '' } : b)),
+        };
+      }
       broadcast(runtime, 'message', {
         type: 'assistant',
         uuid: message.uuid || '',
         session_id: message.session_id || '',
-        message: message.message,
+        message: broadcastMessage,
         parent_tool_use_id: message.parent_tool_use_id || null,
       });
     }
@@ -1075,7 +1092,35 @@ function buildSDKOptions(runtime, body, authUser) {
     }
   } catch {}
 
+  // Inject Bug Tracker instructions if skill is synced
+  try {
+    const bugTrackerSkill = path.join(os.homedir(), '.claude', 'skills', 'bug-tracker.md');
+    if (fs.existsSync(bugTrackerSkill)) {
+      const content = fs.readFileSync(bugTrackerSkill, 'utf8');
+      const parts = content.split('---');
+      let body = parts.length >= 3 ? parts.slice(2).join('---').trim() : content.trim();
+      if (body) {
+        // Replace placeholder with actual session UUID so Claude doesn't need to guess
+        body = body.replace(/<session-uuid>/g, runtime.sessionId);
+        const userPrompt = agentOptions.systemPrompt || '';
+        agentOptions.systemPrompt = body + (userPrompt ? '\n\n' + userPrompt : '');
+      }
+    }
+  } catch {}
+
   const proxyUrl = getProxyUrl();
+
+  // ── 强制子代理模型 = 当前会话模型，杜绝子代理默认用 claude-opus-5 触发 403（Bug #13） ──
+  // Claude Code CLI 的 Agent/Task 工具派发的子代理默认模型是 opus，用户 token 无 opus
+  // 权限会报 "Failed to authenticate. API Error: 403 This token has no access to model
+  // claude-opus-5"，导致子代理失败、任务中断。通过 CLAUDE_CODE_SUBAGENT_MODEL env 覆盖。
+  let subagentModel = agentOptions.model;
+  if (!subagentModel) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'provider-config.json'), 'utf8'));
+      subagentModel = cfg.model;
+    } catch {}
+  }
 
   const options = {
     cwd: sandbox ? sandbox.homeDir : runtime.cwd,
@@ -1100,6 +1145,8 @@ function buildSDKOptions(runtime, body, authUser) {
       CLAUDE_USER_ID: authUser?.userId || '',
       CLAUDE_WEBUI_PORT: String(require('../config').PORT || 3000),
       ...(agentOptions.env || {}),
+      // 子代理强制用会话模型，避免默认 opus-5 触发 403（Bug #13）
+      ...(subagentModel ? { CLAUDE_CODE_SUBAGENT_MODEL: subagentModel } : {}),
     },
     ...agentOptions.thinking !== undefined ? { thinking: agentOptions.thinking } : {},
     // GLM models don't support extended thinking — force disable to avoid
@@ -2077,6 +2124,11 @@ router.post('/session/:id/message', async (req, res) => {
   runtime.buffer = []; // clear buffer from any previous run
   runtime.model = body.options?.model || 'unknown';
 
+  // 声明在 try 外，catch 块中才能访问（JS let/const 块级作用域）
+  let result;
+  const allMessages = [];
+  let compactRetried = false;  // 防止死循环 — 只压缩一次
+
   try {
     const options = buildSDKOptions(runtime, body, req.user);
 
@@ -2136,10 +2188,6 @@ router.post('/session/:id/message', async (req, res) => {
       }
     }
 
-    let result;
-    const allMessages = [];
-    let compactRetried = false;  // 防止死循环 — 只压缩一次
-
     // ── Proactive: strip incompatible fields from JSONL before every request ──
     // reasoning_content is DeepSeek-specific. It MUST be preserved for DeepSeek-native
     // providers (api.deepseek.com), but stripped for middlemen like ApiRouter.
@@ -2165,17 +2213,68 @@ router.post('/session/:id/message', async (req, res) => {
           isDeepSeekNative = cp?.baseUrl && /deepseek\.com/i.test(cp.baseUrl);
         } catch {}
 
-        let cleanedLines = lines.map(line => {
+        const cleanedLines = [];
+        for (const line of lines) {
           try {
             const obj = JSON.parse(line);
+
+            // ── 丢弃 SDK 注入/占位消息（不是用户真实输入，Bug #12） ──
+            // 来自 Claude Code CLI 的自动恢复机制，会被写进 JSONL 当 user 消息：
+            //  - 空回复检测: "[Your previous response had no visible output..."
+            //  - 进程崩溃恢复: "Continue from where you left off..."
+            //  - 工具调用失败重试: "The previous response failed to produce a valid tool call..."
+            // 这些消息模型不理解，会导致上下文污染、任务中断、后续 resume 混乱。
+            const objRole = obj.message?.role;
+            const objContent = obj.message?.content;
+            let objText = '';
+            if (typeof objContent === 'string') objText = objContent.trim();
+            else if (Array.isArray(objContent)) {
+              objText = objContent
+                .filter(b => b.type === 'text')
+                .map(b => String(b.text || ''))
+                .join(' ')
+                .trim();
+            }
+            const INJECTED_PREFIXES = [
+              '[Your previous response had no visible output',
+              'Continue from where you left off',
+              'The previous response failed to produce a valid tool call',
+              'Your tool call was malformed',
+            ];
+            if (objRole === 'user' && INJECTED_PREFIXES.some(p => objText.startsWith(p))) {
+              cleaned++;
+              continue; // 整行丢弃注入消息
+            }
+            // assistant 占位回复 "No response requested." 也丢弃
+            if (objRole === 'assistant' && objText === 'No response requested.') {
+              cleaned++;
+              continue; // 整行丢弃占位回复
+            }
+
             let changed = false;
-            // Always strip "type: thinking" blocks (GLM-specific)
+            // Always strip "type: thinking" blocks (GLM-specific), and drop
+            // empty/whitespace-only text blocks. ApiRouter 会把空 text 块
+            // {"type":"text","text":""} 转成缺 text 键的 {"type":"text"}，
+            // 经 SGLang 上游校验直接 400 拒绝（Bug #11）。
             const msgContent = obj.message?.content;
             if (Array.isArray(msgContent)) {
-              const filtered = msgContent.filter(b => b.type !== 'thinking');
+              let filtered = msgContent.filter(b => b.type !== 'thinking');
+              filtered = filtered.filter(b => !(b.type === 'text' && !String(b.text || '').trim()));
               if (filtered.length !== msgContent.length) {
-                obj.message = { ...obj.message, content: filtered };
-                changed = true;
+                if (filtered.length > 0) {
+                  obj.message = { ...obj.message, content: filtered };
+                  changed = true;
+                } else {
+                  // 剥离后内容为空：若有 thinking 则提升为 text 保住助手文本，否则整行丢弃
+                  const promoted = msgContent.filter(b => b.type === 'thinking')
+                    .map(b => ({ type: 'text', text: b.thinking || '' }));
+                  if (promoted.length > 0) {
+                    obj.message = { ...obj.message, content: promoted };
+                    changed = true;
+                  } else {
+                    continue; // drop this line entirely
+                  }
+                }
               }
             }
             // Strip reasoning_content unless provider is DeepSeek-native
@@ -2184,9 +2283,9 @@ router.post('/session/:id/message', async (req, res) => {
               if (obj.message?.reasoning_content !== undefined) { delete obj.message.reasoning_content; changed = true; }
             }
             if (changed) cleaned++;
-            return JSON.stringify(obj);
-          } catch { return line; }
-        });
+            cleanedLines.push(JSON.stringify(obj));
+          } catch { cleanedLines.push(line); }
+        }
         if (cleaned > 0) {
           fs.writeFileSync(realPath, cleanedLines.join('\n') + '\n', 'utf8');
         }

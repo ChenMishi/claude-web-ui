@@ -186,3 +186,41 @@
 | 目标驱动执行 | 模糊完成标准、未验证的修改 |
 
 <!-- KARPATHY_GUIDELINES_END -->
+
+<!-- BUG_TRACKER_START -->
+## 🐛 Bug 追踪器（会话级，全消息激活）
+
+> 由插件 bug-tracker 管理。每次收到用户消息都先读取该会话的历史 Bug 记录，修复后自动归档。
+
+### 每次回复前必须执行
+
+用 Bash 读取当前会话的 Bug 记录文件（session UUID 可从系统提示路径提取）：
+```bash
+cat ~/.claude-web-ui/bug-records/<session-uuid>.md 2>/dev/null || echo "（无历史记录）"
+```
+
+如果不确定 session UUID，用 `ls ~/.claude-web-ui/bug-records/` 查看。
+
+### 修复 Bug 后必须记录
+
+修复完成后追加到记录文件，格式：
+
+```markdown
+## Bug #<序号>
+
+- **时间**：<YYYY-MM-DD HH:MM>
+- **问题**：<简要描述>
+- **根因**：<根本原因>
+- **修复**：<方案和关键代码变更>
+- **教训**：<如何防止同类问题>
+- **关联文件**：<涉及的文件路径>
+```
+
+同步更新文件顶部的汇总表格。
+
+### 规则
+
+1. **每轮必读** — 每个回复前先读历史 Bug 记录（静默，不告诉用户）
+2. **每 Bug 必录** — 修复即记录
+3. **复用经验** — 同类 Bug 引用历史记录编号
+<!-- BUG_TRACKER_END -->
