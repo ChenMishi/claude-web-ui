@@ -330,8 +330,8 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, attachmen
   let currentEvent = '';
   let receivedDone = false;
 
-  // 超时保护：30 秒无数据则判定连接断开
-  const STREAM_TIMEOUT = 30000;
+  // 超时保护：2 分钟无数据则判定连接断开（原 30 秒常被长思考/长任务间隙误触发）
+  const STREAM_TIMEOUT = 120000;
   let lastDataTime = Date.now();
 
   try {
@@ -349,7 +349,7 @@ export async function runAgent({ sessionId, cwd, prompt, options = {}, attachmen
       } catch (err) {
         if (err.message === 'STREAM_TIMEOUT') {
           if (!receivedDone) {
-            onError?.(new Error('响应超时: 服务端超过 30 秒未发送数据'));
+            onError?.(new Error('响应超时: 服务端超过 2 分钟未发送数据'));
           }
           break;
         }
