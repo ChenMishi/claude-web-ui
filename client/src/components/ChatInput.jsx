@@ -47,7 +47,7 @@ function formatSizeLocal(bytes) {
 export function InputSelectsCard({ activeSkill, onSkillChange, activeAgent, onAgentChange }) {
   const { isStreaming, currentSessionId, execStatus, model, permissionLevel, setSetting,
     setView, currentProjectId, projects,
-    availableModels, currentModel, switchCurrentModel, displayMode, modelGroups } = useApp();
+    availableModels, currentModel, switchCurrentModel, displayMode, modelGroups, visionMode } = useApp();
   const hasModels = Object.keys(modelGroups).length > 0 || availableModels.length > 0;
   const displayModel = fmtModel(currentModel, modelGroups, model);
   const skillsRef = useRef(null);
@@ -244,7 +244,7 @@ export function InputSelectsCard({ activeSkill, onSkillChange, activeAgent, onAg
 export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, activeAgent, onAgentChange, queuedMessages, onRemoveQueued, onPrioritize }) {
   const { isStreaming, currentSessionId, execStatus, setSetting,
     setView, setMessages, currentProjectId, selectProject, theme, chatMessages,
-    availableModels, model, permissionLevel, projects, currentModel, switchCurrentModel, displayMode, modelGroups, newChat } = useApp();
+    availableModels, model, permissionLevel, projects, currentModel, switchCurrentModel, displayMode, modelGroups, newChat, visionMode } = useApp();
   const hasModels = Object.keys(modelGroups).length > 0 || availableModels.length > 0;
   const displayModel = fmtModel(currentModel, modelGroups, model);
   const inputRef = useRef(null);
@@ -665,7 +665,7 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
           multiple
           style={{ display: 'none' }}
           onChange={handleFileChange}
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml,.html,.md,.py,.js,.ts,.css,.zip,.tar,.gz,.tgz,.7z,.rar"
+          accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml,.html,.md,.py,.js,.ts,.css,.zip,.tar,.gz,.tgz,.7z,.rar"
         />
         <div className="skill-input-wrap">
           {activeSkill && (
@@ -740,6 +740,19 @@ export default function ChatInput({ onSend, onStop, activeSkill, onSkillChange, 
                 ) : null}
               </div>
             )}
+          </div>
+          {/* 多模态识别方式切换：自动/本地/模型 — 放在模型选择器与权限选择器之间 */}
+          <div className="input-select-group" style={{ position: 'relative' }}>
+            <span className="input-select-icon" title="多模态识别方式">🖼</span>
+            <button
+              className="input-select input-select-vision"
+              onClick={() => {
+                const cycle = { auto: 'local', local: 'backend', backend: 'auto' };
+                setSetting('visionMode', cycle[visionMode] || 'auto');
+              }}
+              style={{ background: 'transparent', border: 'none', color: visionMode === 'auto' ? 'var(--text-muted)' : 'var(--accent)', cursor: 'pointer', fontSize: 12, padding: '4px 2px', whiteSpace: 'nowrap' }}
+              title="多模态识别方式（视频自动抽帧）：本地识别(Florence/OCR) 或 后端多模态模型识别"
+            >{{ auto: '多模态:自动', local: '多模态:本地识别', backend: '多模态:模型识别' }[visionMode]}</button>
           </div>
           <div className={`input-select-group perm-${permissionLevel}`} ref={permDropdownRef}>
             <span className="input-select-icon" title="工具权限">🔒</span>

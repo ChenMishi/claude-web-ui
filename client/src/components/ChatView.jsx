@@ -72,12 +72,12 @@ export default function ChatView() {
     isStreaming, setStreaming, currentProjectId, currentSessionId,
     model, systemPrompt, setSessionId, projects,
     setProjects, setSessions, permissionLevel,
-    execStart, execPhase, execTick, execTokens, execDone, execReset,
+    execStart, execPhase, execTick, execTokens, execEstimate, execDone, execReset,
     addTask, bindTaskId, updateTask, setMainTask, updateMainTask, execStatus,
     currentModel, finishAllStreaming, finalizeStreaming, streamStart, streamEnd, setSessionExecStatus,
     busySessions, taskOutputTick, notifyTaskOutput, addUnreadSession,
     searchScrollTarget,
-    availableModels, modelGroups,
+    availableModels, modelGroups, visionMode,
   } = useApp();
   const busyRef = useRef(busySessions);
   busyRef.current = busySessions;
@@ -87,6 +87,9 @@ export default function ChatView() {
   const hasAssistantText = useRef(false);
   const textAccum = useRef('');
   const hasThinking = useRef(false);
+  // 跨轮次输出字符累计（SDK 中间消息 usage 恒 0，用文本长度估算实时 output token）
+  const lockedOutCharsRef = useRef(0);  // 已结束轮次的输出字符数
+  const roundThinkingCharsRef = useRef(0);  // 当前轮 thinking 字符数
   const timerRef = useRef(null);
   const execIdRef = useRef(0);  // increments each execution, used to ignore stale errors
   const execIdMapRef = useRef(new Map()); // sessionId → myExecId, 每个会话独立防重入
@@ -882,6 +885,12 @@ export default function ChatView() {
     // 仅当前会话更新全局 execStatus（ExecutionBar 等）
     const lbExecPhase = (payload) => { if (mySessionId === currentSessionId) execPhase(payload); };
     const lbExecTokens = (payload) => { if (mySessionId === currentSessionId) execTokens(payload); };
+    // 估算 output token：跨轮次累计字符数 / 3（中英混合粗估），仅当前会话更新
+    const lbExecEstimate = () => {
+      if (mySessionId !== currentSessionId) return;
+      const chars = lockedOutCharsRef.current + roundThinkingCharsRef.current + textAccum.current.length;
+      execEstimate(Math.ceil(chars / 3));
+    };
 
     // Build user message content — attachment metadata rendered separately in ChatMessage
     let userContent = promptText || <>📎 发送了附件</>;
@@ -890,6 +899,8 @@ export default function ChatView() {
     textAccum.current = '';
     hasThinking.current = false;
     textAccum.current = '';
+    lockedOutCharsRef.current = 0;
+    roundThinkingCharsRef.current = 0;
 
     // Abort any previous stream and create a new AbortController for this send
     // 同会话重发：中止旧流；不同会话：旧流在 allAbortsRef 中继续后台运行
@@ -915,11 +926,14 @@ export default function ChatView() {
       attachments: attachments || undefined,
       options: { model: currentModel || model, systemPrompt: (isCompact
         ? (systemPrompt || '') + '\n\n[系统指令] 这是一次对话上下文压缩操作。你只需要用纯文本总结前面的对话要点，不要调用任何工具，不要读取或修改任何文件，直接回复总结即可。'
-        : systemPrompt || undefined), permissionLevel, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
+        : systemPrompt || undefined), permissionLevel, visionMode, ...(activeSkill ? { activeSkill: activeSkill.name } : {}) },
       onThinking: ({ text: thinkingText, usage }) => {
         lbExecPhase({ phase: 'thinking', detail: thinkingText });
         lbExecUpdate('thinking', thinkingText);
         if (usage) lbExecTokens(toTokens(usage));
+        // 估算实时 output（SDK 中间 usage 恒 0）；thinkingText 通常是本轮累积，取 max 防增量误判
+        roundThinkingCharsRef.current = Math.max(roundThinkingCharsRef.current, (thinkingText || '').length);
+        lbExecEstimate();
         hasAssistantText.current = false;  // 防止跨消息状态污染
         lbAppend({ role: 'thinking', content: thinkingText, streaming: true, timestamp: Date.now() });
       },
@@ -984,10 +998,15 @@ export default function ChatView() {
         lbExecPhase({ phase: 'responding', detail: '' });
         lbExecUpdate('responding', '');
         if (usage) lbExecTokens(toTokens(usage));
+        lbExecEstimate();  // textAccum.current 已更新为本轮累积全文，据此估算实时 output
       },
       onToolUse: ({ tool, input, tool_use_id, usage }) => {
         hasAssistantText.current = false;
         hasThinking.current = false;
+        // 本轮输出结束，锁定字符数到累计；textAccum 是本轮累积全文，thinking 单独计
+        lockedOutCharsRef.current += textAccum.current.length + roundThinkingCharsRef.current;
+        textAccum.current = '';
+        roundThinkingCharsRef.current = 0;
         // Track tool name for result display
         toolNameMap.current.set(tool_use_id, tool);
         // Track file_path for Write artifacts (avoid React state race in onToolResult)
@@ -1184,7 +1203,7 @@ export default function ChatView() {
       },
     });
     sendingRef.current = false;  // 释放发送锁，允许其他会话并发发送
-  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, finishAllStreaming, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, activeAgent, addTask, bindTaskId, updateTask, setMainTask, updateMainTask, modelGroups, availableModels]);
+  }, [isStreaming, setStreaming, appendMessage, updateLastMessage, finishAllStreaming, currentProjectId, currentSessionId, model, currentModel, systemPrompt, permissionLevel, visionMode, setSessionId, projects, setProjects, setSessions, execStart, execPhase, execTick, execTokens, execDone, execReset, startTimer, stopTimer, activeSkill, activeAgent, addTask, bindTaskId, updateTask, setMainTask, updateMainTask, modelGroups, availableModels]);
   handleSendRef.current = handleSend;
 
   const handleResolveAsk = useCallback((answers) => {

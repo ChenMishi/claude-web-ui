@@ -2156,6 +2156,7 @@ html, body, #root {
 }
 .input-select-perm { min-width: 70px; }
 .input-select-skill { min-width: 40px; }
+.input-select-vision { min-width: 92px; }
 
 /* ── 自定义下拉面板（模型 / 权限选择器） ── */
 .input-select-group { position: relative; }

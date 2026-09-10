@@ -1892,8 +1892,38 @@ router.post('/session/:id/message', async (req, res) => {
   // ── Attachments: prepend file info to prompt ──
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
   const SUPPORTED_IMAGE_MIME = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+  const SUPPORTED_VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
   const officeExts = ['.docx', '.xlsx', '.pptx'];
   const archiveExts = ['.zip', '.tar', '.gz', '.tgz', '.7z', '.rar'];
+
+  // ── Helper: 用 ffmpeg 抽视频关键帧为临时 jpg，返回图片路径数组（失败返回 null） ──
+  function extractVideoFrames(videoPath, maxFrames) {
+    const maxF = maxFrames || 6;
+    try {
+      const { execFileSync } = require('child_process');
+      execFileSync('which', ['ffmpeg'], { stdio: 'ignore' });
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vframe-'));
+      // 先探测时长，均分抽帧
+      let duration = 0;
+      try {
+        const durOut = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', videoPath], { encoding: 'utf8', timeout: 15000 }).trim();
+        duration = parseFloat(durOut) || 0;
+      } catch {}
+      // 用 fps 抽帧：按最大帧数反推间隔；等比缩到最宽 768px 控制体积
+      const fps = maxF > 0 ? String(maxF / (duration > 0 ? duration : maxF)) : '1';
+      const args = ['-i', videoPath, '-vf', `fps=${fps},scale='min(768,iw)':-2`, '-frames:v', String(maxF), '-q:v', '4'];
+      const outPattern = path.join(tmpDir, 'f_%03d.jpg');
+      execFileSync('ffmpeg', [...args, outPattern], { timeout: 120000, stdio: 'ignore' });
+      const frames = fs.readdirSync(tmpDir).filter(f => f.endsWith('.jpg')).sort()
+        .map(f => ({ path: path.join(tmpDir, f), mimeType: 'image/jpeg', fileName: `video-frame-${f}` }));
+      if (frames.length === 0) { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} return null; }
+      // 注册进程退出时清理临时帧
+      process.once('exit', () => { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} });
+      return frames;
+    } catch (e) {
+      return null;
+    }
+  }
 
   // ── Helper: check if Florence-2 is installed ──
   function checkFlorenceInstalled() {
@@ -1964,6 +1994,23 @@ router.post('/session/:id/message', async (req, res) => {
     const imageAttachments = attachments.filter(a => SUPPORTED_IMAGE_MIME.includes(a.mimeType));
     const nonImageAttachments = attachments.filter(a => !SUPPORTED_IMAGE_MIME.includes(a.mimeType));
 
+    // ── 视频附件：抽帧并入图片识别通道（native/florence/tesseract 统一复用） ──
+    const videoFrameNotes = [];
+    const videoAttachments = attachments.filter(a => SUPPORTED_VIDEO_MIME.includes(a.mimeType)
+      && (a.originalName || a.fileName || '').toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/));
+    // 把视频抽帧结果合并进 imageAttachments，后续原生图片/抽帧图一起走识别
+    if (videoAttachments.length > 0) {
+      for (const v of videoAttachments) {
+        const frames = extractVideoFrames(v.path, 6);
+        if (frames && frames.length > 0) {
+          imageAttachments.push(...frames);
+          videoFrameNotes.push(`${v.originalName || v.fileName} 已抽 ${frames.length} 帧进行分析`);
+        } else {
+          videoFrameNotes.push(`${v.originalName || v.fileName} 视频抽帧失败，仅以文本提示`);
+        }
+      }
+    }
+
     // Build text info for non-image attachments
     const fileLines = nonImageAttachments.map(a => {
       const name = a.fileName || a.originalName || '';
@@ -2011,7 +2058,8 @@ router.post('/session/:id/message', async (req, res) => {
     const textPrefix = [
       '用户上传了以下文件：',
       allFileLines,
-      extractedBlocks.join('\n')
+      extractedBlocks.join('\n'),
+      ...(videoFrameNotes.length ? ['\n' + videoFrameNotes.map(n => '🎬 ' + n).join('\n')] : [])
     ].filter(Boolean).join('\n');
 
     // No images: plain text
@@ -2104,17 +2152,35 @@ router.post('/session/:id/message', async (req, res) => {
 
   // Determine available strategies (top-priority first)
   const hasImages = attachments.some(a => SUPPORTED_IMAGE_MIME.includes(a.mimeType));
+  const hasVideos = attachments.some(a => SUPPORTED_VIDEO_MIME.includes(a.mimeType)
+    && (a.originalName || a.fileName || '').toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/));
   const florenceInstalled = checkFlorenceInstalled();
 
   // Check if model supports vision (avoid unnecessary native attempts)
+  // 识别实际可用的多模态模型：deepseek vision 系列、glm、qwen-vl、gpt-4o/gemini、claude vision
   const modelName = (body.options?.model || '').toLowerCase();
-  const modelIsVision = /claude.*(sonnet|opus)/i.test(modelName)
-    || /gpt-4o|gemini/i.test(modelName)
-    || /claude-3[.-]?5/i.test(modelName);
+  const modelIsVision = /claude.*(sonnet|opus|vision)/i.test(modelName)
+    || /gpt-4o|gpt-4\.1|gemini|vision/i.test(modelName)
+    || /claude-3[.-]?5/i.test(modelName)
+    || /glm|qwen.*vl|qwenvl/i.test(modelName);
 
-  const promptStrategies = hasImages
-    ? [...(modelIsVision ? ['native'] : []), ...(florenceInstalled ? ['florence'] : []), 'text']
-    : ['text'];
+  // 图像识别方式：auto(跟随模型) | local(强制本地识别) | backend(强制后端模型识别)
+  // 由输入框下方切换按钮通过 body.options.visionMode 传入
+  const visionMode = (body.options?.visionMode || 'auto');
+
+  let promptStrategies;
+  if (!hasImages && !hasVideos) {
+    promptStrategies = ['text'];
+  } else if (visionMode === 'local') {
+    // 强制本地识别（Florence / OCR），不经后端视觉模型
+    promptStrategies = [...(florenceInstalled ? ['florence'] : []), 'text'];
+  } else if (visionMode === 'backend') {
+    // 强制后端多模态模型识别；native 失败时仍回退本地/文字（沿用现有兜底）
+    promptStrategies = ['native', ...(florenceInstalled ? ['florence'] : []), 'text'];
+  } else {
+    // auto：跟随模型是否视觉，native 优先，失败则本地/文字
+    promptStrategies = [...(modelIsVision ? ['native'] : []), ...(florenceInstalled ? ['florence'] : []), 'text'];
+  }
 
   const wantsStream = req.headers.accept?.includes('text/event-stream') || req.query.stream === '1';
 

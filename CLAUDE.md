@@ -224,3 +224,45 @@ cat ~/.claude-web-ui/bug-records/<session-uuid>.md 2>/dev/null || echo "（无�
 2. **每 Bug 必录** — 修复即记录
 3. **复用经验** — 同类 Bug 引用历史记录编号
 <!-- BUG_TRACKER_END -->
+
+## 资产系统开发记录（2026-09-04 起）
+
+### 里程碑状态
+- PRD 已完成：`~/.claude-web-ui/prd/资产生命周期管理系统PRD.md`（16章节，含数据模型/状态机/审批/盘点/里程碑）
+
+### M1 数据迁移 — 已完成 ✅
+- 清洗脚本 `asset-system/scripts/clean_assets.py`：读取4套台账+花名册 → 主数据字典 + 4286张资产主卡，保留来源追溯、拆卡合并组(group_key)、SN归一
+- 建表脚本 `asset-system/sql/schema.sql`：19张表（主数据/用户角色/资产核心/审批/盘点/审计）
+- 导入脚本 `asset-system/scripts/import_to_mysql.py`：主数据+551名用户+4286主卡+初始流水入库
+- 验证脚本 `asset-system/scripts/verify_migration.py`：数量/原值/覆盖率校验通过
+
+### 关键数据结论
+- 资产主卡 4286 张（卡片台账3650 + 设备新增272 + 手工台账364）
+- 原值合计 3.206亿，净值合计 3448.8万
+- SN 覆盖率 75%，责任人/位置 100%，类别中文 100%
+- 识别拆卡组 5 个涉 27 张（HP笔记本/服务器/防火墙/电视/服务器42）
+
+### 数据库
+- 库 `asset_system`（utf8mb4），应用账号 `asset_app/asset_app_pass`@localhost/127.0.0.1
+- 后续里程碑：M2资产档案 → M3生命周期 → M4审批 → M5盘点 → M6 H5 → M7报表
+
+### M8 登录/权限/审批人/审批追踪 — 已完成 ✅
+- **身份后端**：`app/auth/`（jwt.py 签发/校验、depends.py 依赖注入、ldap_adapter.py 预留 LDAP 适配、schema_m8.py 幂等建表）；`app/routes/auth_api.py`：`/api/auth/login|refresh|me|change-password|reset-password`
+- **中间件**：`IdentityMiddleware` 解析 JWT → 把 `request.state.user/operator/operator_empno` 注入；动作接口均经 `_operator(request)` 取真实身份，前端不传 operator 时回落 `admin`（兼容旧调用）
+- **流程审批人**：`approval.py::resolve_approver()` 按资产当前部门/目标组织/角色解析节点审批人（dept_manager_empno→资产管理员角色→财务→兜底 admin）；`flow_ticket.approver_empno` 落库
+- **审批追踪+改派**：`get_ticket()` 返回 `trace` 时间线；`/api/approval/tickets/{id}/reassign` + `/candidates`；非当前审批人审批返回 403
+- **首页数据权限**：`assets_api._scope(request)` 按角色 X（sys_admin 全量/asset_admin 本组织/dept_manager 本部门/employee 只看自己名下），对列表、筛选下拉、统计保持一致过滤
+- **员工端身份化**：`self_api` 全部 `empno = Depends(me)`，不再接受前端传入 empno（杜绝假冒）；mobile.html 移除「身份切换下拉」→ 强制登录页
+- **前端登录**：新增 `web/dist/login.html`、`change-password.html`、`auth.js`（token→localStorage、fetch 加 Bearer、401 跳登录、assetMe 回填顶栏姓名）；lification PC 四页均接入，`init()` 改到 `DOMContentLoaded` 触发
+- **建表/种子**：`sys_user_login`（PBKDF2 哈希，初始密码=工号，首登强制改密）；`sys_dept.dept_manager_empno`、`flow_ticket.approver_empno`/`approve_name` 列；`seed_auth.ensure()` 幂等，启动自动执行（526 名在职用户 + YCKJ0001=sys_admin）。
+- **内置默认超管 `admin`**：`seed_auth._bootstrap_admin()` 幂等创建（仅 `sys_user_login.empno='admin'` 不存在时），同时补 `sys_user('admin','系统管理员')` 一行保证登录链路；初始密码 = env `ASSET_ADMIN_PASSWORD` 或安全随机（控制台打印一次），`need_change_pwd=1` 首登强制改密，二次重启不重置密码。
+
+### 超管资产档案编辑 — 已完成 ✅
+- **功能**：超级管理员（`sys_admin`）在资产列表详情页可直接编辑资产档案，每次编辑留字段级变更记录。
+- **可编辑字段白名单**（`app/services/assets.py::EDITABLE_FIELDS`）：基础档案（名称/类别/规格/型号/SN/区域/存放位置/供应商/发票号/使用日期）+ 财务价值（原值/累计折旧/月折旧/使用月限）。**净值后端重算 = 原值 − 累计折旧**，不信任前端传值。
+- **不可编辑**：`asset_no`（业务主键）、`status`（生命周期状态机管控）、**归属类**（组织/使用部门/管理部门/负责人——与 status 强绑定，应走生命周期领用/调拨动作，避免"闲置资产却有负责人"的矛盾）、系统字段（version/deleted/source_*/qr_code 等）。
+- **字段级审计**：复用既有 `op_audit_log` 表（`biz_type='asset'`），`before_val`/`after_val` 仅含实际变更字段（JSON）；`get_asset()` 返回 `changes`（区别于生命周期 `movements`）。admin.html 审计 tab 经 `/api/admin/audits` 可见。
+- **乐观锁**：`asset_card.version` +1，payload.version 与库内不符或 `UPDATE WHERE version=%s` rowcount=0 均拒绝（409 提示刷新）。
+- **端点**：`PUT /api/assets/{asset_id}`（`Depends(require_role('sys_admin'))`，非超管 403）；路由用 `model_dump(exclude_unset=True)` 保留前端显式传的 null（清空意图），排除未提交字段。
+- **前端**：`web/dist/index.html` 详情 modal 头部超管可见「编辑」按钮（`window.assetUser.role`，由 `loadMe()` 写入）→ 切换表单模式（类别下拉复用 `/api/assets/filters`）→ 保存调 PUT → 新增「字段变更记录」段渲染 `a.changes`（旧值→新值）。
+- **关键避坑**：① Pydantic `exclude_none=True` 会丢弃显式 null（清空数值失效），改用 `exclude_unset=True`；② 类别只改 `category_name` 不动 `category_code`（前端无 name→code 反查表，清空 code 会丢编码）。

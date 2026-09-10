@@ -64,9 +64,13 @@ export default function ExecutionBar() {
 
   const tok = tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   const cacheEl = tok.cacheRead > 0 ? <span key="cache">📥 {fmtTok(tok.cacheRead)}</span> : null;
+  // 每秒输出 token 数（整体平均吞吐 = 累计输出 / 总耗时；含工具等待，调工具多时偏低）
+  const tps = elapsed > 0 ? (tok.output / elapsed) : 0;
+  const tpsEl = <span key="tps">⚡ {tps.toFixed(1)} tok/s</span>;
   const tokEls = [];
   if (!done) {
-    tokEls.push(<span key="io">↑↓ {fmtTok(tok.input)}</span>);
+    // 执行中：SDK 不报真实 usage，output 为文本长度估算值（≈），input 不可知故不显示
+    tokEls.push(<span key="out">↓≈ {fmtTok(tok.output)}</span>);
     if (cacheEl) tokEls.push(cacheEl);
   } else {
     if (tok.input > 0) tokEls.push(<span key="in">↑ {fmtTok(tok.input)}</span>);
@@ -87,11 +91,11 @@ export default function ExecutionBar() {
       )}</span>
       {!done && (
         <span className="exec-bar-meta">
-          ({fmtTime(elapsed)} · {tokEls} · {phase})
+          ({fmtTime(elapsed)} · {tokEls} · {phase} · {tpsEl})
         </span>
       )}
       {done && hasTok && (
-        <span className="exec-bar-summary">({fmtTime(elapsed)}) {tokEls}</span>
+        <span className="exec-bar-summary">({fmtTime(elapsed)}) {tokEls} {tpsEl}</span>
       )}
       {cost != null && (
         <span className="exec-bar-cost">{currency || '$'}{cost.toFixed(4)}</span>

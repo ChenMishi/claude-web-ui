@@ -72,3 +72,8 @@ plugins/andrej-karpathy-skills/
 
 # 备份文件
 *.bak
+
+# 运行时敏感数据与独立子仓库（禁止入库）
+asset_jwt_secret
+prd/
+asset-system/

@@ -63,6 +63,7 @@ const initialState = {
   currentModel: loadState('currentModel', ''),
   systemPrompt: loadState('systemPrompt', ''),
   displayMode: loadState('displayMode', 'full'),
+  visionMode: loadState('visionMode', 'auto'), // auto | local | backend（图像识别方式）
   execStatus: {
     phase: 'idle', // idle | thinking | running | responding | done
     detail: '',
@@ -206,28 +207,40 @@ function reducer(state, action) {
       const targetSid = action.targetSessionId;
       const currentKey = state.currentSessionId || '__pending__';
       const isCurrent = !targetSid || targetSid === currentKey;
+      // 只定位"最后一条流式/助手类消息"，绝不碰 user 气泡：
+      // 跨会话并发 / 排队重发时数组末尾可能是 user 消息，若按 length-1 更新，
+      // 会把 assistant 的回复文本写进用户气泡，导致"助手回复显示成用户消息"（刷新后才恢复）。
+      const locateable = (m) => m.role === 'assistant' || m.role === 'thinking' || m.role === 'tool';
+      const idxOf = (arr) => {
+        for (let i = arr.length - 1; i >= 0; i--) {
+          if (locateable(arr[i])) return i;
+        }
+        return -1;
+      };
       if (isCurrent) {
-        if (state.chatMessages.length === 0) return state;
+        const target = idxOf(state.chatMessages);
+        if (target < 0) return state;
         const msgs = [...state.chatMessages];
         if (action.payload === null) {
-          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], streaming: false };
+          msgs[target] = { ...msgs[target], streaming: false };
           const newCache = { ...state.messageCache };
           newCache[currentKey] = msgs;
           saveCache(newCache);
           next = { ...state, chatMessages: msgs, messageCache: newCache };
         } else {
-          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: action.payload };
+          msgs[target] = { ...msgs[target], content: action.payload };
           next = { ...state, chatMessages: msgs };
         }
       } else {
         const newCache = { ...state.messageCache };
         const cached = [...(newCache[targetSid] || [])];
-        if (cached.length === 0) { next = state; break; }
+        const target = idxOf(cached);
+        if (target < 0) { next = state; break; }
         if (action.payload === null) {
-          cached[cached.length - 1] = { ...cached[cached.length - 1], streaming: false };
+          cached[target] = { ...cached[target], streaming: false };
           saveCache(newCache);
         } else {
-          cached[cached.length - 1] = { ...cached[cached.length - 1], content: action.payload };
+          cached[target] = { ...cached[target], content: action.payload };
         }
         newCache[targetSid] = cached;
         next = { ...state, messageCache: newCache };
@@ -344,12 +357,21 @@ function reducer(state, action) {
     case 'EXEC_TOKENS': {
       const cur = state.execStatus.tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
       const add = action.payload || {};
+      // SDK streaming 中间消息 usage 全为 0，只有 output>0 才是真实值；
+      // 否则保留估算值（见 EXEC_ESTIMATE），不被 0 覆盖。
+      const realOut = (add.output || 0) > 0 ? cur.output + add.output : cur.output;
       next = { ...state, execStatus: { ...state.execStatus, tokens: {
-        input: cur.input + (add.input || 0),
-        output: cur.output + (add.output || 0),
+        input: (add.input || 0) > 0 ? cur.input + add.input : cur.input,
+        output: realOut,
         cacheRead: cur.cacheRead + (add.cacheRead || 0),
         cacheWrite: cur.cacheWrite + (add.cacheWrite || 0),
       }}};
+      break;
+    }
+    // 执行中用文本长度估算 output token（SDK 中间消息 usage 恒为 0，无法实时拿真实值）
+    case 'EXEC_ESTIMATE': {
+      const cur = state.execStatus.tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+      next = { ...state, execStatus: { ...state.execStatus, tokens: { ...cur, output: action.payload || 0 } } };
       break;
     }
     case 'EXEC_DONE':
@@ -462,6 +484,7 @@ export function AppContextProvider({ children }) {
   const execPhase = useCallback((payload) => dispatch({ type: 'EXEC_PHASE', payload }), []);
   const execTick = useCallback(() => dispatch({ type: 'EXEC_TICK' }), []);
   const execTokens = useCallback((payload) => dispatch({ type: 'EXEC_TOKENS', payload }), []);
+  const execEstimate = useCallback((payload) => dispatch({ type: 'EXEC_ESTIMATE', payload }), []);
   const execDone = useCallback((payload) => dispatch({ type: 'EXEC_DONE', payload }), []);
   const execReset = useCallback(() => dispatch({ type: 'EXEC_RESET' }), []);
   const finishAllStreaming = useCallback(() => dispatch({ type: 'FINISH_ALL_STREAMING' }), []);
@@ -591,7 +614,7 @@ export function AppContextProvider({ children }) {
     setScheduledTasks, markTaskSessionRead, addPendingTaskSession, notifyTaskOutput,
     addUnreadSession, markUnreadSession, searchScrollTo,
     setView, toggleSidebar, setSetting,
-    execStart, execPhase, execTick, execTokens, execDone, execReset,
+    execStart, execPhase, execTick, execTokens, execEstimate, execDone, execReset,
     addTask, bindTaskId, updateTask, clearTasks, setMainTask, updateMainTask,
     setUpdateAvailable,
     loadAvailableModels, switchCurrentModel,

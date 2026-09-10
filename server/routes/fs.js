@@ -389,6 +389,8 @@ router.post('/fs/chat-upload', requireAuth, (req, res, next) => {
         '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         '.zip': 'application/zip', '.tar': 'application/x-tar', '.gz': 'application/gzip',
+        '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+        '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska',
       };
       const mimeType = mimeTypes[ext.toLowerCase()] || file.mimetype || 'application/octet-stream';
 
