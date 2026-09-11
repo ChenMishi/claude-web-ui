@@ -885,11 +885,13 @@ export default function ChatView() {
     // 仅当前会话更新全局 execStatus（ExecutionBar 等）
     const lbExecPhase = (payload) => { if (mySessionId === currentSessionId) execPhase(payload); };
     const lbExecTokens = (payload) => { if (mySessionId === currentSessionId) execTokens(payload); };
-    // 估算 output token：跨轮次累计字符数 / 3（中英混合粗估），仅当前会话更新
+    // 估算 output token：跨轮次累计字符，按 CJK/ASCII 区分启发式（CJK≈1.5 tok/字，ASCII≈4字符≈1tok→0.25/字符），仅当前会话更新
     const lbExecEstimate = () => {
       if (mySessionId !== currentSessionId) return;
-      const chars = lockedOutCharsRef.current + roundThinkingCharsRef.current + textAccum.current.length;
-      execEstimate(Math.ceil(chars / 3));
+      const combined = lockedOutCharsRef.current + roundThinkingCharsRef.current + textAccum.current;
+      const cjkCount = (combined.match(/[一-鿿぀-ヿ가-힯]/g) || []).length;
+      const other = combined.length - cjkCount;
+      execEstimate(Math.round(cjkCount * 1.5 + other * 0.25));
     };
 
     // Build user message content — attachment metadata rendered separately in ChatMessage

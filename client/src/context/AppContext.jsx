@@ -68,7 +68,10 @@ const initialState = {
     phase: 'idle', // idle | thinking | running | responding | done
     detail: '',
     startTime: 0,
-    elapsed: 0,
+    elapsed: 0,        // 总墙钟耗时（含工具等待）
+    genElapsed: 0,     // 纯生成耗时（扣除工具等待），tps 用此作分母
+    toolWaitMs: 0,     // 已结束的工具等待区间累计毫秒
+    toolStart: 0,      // 当前工具等待区间起点（0=不在工具等待中）
     tokens: null,  // { input, output, cacheRead, cacheWrite }
     cost: null,
     currency: null,
@@ -348,12 +351,30 @@ function reducer(state, action) {
     }
     // Execution status actions
     case 'EXEC_START':
-      next = { ...state, tasks: [], mainTask: null, taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: [], mainTask: null } }, execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
-    case 'EXEC_PHASE':
-      next = { ...state, execStatus: { ...state.execStatus, ...action.payload } }; break;
-    case 'EXEC_TICK':
+      next = { ...state, tasks: [], mainTask: null, taskCache: { ...state.taskCache, [state.currentSessionId || '__pending__']: { tasks: [], mainTask: null } }, execStatus: { phase: 'thinking', detail: '', startTime: Date.now(), elapsed: 0, genElapsed: 0, toolWaitMs: 0, toolStart: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, cost: null } }; break;
+    case 'EXEC_PHASE': {
+      const prevPhase = state.execStatus.phase;
+      const newPhase = action.payload.phase;
+      let { toolWaitMs, toolStart } = state.execStatus;
+      // 进入 running → 记工具等待起点；离开 running → 累加并清零
+      if (newPhase === 'running' && prevPhase !== 'running') {
+        toolStart = Date.now();
+      } else if (newPhase !== 'running' && prevPhase === 'running' && toolStart > 0) {
+        toolWaitMs += Date.now() - toolStart;
+        toolStart = 0;
+      }
+      next = { ...state, execStatus: { ...state.execStatus, ...action.payload, toolWaitMs, toolStart } };
+      break;
+    }
+    case 'EXEC_TICK': {
       if (state.execStatus.startTime === 0) return state; // guard: don't tick when idle
-      next = { ...state, execStatus: { ...state.execStatus, elapsed: Math.floor((Date.now() - state.execStatus.startTime) / 1000) } }; break;
+      const now = Date.now();
+      const es = state.execStatus;
+      const liveToolWait = es.toolStart > 0 ? (now - es.toolStart) : 0;
+      const genMs = (now - es.startTime) - (es.toolWaitMs + liveToolWait);
+      next = { ...state, execStatus: { ...es, elapsed: Math.floor((now - es.startTime) / 1000), genElapsed: Math.max(Math.floor(genMs / 1000), 0) } };
+      break;
+    }
     case 'EXEC_TOKENS': {
       const cur = state.execStatus.tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
       const add = action.payload || {};
@@ -374,8 +395,19 @@ function reducer(state, action) {
       next = { ...state, execStatus: { ...state.execStatus, tokens: { ...cur, output: action.payload || 0 } } };
       break;
     }
-    case 'EXEC_DONE':
-      next = { ...state, mainTask: state.mainTask ? { ...state.mainTask, status: 'completed' } : null, execStatus: { ...state.execStatus, phase: 'done', tokens: action.payload.tokens, cost: action.payload.cost, currency: action.payload.currency, elapsed: state.execStatus.startTime > 0 ? Math.floor((Date.now() - state.execStatus.startTime) / 1000) : state.execStatus.elapsed } }; break;
+    case 'EXEC_DONE': {
+      const now = Date.now();
+      const es = state.execStatus;
+      // 若结束时仍处工具等待，先收尾累加
+      let toolWaitMs = es.toolWaitMs;
+      let toolStart = es.toolStart;
+      if (toolStart > 0) { toolWaitMs += now - toolStart; toolStart = 0; }
+      const elapsed = es.startTime > 0 ? Math.floor((now - es.startTime) / 1000) : es.elapsed;
+      const genMs = es.startTime > 0 ? (now - es.startTime) - toolWaitMs : 0;
+      const genElapsed = Math.max(Math.floor(genMs / 1000), 0);
+      next = { ...state, mainTask: state.mainTask ? { ...state.mainTask, status: 'completed' } : null, execStatus: { ...es, phase: 'done', tokens: action.payload.tokens, cost: action.payload.cost, currency: action.payload.currency, elapsed, genElapsed, toolWaitMs, toolStart } };
+      break;
+    }
     case 'EXEC_RESET':
       next = { ...state, execStatus: initialState.execStatus }; break;
     case 'TASK_CREATE': {

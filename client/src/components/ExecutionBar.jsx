@@ -31,7 +31,7 @@ const TOOL_STATUS = {
 
 export default function ExecutionBar() {
   const { execStatus, activeStreams } = useApp();
-  const { phase, detail, elapsed, tokens, cost, currency } = execStatus;
+  const { phase, detail, elapsed, genElapsed, tokens, cost, currency } = execStatus;
 
   if (phase === 'idle') return null;
 
@@ -64,9 +64,10 @@ export default function ExecutionBar() {
 
   const tok = tokens || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   const cacheEl = tok.cacheRead > 0 ? <span key="cache">📥 {fmtTok(tok.cacheRead)}</span> : null;
-  // 每秒输出 token 数（整体平均吞吐 = 累计输出 / 总耗时；含工具等待，调工具多时偏低）
-  const tps = elapsed > 0 ? (tok.output / elapsed) : 0;
-  const tpsEl = <span key="tps">⚡ {tps.toFixed(1)} tok/s</span>;
+  // 每秒输出 token 数（纯生成吞吐 = 累计输出 / 纯生成耗时；已扣除工具等待，调工具多时不再偏低）
+  const genT = (typeof genElapsed === 'number' ? genElapsed : null) ?? elapsed;
+  const tps = genT > 0 ? (tok.output / genT) : 0;
+  const tpsEl = <span key="tps" title="已扣除工具等待的纯生成速度">⚡ {tps.toFixed(1)} tok/s</span>;
   const tokEls = [];
   if (!done) {
     // 执行中：SDK 不报真实 usage，output 为文本长度估算值（≈），input 不可知故不显示

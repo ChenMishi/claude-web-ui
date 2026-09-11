@@ -1077,8 +1077,13 @@ function buildSDKOptions(runtime, body, authUser) {
     }
   } catch {}
 
+  // 行为指令型注入仅对 Claude 原生模型生效：第三方模型（Qwen/GLM/DeepSeek 等走
+  // ApiRouter）无 Bash 工具循环，强指令会毒化小模型回复——如 Qwen3.8-27B 把
+  // "每轮必须先读 bug 记录"复述成元行为，整条回复变自言自语而非回答用户。
+  const isThirdPartyModel = typeof agentOptions.model === 'string' && agentOptions.model.includes('/');
+
   // Inject Superpowers using-superpowers bootstrap if skills are synced
-  try {
+  if (!isThirdPartyModel) try {
     const superpowersBootstrap = path.join(os.homedir(), '.claude', 'skills', 'using-superpowers.md');
     if (fs.existsSync(superpowersBootstrap)) {
       const content = fs.readFileSync(superpowersBootstrap, 'utf8');
@@ -1092,8 +1097,8 @@ function buildSDKOptions(runtime, body, authUser) {
     }
   } catch {}
 
-  // Inject Bug Tracker instructions if skill is synced
-  try {
+  // Inject Bug Tracker instructions if skill is synced (Claude native only — see isThirdPartyModel)
+  if (!isThirdPartyModel) try {
     const bugTrackerSkill = path.join(os.homedir(), '.claude', 'skills', 'bug-tracker.md');
     if (fs.existsSync(bugTrackerSkill)) {
       const content = fs.readFileSync(bugTrackerSkill, 'utf8');

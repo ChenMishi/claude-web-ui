@@ -291,7 +291,7 @@ function createProxy() {
         if (requestBody) headers['content-length'] = String(Buffer.byteLength(requestBody));
       }
 
-      const upstream = await fetch(upstreamUrl, fetchOptions);
+      let upstream = await fetch(upstreamUrl, fetchOptions);
 
       // ── 400 兜底重试（最后防线）──
       // 结构性 400（空块/system 错位/role 错位等）若基础清洗遗漏，用更激进清洗（剥 thinking、
