@@ -64,6 +64,9 @@ const initialState = {
   systemPrompt: loadState('systemPrompt', ''),
   displayMode: loadState('displayMode', 'full'),
   visionMode: loadState('visionMode', 'auto'), // auto | local | backend（图像识别方式）
+  activeSkill: null,   // { name, displayName, icon } — 按会话隔离
+  activeAgent: null,   // { id, name, description, emoji, department } — 按会话隔离
+  sessionSettings: loadState('sessionSettings', {}),  // sessionId → { currentModel, visionMode, permissionLevel, displayMode, activeSkill, activeAgent }
   execStatus: {
     phase: 'idle', // idle | thinking | running | responding | done
     detail: '',
@@ -147,8 +150,18 @@ function reducer(state, action) {
       );
       // Restore tasks for target session
       const cachedTasks = taskCache[sid] || { tasks: [], mainTask: null };
+      // ── 按会话隔离配置：先快照当前会话的配置，再还原目标会话的配置 ──
+      const sessionSettings = { ...state.sessionSettings };
+      const SCOPED = ['currentModel', 'visionMode', 'permissionLevel', 'displayMode', 'activeSkill', 'activeAgent'];
+      sessionSettings[saveKey] = { ...(sessionSettings[saveKey] || {}) };
+      for (const k of SCOPED) sessionSettings[saveKey][k] = state[k];
+      // 取目标会话配置：存过就用存的，没存过沿用当前（=新建继承当前配置语义）
+      const target = sessionSettings[sid] || {};
+      const restoredSettings = {};
+      for (const k of SCOPED) restoredSettings[k] = target[k] !== undefined ? target[k] : state[k];
+      try { localStorage.setItem('claude-ui:sessionSettings', JSON.stringify(sessionSettings)); } catch {}
       saveCache(cache);
-      next = { ...state, currentSessionId: sid, chatMessages: restored, messageCache: cache, tasks: cachedTasks.tasks, mainTask: cachedTasks.mainTask, taskCache };
+      next = { ...state, currentSessionId: sid, chatMessages: restored, messageCache: cache, tasks: cachedTasks.tasks, mainTask: cachedTasks.mainTask, taskCache, sessionSettings, ...restoredSettings };
       break;
     }
     case 'SET_SESSION_ID': {
@@ -174,7 +187,16 @@ function reducer(state, action) {
       // 新建会话 'new' → 真实 ID，同步更新 busySessions
       const bs3 = new Set(state.busySessions);
       if (bs3.has('new')) { bs3.delete('new'); bs3.add(action.payload); }
-      next = { ...state, currentSessionId: action.payload, chatMessages: merged, messageCache: cache2, busySessions: bs3 };
+      // ── 迁移按会话配置槽位：__pending__/new → 真实 sid ──
+      const ss3 = { ...state.sessionSettings };
+      const fromKey = ss3.__pending__ ? '__pending__' : (ss3['new'] ? 'new' : null);
+      if (fromKey) {
+        ss3[action.payload] = ss3[fromKey];
+        delete ss3['__pending__'];
+        delete ss3['new'];
+        try { localStorage.setItem('claude-ui:sessionSettings', JSON.stringify(ss3)); } catch {}
+      }
+      next = { ...state, currentSessionId: action.payload, chatMessages: merged, messageCache: cache2, busySessions: bs3, sessionSettings: ss3 };
       break;
     }
     case 'SET_MESSAGES': {
@@ -327,9 +349,19 @@ function reducer(state, action) {
     case 'SET_UPDATE':
       localStorage.setItem('claude-ui:updateAvailable', JSON.stringify(action.payload));
       next = { ...state, updateAvailable: action.payload }; break;
-    case 'SET_SETTING':
-      localStorage.setItem(`claude-ui:${action.payload.key}`, JSON.stringify(action.payload.value));
-      next = { ...state, [action.payload.key]: action.payload.value }; break;
+    case 'SET_SETTING': {
+      const { key, value } = action.payload;
+      localStorage.setItem(`claude-ui:${key}`, JSON.stringify(value));
+      // 按会话隔离的配置 key：写入当前会话槽位，切会话时还原
+      const SESSION_SCOPED_KEYS = ['currentModel', 'visionMode', 'permissionLevel', 'displayMode', 'activeSkill', 'activeAgent'];
+      let sessionSettings = state.sessionSettings;
+      const sid = state.currentSessionId || '__pending__';
+      if (SESSION_SCOPED_KEYS.includes(key)) {
+        sessionSettings = { ...sessionSettings, [sid]: { ...(sessionSettings[sid] || {}), [key]: value } };
+        try { localStorage.setItem('claude-ui:sessionSettings', JSON.stringify(sessionSettings)); } catch {}
+      }
+      next = { ...state, [key]: value, sessionSettings }; break;
+    }
     case 'SET_MODELS': {
       const newAvailable = action.payload.models || [];
       const newGroups = action.payload.groups || {};
@@ -511,6 +543,9 @@ export function AppContextProvider({ children }) {
   const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), []);
   const setUpdateAvailable = useCallback((v) => dispatch({ type: 'SET_UPDATE', payload: v }), []);
   const setSetting = useCallback((key, value) => dispatch({ type: 'SET_SETTING', payload: { key, value } }), []);
+  // 技能/角色按会话隔离：走 SET_SETTING，自动落当前会话槽位
+  const setActiveSkill = useCallback((skill) => dispatch({ type: 'SET_SETTING', payload: { key: 'activeSkill', value: skill } }), []);
+  const setActiveAgent = useCallback((agent) => dispatch({ type: 'SET_SETTING', payload: { key: 'activeAgent', value: agent } }), []);
 
   const execStart = useCallback(() => dispatch({ type: 'EXEC_START' }), []);
   const execPhase = useCallback((payload) => dispatch({ type: 'EXEC_PHASE', payload }), []);
@@ -645,7 +680,7 @@ export function AppContextProvider({ children }) {
     streamStart, streamEnd, setSessionExecStatus,
     setScheduledTasks, markTaskSessionRead, addPendingTaskSession, notifyTaskOutput,
     addUnreadSession, markUnreadSession, searchScrollTo,
-    setView, toggleSidebar, setSetting,
+    setView, toggleSidebar, setSetting, setActiveSkill, setActiveAgent,
     execStart, execPhase, execTick, execTokens, execEstimate, execDone, execReset,
     addTask, bindTaskId, updateTask, clearTasks, setMainTask, updateMainTask,
     setUpdateAvailable,

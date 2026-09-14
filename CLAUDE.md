@@ -266,3 +266,22 @@ cat ~/.claude-web-ui/bug-records/<session-uuid>.md 2>/dev/null || echo "（无�
 - **端点**：`PUT /api/assets/{asset_id}`（`Depends(require_role('sys_admin'))`，非超管 403）；路由用 `model_dump(exclude_unset=True)` 保留前端显式传的 null（清空意图），排除未提交字段。
 - **前端**：`web/dist/index.html` 详情 modal 头部超管可见「编辑」按钮（`window.assetUser.role`，由 `loadMe()` 写入）→ 切换表单模式（类别下拉复用 `/api/assets/filters`）→ 保存调 PUT → 新增「字段变更记录」段渲染 `a.changes`（旧值→新值）。
 - **关键避坑**：① Pydantic `exclude_none=True` 会丢弃显式 null（清空数值失效），改用 `exclude_unset=True`；② 类别只改 `category_name` 不动 `category_code`（前端无 name→code 反查表，清空 code 会丢编码）。
+
+### 性能/健壮性/体验优化 — 已完成 ✅（2026-09-11）
+
+**性能优化（连接池 + 审批缓存 + 合并连接）**
+- **连接池**：`app/db.py` 用 `queue.Queue` 实现轻量池化（零新依赖，池大小 `ASSET_DB_POOL` 默认 8）。`get_conn()` 接口签名不变，内部借出代理 `_PooledConn`；`conn.close()` 归还到池而非真关闭，归还前 `rollback()` 清理残留事务。借出前 `ping(reconnect=True)` 检活。全部 49 处调用点零改动。
+- **审批流程定义缓存**：`approval.py` 加模块级 `_FLOW_CACHE`，`ensure_flow_defs` 首次加载后缓存，后续直接返回（不再查库）。`main.py` startup 预热 `ensure_flow_defs(conn)+commit` 填充缓存，运行期纯读缓存。
+- **审批人解析合并连接**：`resolve_approver` 及 `_emp_name/_role_first_empno/_dept_manager/_node_type_by_seq` 全部接受可选 `conn` 参数；`apply`/`approve`/`get_ticket`/`reassign` 传入已有事务连接复用，单次审批从 6+ 次独立连接降为 1 次。
+
+**健壮性优化（全局异常 + 统一错误格式）**
+- `main.py` 注册三类全局异常处理器：`StarletteHTTPException`→`{"error":...}`；`RequestValidationError`→422 带字段级 details；兜底 `Exception`→500 友好提示不泄露堆栈。
+- `assets_api.py`/`approval_api.py` 的"不存在"从 200+`{"error":...}` 改为 404。
+- `/api/health` 附带 `db_pool` 连接池状态（size/created/free）便于运维诊断。
+
+**前端体验优化（toast + URL 持久化）**
+- `index.html` 新增 toast 轻提示组件（CSS+JS），7 处 `alert()` 全部替换为 `toast(msg, type)`（ok/err/warn 三色）。
+- 筛选/分页/排序 URL 持久化：`stateToURL`（每次 loadList 同步到 URL）+ `urlToState`（init 从 URL 恢复）+ `applyStateToForm`（回填表单控件），刷新不丢查询条件。
+- 导出 CSV(UTF-8 BOM) 功能已存在，无需重做。
+
+**关键避坑**：池化连接 + autocommit=False 下，"幂等写入"类函数（如 `ensure_flow_defs`）不能在运行期只读路径触发后依赖 commit——归还回滚会静默吞掉 INSERT。应在 startup 预热并 commit，运行期纯读缓存（详见 Bug #12）。

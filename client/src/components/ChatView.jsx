@@ -78,6 +78,7 @@ export default function ChatView() {
     busySessions, taskOutputTick, notifyTaskOutput, addUnreadSession,
     searchScrollTarget,
     availableModels, modelGroups, visionMode,
+    activeSkill, setActiveSkill, activeAgent, setActiveAgent,
   } = useApp();
   const busyRef = useRef(busySessions);
   busyRef.current = busySessions;
@@ -117,8 +118,7 @@ export default function ChatView() {
   const [toolConfirm, setToolConfirm] = useState(null); // { tool, action, input } — separate from askUser
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [activeSkill, setActiveSkill] = useState(null); // { name, displayName, icon }
-  const [activeAgent, setActiveAgent] = useState(null); // { id, name, description, emoji, department }
+  // activeSkill / activeAgent 已提升到 AppContext，按会话隔离（切会话自动还原）
   const [queuedMessages, setQueuedMessages] = useState([]); // 排队中的消息
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [compacting, setCompacting] = useState(false);
