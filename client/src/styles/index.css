@@ -3633,6 +3633,18 @@ html, body, #root {
 
 .ask-user-submit:hover { background: var(--accent-hover); }
 
+.ask-user-skip {
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ask-user-skip:hover { border-color: var(--danger); color: var(--danger); }
+
 .ask-user-footer {
   display: flex;
   align-items: center;

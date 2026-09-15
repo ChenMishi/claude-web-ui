@@ -285,3 +285,20 @@ cat ~/.claude-web-ui/bug-records/<session-uuid>.md 2>/dev/null || echo "（无�
 - 导出 CSV(UTF-8 BOM) 功能已存在，无需重做。
 
 **关键避坑**：池化连接 + autocommit=False 下，"幂等写入"类函数（如 `ensure_flow_defs`）不能在运行期只读路径触发后依赖 commit——归还回滚会静默吞掉 INSERT。应在 startup 预热并 commit，运行期纯读缓存（详见 Bug #12）。
+
+### 类别管理权限加固 + 类别下拉改取字典 — 已完成 ✅（2026-09-15）
+
+**背景**：类别管理的 CRUD（`master_data.py` 的 `cat`/`asset_category` 表 + `admin_api.py` 的 `/api/admin/dicts/{cat}` 端点 + `admin.html` 主数据字典 tab）本已存在，但两个缺陷让"超管管理类别"落不了地：
+1. **权限漏洞**：`admin_api.py` 写操作签名 `operator: str='admin'` 硬编码、无 `require_role`，任何登录用户都能改字典；前端 `admin.html::init()` 无角色守卫。
+2. **类别管理形同虚设**：资产详情编辑的类别下拉取自 `assets.py::get_filters` 的 `categories`（`SELECT category_name...FROM asset_card GROUP BY`，即资产实际用过的类别），不是 `asset_category` 字典表——在系统配置新增的类别，编辑资产时下拉里选不到。
+
+**改动**：
+- **后端 `admin_api.py`**：写操作（add/update/toggle/set_roles）改为 `user=Depends(require_role('sys_admin'))`，`operator = user.get('empno','admin')` 取真实身份；读操作（dicts/audits/users/user_roles）加 `_=Depends(get_current_user)` 至少要求登录。非超管写 → 403，无 token → 401。
+- **后端 `assets.py::get_filters`**：返回追加 `category_dict` 字段——`SELECT category_name FROM asset_category WHERE enabled=1 GROUP BY category_name ORDER BY MIN(sort_no), category_name`（去重 + 按字典序排序）。**保留原 `categories`/`category_count` 不动**（左侧菜单仍按资产数量排序）。供资产详情编辑下拉用。
+- **前端 `admin.html::init`**：加超管角色守卫——从 `localStorage['asset_user']` 取 role（缺失回退拉 `/api/auth/me`），非 `sys_admin` `alert` 并跳转首页。
+- **前端 `index.html::enterEditMode`**：`_detailCategories` 改取 `f.category_dict`（回退 `f.categories` 兼容）。保存仍只提交 `category_name` 不动 `category_code`（无 name→code 反查表）。
+- **删除采用软删**（`toggle` 置 `enabled=0`），不做物理删除，避免破坏资产关联；停用类别从编辑下拉消失，已关联资产不受影响。
+
+**关键避坑**：MySQL `ONLY_FULL_GROUP_BY` 模式下，`SELECT DISTINCT category_name ... ORDER BY sort_no` 会报错（sort_no 不在 SELECT 列表且与 DISTINCT 不兼容）。改用 `GROUP BY category_name ORDER BY MIN(sort_no), category_name` 既去重又保留字典排序。
+
+**遗留（未处理，超出本次范围）**：`admin.html` 的 `ALL_ROLES`/`ROLE_LABEL` 用 `ADMIN/SUPER_ADMIN/FINANCE/...`，与后端实际角色码 `sys_admin/asset_admin/dept_manager/employee` 不一致，导致 admin.html"分配角色"存入的 role_code 与登录签发的 role 对不上；`asset_category` 字典存在重名类别（电子设备 3 个 code 等，清洗脚本生成的冗余）。均待后续单独处理。

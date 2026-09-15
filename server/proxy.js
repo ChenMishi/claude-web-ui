@@ -216,6 +216,10 @@ function createProxy() {
             }
           }
           bodyObj.model = realModel;
+          // 剥离 provider 前缀后立即同步 requestBody，否则下方 sanitize 若返回 changed:false
+          // 不会重新序列化，requestBody 仍带 "providerId/model" 前缀 → 上游 403 无权访问。
+          // （典型受影响场景：标题生成等极简请求体，messages 干净不触发 sanitize.changed）
+          requestBody = JSON.stringify(bodyObj);
         }
         // ── 请求体结构清洗（代理层统一兜底，见 sanitizeRequestBody）──
         // SDK live 运行时的内存 messages 不经 session.js 磁盘清洗，空 text 块 / system 错位 /

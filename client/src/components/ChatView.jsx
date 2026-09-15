@@ -1062,10 +1062,13 @@ export default function ChatView() {
         lbAppend({ role: 'tool', toolResult: { tool_use_id, content: content || '', is_error, toolName } });
       },
       onAskUser: ({ questions }) => {
-        setAskUser({ questions });
+        // 绑定提问来源会话（兼容 'new' → 真实 ID 的转换），弹窗只在切到该会话时显示
+        const askSid = mySessionId === 'new' ? (newSessionIdRef.current || mySessionId) : mySessionId;
+        setAskUser({ questions, sessionId: askSid });
       },
       onToolConfirm: ({ tool, action, input }) => {
-        setToolConfirm({ tool, action, input });
+        const askSid = mySessionId === 'new' ? (newSessionIdRef.current || mySessionId) : mySessionId;
+        setToolConfirm({ tool, action, input, sessionId: askSid });
       },
       onDone: ({ sessionId: newId, tokens: doneTokens, cost, currency, artifactFiles, aborted, error }) => {
         contextRecoveryRef.current = false;  // reset context-recovery guard on any completion
@@ -1209,14 +1212,16 @@ export default function ChatView() {
   handleSendRef.current = handleSend;
 
   const handleResolveAsk = useCallback((answers) => {
-    if (!askUser || !currentSessionId) return;
+    if (!askUser) return;
+    const askSid = askUser.sessionId;  // 提问来源会话（可能与当前查看的会话不同）
+    if (!askSid) return;
     const vals = Object.values(answers.answers || answers);
     const text = vals.filter(Boolean).join('，');
     setAskUser(null);
 
     // askMode: 'send' = visible message in chat (default), 'inject' = silent
     if (text) {
-      abortSession(currentSessionId).catch(() => {});
+      abortSession(askSid).catch(() => {});
       sendingRef.current = false;
       ++execIdRef.current;
       stopTimer();
@@ -1225,18 +1230,38 @@ export default function ChatView() {
       execReset();
 
       if (askModeRef.current === 'inject') {
-        appendRef.current({ role: 'user', content: text, timestamp: Date.now() });
+        appendRef.current({ role: 'user', content: text, timestamp: Date.now() }, askSid);
       }
+      // 渲染条件已保证：能点提交时 currentSessionId === askSid，handleSend 会发到来源会话
       setTimeout(() => handleSend(text), 500);
     }
-  }, [askUser, currentSessionId, handleSend, stopTimer, finalizeStreaming, execReset]);
+  }, [askUser, handleSend, stopTimer, finalizeStreaming, execReset]);
+
+  // 跳过/关闭 AskUserQuestion 弹窗：不提交答案，中止来源会话挂起的流并复位界面
+  const handleDismissAsk = useCallback(() => {
+    if (!askUser) return;
+    const askSid = askUser.sessionId;
+    setAskUser(null);
+    if (askSid) abortSession(askSid).catch(() => {});
+    sendingRef.current = false;
+    ++execIdRef.current;
+    stopTimer();
+    if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; }
+    finalizeStreaming();
+    execReset();
+    if (askSid) {
+      appendRef.current({ role: 'system', content: '⚠️ 已跳过 Claude 的提问，对话已中止。', timestamp: Date.now() }, askSid);
+    }
+  }, [askUser, stopTimer, finalizeStreaming, execReset]);
 
   const handleToolConfirm = useCallback((allowed) => {
-    if (!toolConfirm || !currentSessionId) return;
+    if (!toolConfirm) return;
+    const askSid = toolConfirm.sessionId;  // 工具确认来源会话
+    if (!askSid) return;
     const answer = allowed ? '允许' : '拒绝';
-    resolveQuestion(currentSessionId, { answers: { q0: answer } }).catch(() => {});
+    resolveQuestion(askSid, { answers: { q0: answer } }).catch(() => {});
     setToolConfirm(null);
-  }, [toolConfirm, currentSessionId]);
+  }, [toolConfirm]);
 
   const hasMessages = chatMessages.length > 0;
   const askQs = askUser?.questions || [];
@@ -1259,8 +1284,8 @@ export default function ChatView() {
           {chatMessages.map((msg, i) => (
             <ChatMessage key={i} message={msg} />
           ))}
-          {/* AskUserQuestion dialog — embedded in chat flow */}
-          {askUser && (
+          {/* AskUserQuestion dialog — embedded in chat flow, only show in its source session */}
+          {askUser && askUser.sessionId === currentSessionId && (
             <div className="ask-user-dialog" ref={askRef}>
               <h4>💭 Claude 想确认几个问题</h4>
               {askQs.map((q, qi) => (
@@ -1306,6 +1331,9 @@ export default function ChatView() {
                 }}>
                   提交
                 </button>
+                <button className="ask-user-skip" onClick={handleDismissAsk} title="不回答，直接中止本次提问">
+                  跳过
+                </button>
                 <span className="ask-user-mode-switch">
                   <button
                     className={`ask-user-mode-btn ${askMode === 'send' ? 'active' : ''}`}
@@ -1321,8 +1349,8 @@ export default function ChatView() {
               </div>
             </div>
           )}
-          {/* Tool permission confirmation — same style as AskUserQuestion, separate logic */}
-          {toolConfirm && (
+          {/* Tool permission confirmation — same style as AskUserQuestion, separate logic, only in source session */}
+          {toolConfirm && toolConfirm.sessionId === currentSessionId && (
             <div className="ask-user-dialog" ref={askRef}>
               <h4>🔒 {toolConfirm.action}</h4>
               <div className="confirm-buttons">
